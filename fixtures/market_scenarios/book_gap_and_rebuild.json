@@ -1,0 +1,9 @@
+{
+  "origin": "SYNTHETIC",
+  "sequence_contract": "contiguous_fixture",
+  "messages": [
+    {"sequence": 1, "snapshot": true, "epoch": "a", "bid_lots": 5},
+    {"sequence": 3, "snapshot": false, "epoch": "a", "bid_lots": 5},
+    {"sequence": 4, "snapshot": true, "epoch": "b", "bid_lots": 7}
+  ]
+}

@@ -11,6 +11,7 @@ from tempfile import TemporaryDirectory
 from quantdesk.config.loader import load_config
 from quantdesk.core.events import canonical_bytes
 from quantdesk.core.ids import derive_id
+from tests.support.data_case import book_gap_and_rebuild_case
 from tests.support.engine_case import deterministic_replay_case
 
 type CaseDriver = Callable[..., dict[str, object]]
@@ -57,6 +58,7 @@ def _foundation_case(**overrides: object) -> dict[str, object]:
 
 
 register_case("foundation", _foundation_case)
+register_case("book_gap_and_rebuild", book_gap_and_rebuild_case)
 
 
 def _crash_before_commit_case(**overrides: object) -> dict[str, object]:
