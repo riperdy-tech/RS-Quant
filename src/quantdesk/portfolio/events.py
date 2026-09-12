@@ -63,6 +63,21 @@ class ReservationChanged(EventPayload):
 
 @PAYLOAD_TYPES.register
 @dataclass(frozen=True, slots=True)
+class ReservationBatchChanged(EventPayload):
+    instrument_id: str
+    reservations: tuple[ReservationChanged, ...]
+
+    def __post_init__(self) -> None:
+        if not self.reservations or any(
+            r.instrument_id != self.instrument_id for r in self.reservations
+        ):
+            raise ValueError("reservation batch requires one instrument")
+        if len({r.reservation_id for r in self.reservations}) != len(self.reservations):
+            raise ValueError("duplicate reservation in atomic batch")
+
+
+@PAYLOAD_TYPES.register
+@dataclass(frozen=True, slots=True)
 class ConversionRateObserved(EventPayload):
     base_asset: str
     quote_asset: str

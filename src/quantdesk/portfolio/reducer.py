@@ -18,6 +18,7 @@ _ACCOUNTING_EVENTS = frozenset(
         "MarkPrice",
         "FundingRateAnnounced",
         "ReservationChanged",
+        "ReservationBatchChanged",
         "ConversionRateObserved",
         "TimerFired",
     }

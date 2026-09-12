@@ -1,0 +1,8 @@
+{
+  "origin": "synthetic OMS acceptance fixture; no venue execution evidence",
+  "order_lots": 5,
+  "fill_lots": 2,
+  "duplicates": 3,
+  "execution_id": "execution-1",
+  "venue_order_id": "venue-order"
+}

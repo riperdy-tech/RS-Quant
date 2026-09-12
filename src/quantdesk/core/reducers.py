@@ -28,6 +28,7 @@ from quantdesk.persistence.event_store import (
     EconomicAliasUpdate,
     LedgerTransaction,
     OutboxInstruction,
+    OutboxStatusUpdate,
     ProjectionUpdate,
 )
 
@@ -165,6 +166,7 @@ class Reduction:
     timers: tuple[TimerRequest, ...] = ()
     cancel_timers: tuple[str, ...] = ()
     economic_aliases: tuple[EconomicAliasUpdate, ...] = ()
+    outbox_updates: tuple[OutboxStatusUpdate, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

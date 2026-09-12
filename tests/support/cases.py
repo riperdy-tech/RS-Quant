@@ -14,6 +14,7 @@ from quantdesk.core.ids import derive_id
 from tests.support.accounting_case import accounting_worked_example_case
 from tests.support.data_case import book_gap_and_rebuild_case
 from tests.support.engine_case import deterministic_replay_case
+from tests.support.oms_case import partial_fill_cancel_race_case
 
 type CaseDriver = Callable[..., dict[str, object]]
 _CASES: dict[str, CaseDriver] = {}
@@ -60,6 +61,7 @@ def _foundation_case(**overrides: object) -> dict[str, object]:
 
 register_case("foundation", _foundation_case)
 register_case("accounting_worked_example", accounting_worked_example_case)
+register_case("partial_fill_cancel_race", partial_fill_cancel_race_case)
 register_case("book_gap_and_rebuild", book_gap_and_rebuild_case)
 
 

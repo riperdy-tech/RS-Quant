@@ -68,6 +68,14 @@ class OutboxInstruction:
 
 
 @dataclass(frozen=True, slots=True)
+class OutboxStatusUpdate:
+    instruction_id: str
+    expected_status: str
+    status: str
+    event_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class ProjectionUpdate:
     table: str
     key: str
@@ -90,6 +98,7 @@ class PersistenceTransition:
     outbox_instructions: tuple[OutboxInstruction, ...] = ()
     projection_updates: tuple[ProjectionUpdate, ...] = ()
     economic_aliases: tuple[EconomicAliasUpdate, ...] = ()
+    outbox_updates: tuple[OutboxStatusUpdate, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -385,6 +394,34 @@ class EventStore:
                         instruction.expires_at,
                     ),
                 )
+            for outbox_update in transition.outbox_updates:
+                allowed = {
+                    "PENDING": {
+                        "UNKNOWN",
+                        "SENT",
+                        "EXPIRED",
+                        "BLOCKED",
+                        "CANCELED",
+                        "REJECTED",
+                        "RESOLVED",
+                    },
+                    "UNKNOWN": {"SENT", "EXPIRED", "BLOCKED", "REJECTED", "RESOLVED"},
+                    "SENT": {"UNKNOWN", "RESOLVED"},
+                }
+                if outbox_update.event_id not in events or outbox_update.status not in allowed.get(
+                    outbox_update.expected_status, set()
+                ):
+                    raise ValueError("invalid outbox state transition or missing causal event")
+                changed = connection.execute(
+                    "UPDATE outbox SET status=? WHERE instruction_id=? AND status=?",
+                    (
+                        outbox_update.status,
+                        outbox_update.instruction_id,
+                        outbox_update.expected_status,
+                    ),
+                ).rowcount
+                if changed != 1:
+                    raise ValueError("outbox status compare-and-swap failed")
             for projection in transition.projection_updates:
                 if projection.table not in PROJECTION_TABLES or not projection.key:
                     raise ValueError("unknown projection table/key")

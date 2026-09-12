@@ -37,6 +37,7 @@ from quantdesk.portfolio.arithmetic import ACCOUNTING_CONTEXT, ZERO, exact_sum, 
 from quantdesk.portfolio.events import (
     ConversionRateObserved,
     FinancialEventObserved,
+    ReservationBatchChanged,
     ReservationChanged,
 )
 from quantdesk.portfolio.positions import Position, PositionLeg, apply_fill
@@ -248,23 +249,29 @@ class Ledger:
         candidate = replace(state, available_ns=event.available_ns)
         if isinstance(payload, (FundingRateAnnounced, TimerFired)):
             return LedgerChange(candidate)
-        if isinstance(payload, ReservationChanged):
+        if isinstance(payload, (ReservationChanged, ReservationBatchChanged)):
             if event.instrument_id != payload.instrument_id:
                 raise ValueError("reservation instrument mismatch")
             reservations = {r.reservation_id: r for r in state.reservations}
-            prior_reserve = reservations.get(payload.reservation_id)
-            if prior_reserve is not None:
-                if prior_reserve == payload:
-                    return LedgerChange(candidate, duplicate=True)
-                if payload.revision <= prior_reserve.revision:
-                    raise ValueError("reservation revision regressed or conflicts")
-                if (payload.instrument_id, payload.side, payload.reduce_only) != (
-                    prior_reserve.instrument_id,
-                    prior_reserve.side,
-                    prior_reserve.reduce_only,
-                ):
-                    raise ValueError("reservation scope changed")
-            reservations[payload.reservation_id] = payload
+            updates = (
+                payload.reservations if isinstance(payload, ReservationBatchChanged) else (payload,)
+            )
+            duplicate = True
+            for update in updates:
+                prior_reserve = reservations.get(update.reservation_id)
+                if prior_reserve == update:
+                    continue
+                duplicate = False
+                if prior_reserve is not None:
+                    if update.revision <= prior_reserve.revision:
+                        raise ValueError("reservation revision regressed or conflicts")
+                    if (update.instrument_id, update.side, update.reduce_only) != (
+                        prior_reserve.instrument_id,
+                        prior_reserve.side,
+                        prior_reserve.reduce_only,
+                    ):
+                        raise ValueError("reservation scope changed")
+                reservations[update.reservation_id] = update
             position = state.position(payload.instrument_id)
             closing = [
                 r
@@ -278,7 +285,8 @@ class Ledger:
             return LedgerChange(
                 replace(
                     candidate, reservations=tuple(reservations[k] for k in sorted(reservations))
-                )
+                ),
+                duplicate=duplicate,
             )
         if isinstance(payload, ConversionRateObserved):
             if payload.event_ns > event.available_ns:

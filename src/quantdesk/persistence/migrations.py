@@ -2,7 +2,7 @@
 
 import sqlite3
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 PROJECTION_TABLES = frozenset(
     {
         "orders",
@@ -58,6 +58,21 @@ _V2 = (
 )
 
 
+_V3 = (
+    """CREATE TABLE outbox_v3 (
+        instruction_id TEXT PRIMARY KEY, client_order_id TEXT NOT NULL, payload BLOB NOT NULL,
+        status TEXT NOT NULL CHECK(status IN
+            ('PENDING','UNKNOWN','SENT','RESOLVED','EXPIRED','CANCELED','REJECTED','BLOCKED')),
+        risk_version TEXT NOT NULL, fence_epoch TEXT NOT NULL,
+        committed_seq INTEGER NOT NULL REFERENCES events(engine_seq),
+        expires_at INTEGER NOT NULL)""",
+    "INSERT INTO outbox_v3 SELECT * FROM outbox",
+    "DROP TABLE outbox",
+    "ALTER TABLE outbox_v3 RENAME TO outbox",
+    "CREATE INDEX outbox_pending ON outbox(status, committed_seq, instruction_id)",
+)
+
+
 def migrate(connection: sqlite3.Connection, *, target_version: int = SCHEMA_VERSION) -> None:
     version = int(connection.execute("PRAGMA user_version").fetchone()[0])
     if target_version > SCHEMA_VERSION or target_version < version:
@@ -67,7 +82,7 @@ def migrate(connection: sqlite3.Connection, *, target_version: int = SCHEMA_VERS
     for next_version in range(version + 1, target_version + 1):
         connection.execute("BEGIN IMMEDIATE")
         try:
-            for statement in _V1 if next_version == 1 else _V2:
+            for statement in {1: _V1, 2: _V2, 3: _V3}[next_version]:
                 connection.execute(statement)
             if next_version == 1:
                 for table in sorted(PROJECTION_TABLES):

@@ -30,7 +30,7 @@ from quantdesk.persistence.event_store import (
     PersistenceTransition,
     ProjectionUpdate,
 )
-from quantdesk.persistence.migrations import migrate
+from quantdesk.persistence.migrations import SCHEMA_VERSION, migrate
 from quantdesk.persistence.outbox import Outbox
 from quantdesk.persistence.raw_journal import (
     AESGCMCipher,
@@ -378,7 +378,7 @@ def test_migrate_old_database_preserves_history_and_adds_constraints(tmp_path: P
     )
     old.close()
     with Database(path) as db:
-        assert db.connection.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert db.connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
         assert db.connection.execute(
             "SELECT state_version, engine_seq FROM projection_watermarks WHERE name='engine'"
         ).fetchone() == (7, 11)

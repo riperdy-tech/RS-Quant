@@ -231,6 +231,18 @@ PAYLOAD_CONTRACTS = {
         "revision",
     },
     "ConversionRateObserved": {"base_asset", "quote_asset", "rate", "event_ns", "source"},
+    "ReservationBatchChanged": {"instrument_id", "reservations"},
+    "OrderApproved": {"instruction", "cash_reserve", "fee_reserve"},
+    "CancelRequested": {
+        "instruction_id",
+        "client_order_id",
+        "expires_at_ns",
+        "risk_version",
+        "gateway_fence",
+    },
+    "DispatchStarted": {"instruction_id", "attempt_id"},
+    "CancelAttemptObserved": {"instruction_id", "result"},
+    "UnsentAborted": {"instruction_id", "reason"},
 }
 
 
@@ -257,8 +269,7 @@ def test_canonical_bytes_are_sorted_exact_and_reject_non_finite_values() -> None
     }
     encoded = canonical_bytes(value)
     assert encoded == (
-        b'{"a":[true,null],"qty":"0.0010","timestamp_ns":'
-        b'"1789200000000000001","z":1}'
+        b'{"a":[true,null],"qty":"0.0010","timestamp_ns":"1789200000000000001","z":1}'
     )
     assert json.loads(encoded)["qty"] == "0.0010"
     assert json.loads(encoded)["timestamp_ns"] == "1789200000000000001"
