@@ -21,8 +21,9 @@ Authoritative plan: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 | 02 | COMPLETE | 78 persistence/fault tests; 18 foundation regressions; Ruff/mypy clean; independent review clean after three fix rounds |
 | 03 | COMPLETE | 52 engine/replay/property tests; 96 prior regressions; Ruff/mypy clean; independent review clean after one fix round |
 | 04 | COMPLETE | 59 data/book/import/export tests; 148 regressions; Ruff/mypy clean; review clean after one fix round |
-| 05 | IN PROGRESS | Accounting/ledger gate next |
-| 06–18 | NOT STARTED | — |
+| 05 | COMPLETE | 51 accounting/property tests; 207 regressions; Ruff/mypy clean; review clean after one fix round |
+| 06 | IN PROGRESS | OMS/router/idempotency gate next |
+| 07–18 | NOT STARTED | — |
 
 ## Safety
 
@@ -69,3 +70,11 @@ Authoritative plan: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 - Controller rerun: Task 04 gate → 59 passed; Tasks 01–03 regressions → 148 passed; Ruff and strict mypy clean.
 - Review: eight Important adversarial findings were fixed; scoped re-review PASS. Two Minor hardening observations remain explicitly ledgered for final review.
 - Implemented: point-in-time instrument revisions and exact conversions, fail-closed book state/sequence contracts, causal immutable bars, raw-to-canonical-to-Parquet traceability, bounded explicit imports, immutable content-addressed catalog, and schema/content-derived dataset capabilities.
+
+## Task 05 evidence
+
+- Commits: `3a14594` (ledger/positions/margin/reconciliation), `a265024` (pending-exposure and historical-dedup fixes).
+- TDD report: `.superpowers/sdd/IMPLEMENTATION_PLAN/task-05-report.md`.
+- Controller rerun: Task 05 gate → 51 passed; Tasks 01–04 regressions → 207 passed; Ruff and strict mypy clean.
+- Review: three Important financial edge cases fixed; scoped re-review PASS plus 567 exhaustive mixed-order/flat-position cases under low Decimal precision.
+- Implemented: exact balanced postings, average-cost long/short/reversal state, separated fees/funding/cash/adjustments, restart-safe economic dedup and late aliases, reservations, mark/FX freshness, conservative margin tiers, and immutable reconciliation observations.
