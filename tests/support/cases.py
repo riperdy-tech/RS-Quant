@@ -1,9 +1,12 @@
 import json
+import sqlite3
 import subprocess
 import sys
 from collections.abc import Callable
+from contextlib import suppress
 from decimal import Decimal
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from quantdesk.config.loader import load_config
 from quantdesk.core.events import canonical_bytes
@@ -53,3 +56,96 @@ def _foundation_case(**overrides: object) -> dict[str, object]:
 
 
 register_case("foundation", _foundation_case)
+
+
+def _crash_before_commit_case(**overrides: object) -> dict[str, object]:
+    from quantdesk.core.events import Envelope
+    from quantdesk.persistence.db import Database
+    from quantdesk.persistence.event_store import (
+        EventRecord,
+        EventStore,
+        OutboxInstruction,
+        PersistenceTransition,
+    )
+    from quantdesk.persistence.manifests import RawRef
+    from quantdesk.persistence.outbox import Outbox
+    from quantdesk.persistence.raw_journal import RawFrame, RawJournal
+
+    if overrides.get("fail_at") != "sqlite_commit":
+        raise ValueError("crash_before_commit requires fail_at=sqlite_commit")
+
+    class CommitFailure(sqlite3.Connection):
+        def commit(self) -> None:
+            raise sqlite3.OperationalError("injected SQLite commit failure")
+
+    gateway_submissions: list[str] = []
+    with TemporaryDirectory(prefix="quantdesk-crash-") as temporary:
+        directory = Path(temporary)
+        path = directory / "engine.sqlite"
+        with (
+            RawJournal(directory / "raw") as journal,
+            Database(path, connection_factory=CommitFailure) as db,
+        ):
+            ref = journal.append(
+                RawFrame(b'{"price":"100"}', "bitget", "DEMO", "websocket", 1000, 900, "epoch-1", 1)
+            )
+            watermark = journal.sync()
+            complete_written = len(journal.references())
+            envelope = Envelope(
+                "RunBoundary",
+                1,
+                "run",
+                "demo",
+                "bitget",
+                "DEMO",
+                None,
+                "fixture",
+                "epoch-1",
+                None,
+                None,
+                None,
+                None,
+                1000,
+                900,
+                1000,
+                None,
+                "event-1",
+                str(ref),
+                "test-1",
+                canonical_bytes({"run_id": "run", "boundary": "start", "available_ns": 1000}),
+                "event-1",
+                1,
+            )
+            transition = PersistenceTransition(
+                "event-1",
+                0,
+                (EventRecord(envelope, "INPUT"),),
+                outbox_instructions=(
+                    OutboxInstruction(
+                        "instruction-1", "client-1", b"{}", "risk-1", "fence-1", 1, 2000
+                    ),
+                ),
+            )
+            with suppress(sqlite3.OperationalError):
+                EventStore(db).commit(transition, watermark)
+            # External gateway boundary observes only the actual committed reader.
+            for instruction in Outbox(path).pending():
+                gateway_submissions.append(instruction.instruction_id)
+        with RawJournal(directory / "raw") as recovered, Database(path) as reopened:
+            events = EventStore(reopened).read_after(0)
+            return {
+                "gateway_calls": len(gateway_submissions),
+                "visible_outbox_instructions": len(Outbox(path).pending()),
+                "complete_raw_frames_recovered": recovered.recovery.complete_frames,
+                "complete_raw_frames_written": complete_written,
+                "references_beyond_raw_watermark": sum(
+                    record.envelope.raw_ref is not None
+                    and not recovered.durable_watermark.covers(
+                        RawRef.parse(record.envelope.raw_ref)
+                    )
+                    for record in events
+                ),
+            }
+
+
+register_case("crash_before_commit", _crash_before_commit_case)
