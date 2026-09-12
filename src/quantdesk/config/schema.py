@@ -4,10 +4,18 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
-PositiveDecimal = Annotated[Decimal, Field(gt=0)]
-Fraction = Annotated[Decimal, Field(gt=0, le=1)]
+
+def _reject_binary_float(value: object) -> object:
+    if isinstance(value, float):
+        raise ValueError("financial value must be a quoted decimal string to preserve precision")
+    return value
+
+
+ExactDecimal = Annotated[Decimal, BeforeValidator(_reject_binary_float)]
+PositiveDecimal = Annotated[ExactDecimal, Field(gt=0)]
+Fraction = Annotated[ExactDecimal, Field(gt=0, le=1)]
 PositiveInt = Annotated[int, Field(gt=0)]
 
 
@@ -34,10 +42,10 @@ class SecretReference(StrictModel):
 
 class AccountConfig(StrictModel):
     virtual_equity_usdt: PositiveDecimal = Decimal("10000")
-    live_enabled: bool = False
+    live_enabled: Literal[False] = False
     margin_mode: Literal["isolated"] = "isolated"
     position_mode: Literal["one_way"] = "one_way"
-    leverage: Annotated[Decimal, Field(gt=0, le=125)] = Decimal("1")
+    leverage: Annotated[ExactDecimal, Field(gt=0, le=125)] = Decimal("1")
     credential_ref: SecretReference | None = None
 
 
@@ -69,18 +77,3 @@ class AppConfig(StrictModel):
     mode: Mode = Mode.DEMO
     account: AccountConfig = Field(default_factory=AccountConfig)
     risk: RiskConfig = Field(default_factory=RiskConfig)
-
-    @model_validator(mode="after")
-    def validate_mode_compatibility(self) -> AppConfig:
-        if self.account.live_enabled and self.mode is not Mode.LIVE:
-            raise ValueError("live_enabled may only be true in LIVE mode")
-        if self.account.live_enabled and self.account.credential_ref is None:
-            raise ValueError("enabled LIVE mode requires an external credential_ref")
-        live_caps = (
-            self.risk.max_order_notional_usdt,
-            self.risk.max_total_notional_usdt,
-            self.risk.max_daily_loss_usdt,
-        )
-        if self.account.live_enabled and any(cap is None for cap in live_caps):
-            raise ValueError("enabled LIVE mode requires all absolute risk caps")
-        return self

@@ -53,20 +53,33 @@ def _safe_validation_message(error: ValidationError) -> str:
         message = str(detail["msg"])
         if detail["type"] == "extra_forbidden":
             message = "unknown key is not permitted"
+        if location == "account.live_enabled":
+            message = (
+                "static configuration cannot arm LIVE; use the deliberate runtime control flow"
+            )
         messages.append(f"{location}: {message}")
     return "; ".join(messages)
 
 
 def load_config(path: str | Path) -> AppConfig:
     config_path = Path(path)
+    read_failed = False
     try:
         source = config_path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise ConfigError(f"cannot read configuration file: {config_path}") from exc
+    except OSError:
+        read_failed = True
+        source = ""
+    if read_failed:
+        raise ConfigError(f"cannot read configuration file: {config_path}")
+
+    yaml_failed = False
     try:
         raw: Any = yaml.safe_load(source)
-    except YAMLError as exc:
-        raise ConfigError("invalid YAML syntax in configuration file") from exc
+    except YAMLError:
+        yaml_failed = True
+        raw = None
+    if yaml_failed:
+        raise ConfigError("invalid YAML syntax in configuration file")
     if raw is None:
         raw = {}
     if not isinstance(raw, Mapping):
@@ -76,7 +89,14 @@ def load_config(path: str | Path) -> AppConfig:
         raise ConfigError(
             f"{secret_path}: embedded secrets are forbidden; use a secret reference"
         )
+    validation_message: str | None = None
+    result: AppConfig | None = None
     try:
-        return AppConfig.model_validate(raw)
+        result = AppConfig.model_validate(raw)
     except ValidationError as exc:
-        raise ConfigError(_safe_validation_message(exc)) from exc
+        validation_message = _safe_validation_message(exc)
+    if validation_message is not None:
+        raise ConfigError(validation_message)
+    if result is None:  # pragma: no cover - defensive type narrowing
+        raise ConfigError("configuration validation did not produce a result")
+    return result
