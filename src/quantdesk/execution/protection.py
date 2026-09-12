@@ -13,6 +13,7 @@ from quantdesk.core.checkpoint import EngineState
 from quantdesk.core.events import (
     PAYLOAD_TYPES,
     Envelope,
+    ExecutionReport,
     ProtectionReport,
     RiskLatchChanged,
     canonical_bytes,
@@ -26,9 +27,10 @@ from quantdesk.core.reducers import (
     _decode_value,
     decode_payload,
 )
-from quantdesk.core.types import EventPayload
-from quantdesk.execution.order_state import OMSState
+from quantdesk.core.types import EventPayload, Side
+from quantdesk.execution.order_state import TERMINAL, OMSState
 from quantdesk.persistence.event_store import ProjectionUpdate
+from quantdesk.portfolio.events import FinancialEventObserved
 from quantdesk.portfolio.ledger import LedgerState
 
 
@@ -104,11 +106,87 @@ class ProtectionActionsRequired(EventPayload):
     observed_ns: int
 
 
+@dataclass(frozen=True, slots=True)
+class ProtectionOwnership:
+    instrument_id: str
+    group_id: str | None
+    signed_lots: int
+    execution_ids: tuple[str, ...]
+
+
+def protection_ownership(state: EngineState) -> tuple[ProtectionOwnership, ...]:
+    return cast(
+        tuple[ProtectionOwnership, ...],
+        _decode_value(
+            json.loads(state.get("oms", "protection-ownership-v1", b"[]")),
+            tuple[ProtectionOwnership, ...],
+        ),
+    )
+
+
+def _execution_ownership(
+    event: Envelope, payload: ExecutionReport, state: EngineState
+) -> EngineState:
+    instrument = cast(str, event.instrument_id)
+    orders = OMSState.from_bytes(state.get("oms", "state-v1"))
+    execution = next(
+        e
+        for e in orders.executions
+        if e.instrument_id == instrument and payload.native_execution_id in e.native_ids
+    )
+    owners = {owner.instrument_id: owner for owner in protection_ownership(state)}
+    prior = owners.get(instrument, ProtectionOwnership(instrument, None, 0, ()))
+    identities = tuple(sorted(set((*prior.execution_ids, *execution.native_ids))))
+    if set(prior.execution_ids).intersection(execution.native_ids):
+        # Corroboration/aliases cannot restart a historical position cycle.
+        owners[instrument] = replace(prior, execution_ids=identities)
+    else:
+        position = LedgerState.from_bytes(state.get("ledger", "state-v1")).position(instrument)
+        delta = execution.lots * (1 if execution.side == Side.BUY else -1)
+        before = position.signed_lots - delta
+        order = next(
+            (
+                o.instruction
+                for o in orders.orders
+                if o.instruction.client_order_id == execution.client_order_id
+            ),
+            None,
+        )
+        candidate = (
+            order.protection_group_id
+            if order and not order.reduce_only and order.side == execution.side
+            else None
+        )
+        group = prior.group_id
+        if prior.signed_lots != before:
+            group = None  # no invented ownership for an unobserved opening balance
+        elif not position.signed_lots:
+            group = None
+        elif not before or before * position.signed_lots < 0:
+            group = candidate
+        elif before * delta > 0 and candidate != group:
+            # Multiple independent stop groups in one exposure cycle are not
+            # silently assigned the whole position; retain an explicit block.
+            group = None
+        owners[instrument] = ProtectionOwnership(
+            instrument, group, position.signed_lots, identities
+        )
+    return state.put(
+        "oms",
+        "protection-ownership-v1",
+        canonical_bytes(tuple(owners[key] for key in sorted(owners))),
+    )
+
+
 def protection_reducer(restoration_budget_ns: int = 2_000_000_000) -> FactReducer:
     manager = ProtectionManager(restoration_budget_ns)
 
     def apply(event: Envelope, state: EngineState) -> Reduction:
         payload = decode_payload(event)
+        if isinstance(payload, FinancialEventObserved):
+            payload = payload.financial_payload
+        if isinstance(payload, ExecutionReport):
+            return Reduction(_execution_ownership(event, payload, state))
         if not isinstance(payload, ProtectionReview):
             return Reduction(state)
         orders = OMSState.from_bytes(state.get("oms", "state-v1"))
@@ -138,14 +216,60 @@ def protection_reducer(restoration_budget_ns: int = 2_000_000_000) -> FactReduce
             )
         )
         portfolio = LedgerState.from_bytes(state.get("ledger", "state-v1"))
+        position = portfolio.position(instruction.instrument_id).signed_lots
+        ownership = next(
+            (
+                owner
+                for owner in protection_ownership(state)
+                if owner.instrument_id == instruction.instrument_id
+            ),
+            None,
+        )
+        owned_lots = (
+            position
+            if ownership
+            and ownership.group_id == payload.group_id
+            and ownership.signed_lots == position
+            else 0
+        )
+        own_legs = tuple(
+            native
+            for native in payload.native_orders
+            if native.group_id == payload.group_id and native.status == "pending"
+        )
         decision = manager.evaluate(
             prior,
             payload.native_orders,
-            owned_lots=portfolio.position(instruction.instrument_id).signed_lots,
+            owned_lots=owned_lots,
             observed_ns=payload.observed_ns,
             verified_flat=payload.verified_flat,
             capability_verified=payload.capability_verified,
         )
+        if position and (
+            ownership is None or ownership.group_id is None or ownership.signed_lots != position
+        ):
+            decision = ProtectionDecision(
+                replace(prior, desired_lots=0, status="OWNERSHIP_UNVERIFIED"),
+                ("LATCH_ENTRIES", "RECONCILE"),
+                0,
+            )
+        elif position and not owned_lots:
+            decision = ProtectionDecision(
+                replace(
+                    prior,
+                    desired_lots=0,
+                    status="INACTIVE_PENDING_PROTECTION" if own_legs else "INACTIVE",
+                ),
+                ("LATCH_ENTRIES", "RECONCILE") if own_legs else (),
+                0,
+            )
+        elif (
+            not position
+            and not own_legs
+            and orders.order(instruction.client_order_id).lifecycle in TERMINAL
+            and not orders.order(instruction.client_order_id).accounted_fill_lots
+        ):
+            decision = ProtectionDecision(replace(prior, desired_lots=0, status="INACTIVE"), (), 0)
         if not payload.restoration_supported and any(
             a in decision.actions for a in ("RESTORE_STOP", "RESIZE_STOP")
         ):

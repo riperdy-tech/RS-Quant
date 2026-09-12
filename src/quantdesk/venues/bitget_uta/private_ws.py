@@ -63,6 +63,14 @@ class StreamSession:
     async def connect(self) -> None:
         if self.ready:
             return
+        try:
+            await self._connect()
+        except BaseException:
+            self.invalidate("STREAM_SETUP_FAILED")
+            await self.close()
+            raise
+
+    async def _connect(self) -> None:
         if self.private and self.rest.credentials is None:
             raise PermissionError("private socket requires credentials before connection")
         await self.close()
@@ -165,6 +173,11 @@ class StreamSession:
         self.buffer.append(observation)
         self.changed.set()
 
+    def invalidate(self, reason: str) -> None:
+        self.ready = False
+        self.failure = reason
+        self.changed.set()
+
     async def pump(self) -> None:
         loop = asyncio.get_running_loop()
         next_ping = loop.time() + self.heartbeat_seconds
@@ -194,10 +207,16 @@ class StreamSession:
                     self.add(value)
         except asyncio.CancelledError:
             raise
-        except (ConnectionError, ConnectionClosed, OSError, TimeoutError, ValueError, BufferError):
-            self.ready = False
-            self.failure = "STREAM_DISCONNECTED_OR_INVALID"
-            self.changed.set()
+        except (
+            ConnectionError,
+            ConnectionClosed,
+            OSError,
+            TimeoutError,
+            ValueError,
+            BufferError,
+            RuntimeError,
+        ):
+            self.invalidate("STREAM_DISCONNECTED_OR_INVALID")
 
     def drain(self) -> tuple[Observation, ...]:
         values = tuple(self.buffer)

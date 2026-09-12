@@ -816,3 +816,86 @@ def test_account_profile_reads_foreign_position_categories(journal):
             await adapter.close()
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["login_parse", "login_error", "subscribe_parse", "subscribe_error", "subscribe_timeout"],
+)
+def test_review_failed_websocket_setup_closes_socket(journal, failure):
+    from quantdesk.venues.bitget_uta import BitgetUTAAdapter
+    from tests.support.bitget_case import ScriptedHTTP, ScriptedSocket, credentials
+
+    class FailedSocket(ScriptedSocket):
+        def __init__(self):
+            super().__init__()
+            self.closed = False
+
+        async def send(self, data):
+            op = json.loads(data)["op"]
+            if failure.startswith("login") and op == "login":
+                await self.queue.put(
+                    "{" if failure == "login_parse" else '{"event":"login","code":"bad"}'
+                )
+            elif failure.startswith("subscribe") and op == "subscribe":
+                await self.queue.put(
+                    "{"
+                    if failure == "subscribe_parse"
+                    else TimeoutError()
+                    if failure == "subscribe_timeout"
+                    else '{"event":"error","code":"bad"}'
+                )
+            else:
+                await super().send(data)
+
+        async def close(self):
+            self.closed = True
+
+    async def run():
+        socket = FailedSocket()
+        adapter = BitgetUTAAdapter(
+            ScriptedHTTP([]), journal, credentials(), websocket_connect=socket.connect
+        )
+        try:
+            with pytest.raises((ValueError, ConnectionError, TimeoutError)):
+                await adapter.connect_private()
+            assert socket.closed
+            assert adapter.private.socket is None and not adapter.private_healthy()
+        finally:
+            await adapter.close()
+
+    asyncio.run(run())
+
+
+def test_review_journal_failure_invalidates_stream_readiness(journal, monkeypatch):
+    from quantdesk.venues.bitget_uta import BitgetUTAAdapter
+    from tests.support.bitget_case import ScriptedHTTP, ScriptedSocket, credentials
+
+    async def run():
+        socket = ScriptedSocket()
+        adapter = BitgetUTAAdapter(
+            ScriptedHTTP([]), journal, credentials(), websocket_connect=socket.connect
+        )
+        try:
+            await adapter.connect_private()
+
+            def failed_append(_frame):
+                raise RuntimeError("raw journal is latched failed")
+
+            monkeypatch.setattr(journal, "append", failed_append)
+            await socket.queue.put('{"arg":{"instType":"UTA","topic":"fill"},"data":[]}')
+            await asyncio.wait_for(asyncio.shield(adapter.private.task), 1)
+            assert not adapter.private_healthy() and adapter.private.failure is not None
+        finally:
+            await adapter.close()
+
+    asyncio.run(run())
+
+
+def test_review_missing_prepared_socket_is_provably_unsent():
+    from quantdesk.execution.router import KnownUnsentError
+    from quantdesk.venues.bitget_uta.rest import Request, StreamHTTPTransport
+
+    transport = StreamHTTPTransport("http://127.0.0.1")
+    with pytest.raises(KnownUnsentError):
+        transport.handoff(Request("POST", "/api/v3/trade/place-order", b"{}", True, 0, b"request"))

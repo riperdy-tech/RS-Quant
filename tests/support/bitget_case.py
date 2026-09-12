@@ -142,6 +142,8 @@ class RecoveryHTTP(ScriptedHTTP):
         self.fault, self.opening = fault, opening
         self.round = 0
         self.accepted = []
+        self.order_changes = {}
+        self.stop_changes = {}
 
     async def prepare(self, request):
         await asyncio.sleep(0)
@@ -162,9 +164,23 @@ class RecoveryHTTP(ScriptedHTTP):
             "orderStatus": "filled",
             "cumExecQty": "0.100",
             "updatedTime": "1789200000123",
+            "qty": "0.100",
+            "side": "buy",
+            "price": "100",
+            "orderType": "limit",
+            "timeInForce": "gtc",
+            "reduceOnly": "no",
+            "marginMode": "isolated",
+            "holdMode": "one_way_mode",
         }
         if self.fault == "stale_protection":
             order.update(orderStatus="cancelled", cumExecQty="0")
+        active = self.fault in {"live_order", "missing_open_order"}
+        if active:
+            order.update(
+                orderStatus="live" if self.fault == "live_order" else "new", cumExecQty="0"
+            )
+        order.update(self.order_changes)
         fill = {
             "category": "USDT-FUTURES",
             "symbol": "BTCUSDT",
@@ -207,9 +223,21 @@ class RecoveryHTTP(ScriptedHTTP):
                 else []
             )
             data = {"list": rows, "cursor": "foreign-page"}
+            if self.fault == "live_order" and "cursor" not in query:
+                data["list"] = [order]
         elif path.endswith("order-info"):
-            assert query["clientOid"] == ["client"]
-            data = order
+            assert query["clientOid"][0] in {"client", "old-client"}
+            data = (
+                {
+                    **order,
+                    "clientOid": "old-client",
+                    "orderId": "old-native",
+                    "orderStatus": "cancelled",
+                    "cumExecQty": "0",
+                }
+                if query["clientOid"] == ["old-client"]
+                else order
+            )
         elif path.endswith("history-orders"):
             assert query.get("category") == ["USDT-FUTURES"]
             data = {
@@ -219,7 +247,10 @@ class RecoveryHTTP(ScriptedHTTP):
         elif path.endswith("/fills"):
             data = {
                 "list": [fill, fill]
-                if not self.opening and self.fault != "missing_history" and "cursor" not in query
+                if not self.opening
+                and not active
+                and self.fault != "missing_history"
+                and "cursor" not in query
                 else [],
                 "cursor": "fill-page",
             }
@@ -251,7 +282,7 @@ class RecoveryHTTP(ScriptedHTTP):
         elif path.endswith("current-position"):
             data = {
                 "list": []
-                if self.opening or query["category"] != ["USDT-FUTURES"]
+                if self.opening or active or query["category"] != ["USDT-FUTURES"]
                 else [
                     {
                         "category": "USDT-FUTURES",
@@ -284,6 +315,8 @@ class RecoveryHTTP(ScriptedHTTP):
                         "slTriggerBy": "mark",
                         "stopLoss": "90",
                         "slOrderType": "market",
+                        "reduceOnly": "yes",
+                        **self.stop_changes,
                     }
                 ]
             )
@@ -384,7 +417,15 @@ class RecoveryAccount:
         self.journal.close()
 
 
-async def recovery_case(path, fault=None, use_sockets=False):
+async def recovery_case(
+    path,
+    fault=None,
+    use_sockets=False,
+    order_changes=None,
+    stop_changes=None,
+    old_canceled=False,
+    private_order_changes=None,
+):
     from decimal import Decimal
 
     from quantdesk.core.events import CashTransfer
@@ -394,10 +435,27 @@ async def recovery_case(path, fault=None, use_sockets=False):
     from tests.unit.test_oms import gateway
 
     account = RecoveryAccount(path, fault=fault)
+    account.transport.order_changes = order_changes or {}
+    account.transport.stop_changes = stop_changes or {}
     servers = await start_loopback_exchange(account) if use_sockets else ()
     ownership = None
     try:
         account.send(CashTransfer("deposit", Decimal("1000"), "USDT", "IN", account.time))
+        if old_canceled:
+            from quantdesk.core.events import OrderReport
+
+            old = instruction(
+                "old-client",
+                instrument_id=account.spec.instrument_id,
+                quantity_lots=100,
+                price_ticks=1000,
+                native_trigger_basis="MARK",
+                native_trigger_value=Decimal("90"),
+                protection_group_id="old-group",
+                expires_at_ns=account.time + 60000000000,
+            )
+            account.send(OrderApproved(old, Decimal("10"), Decimal("1")))
+            account.send(OrderReport("old-client", "old-native", "CANCELED", 0, account.time))
         value = instruction(
             instrument_id=account.spec.instrument_id,
             quantity_lots=100,
@@ -411,6 +469,29 @@ async def recovery_case(path, fault=None, use_sockets=False):
         await account.adapter.connect_private()
         router, _, ownership, policy = gateway(account, account.adapter)
         await router.dispatch_ready()
+        if private_order_changes:
+            row = {
+                "category": "USDT-FUTURES",
+                "symbol": "BTCUSDT",
+                "clientOid": "client",
+                "orderId": "venue-order",
+                "orderStatus": "filled",
+                "cumExecQty": "0.100",
+                "updatedTime": "1789200000123",
+                "qty": "0.100",
+                "side": "buy",
+                "price": "100",
+                "orderType": "limit",
+                "timeInForce": "gtc",
+                "reduceOnly": "no",
+                "marginMode": "isolated",
+                "holdMode": "one_way_mode",
+                **private_order_changes,
+            }
+            await account.socket.queue.put(
+                json.dumps({"arg": {"instType": "UTA", "topic": "order"}, "data": [row]})
+            )
+            await account.adapter.private.changed.wait()
         from dataclasses import replace
 
         policy[0] = replace(policy[0], entries_allowed=False, reconciled=False)
@@ -446,6 +527,18 @@ async def recovery_case(path, fault=None, use_sockets=False):
             "cursor_committed": result.cursor_ms is not None,
             "reasons": result.reasons,
             "observations": result.observations,
+            "lifecycle": account.state.order("client").lifecycle,
+            "protection": {key: json.loads(data) for key, data in account.engine.state.protection},
+            "action_facts": [
+                json.loads(r.envelope.payload)
+                for r in records
+                if r.envelope.event_type == "ProtectionActionsRequired"
+            ],
+            "order_evidence": [
+                json.loads(r.envelope.payload)
+                for r in records
+                if r.envelope.event_type == "OrderContractObserved"
+            ],
         }
     finally:
         if ownership:

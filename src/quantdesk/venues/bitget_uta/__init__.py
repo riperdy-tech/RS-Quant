@@ -27,6 +27,7 @@ from quantdesk.core.types import EventPayload, Side
 from quantdesk.execution.intents import CancelRequested, GatewayInstruction
 from quantdesk.execution.protection import NativeProtection, ProtectionReview
 from quantdesk.execution.reconciliation import RecoveryWindow
+from quantdesk.execution.router import KnownUnsentError
 from quantdesk.persistence.raw_journal import RawJournal
 from quantdesk.portfolio.arithmetic import exact_sum
 from quantdesk.venues.bitget_uta.auth import Credentials
@@ -273,12 +274,14 @@ class BitgetUTAAdapter:
             or not self.private.ready
         ):
             self.rest.discard_prepared()
-            raise PermissionError("private stream changed or request is not prepared")
+            raise KnownUnsentError("private stream changed or request is not prepared")
         try:
-            self._request_body(instruction)
-        except PermissionError:
+            path, body = self._request_body(instruction)
+            if path != prepared[1].target or canonical_bytes(body) != prepared[1].body:
+                raise PermissionError("prepared contract changed before transport")
+        except PermissionError as exc:
             self.rest.discard_prepared()
-            raise
+            raise KnownUnsentError("venue authorization changed before transport") from exc
         future = self.rest.handoff(prepared[1])  # synchronous byte write, before returning
         return self._transport_result(instruction, future)
 
@@ -326,6 +329,7 @@ class BitgetUTAAdapter:
             instrument_id = spec.instrument_id if spec else None
             payloads: list[EventPayload] = []
             if topic == "order":
+                payloads.append(self.normalizer.order_contract(row, None))
                 payloads.append(self.normalizer.order(row))
                 payloads.append(
                     VenueObservation(
@@ -397,6 +401,8 @@ class BitgetUTAAdapter:
             try:
                 events.extend(self.normalize_stream(observation, private=True))
             except (KeyError, TypeError, ValueError):
+                self.private.invalidate("QUARANTINED_PRIVATE_PAYLOAD")
+                self.last_profile = None
                 events.append(
                     self.event(
                         DataGap("private", None, None, "QUARANTINED_PRIVATE_PAYLOAD"), observation
@@ -473,12 +479,23 @@ class BitgetUTAAdapter:
         start_seq = self.rest.ordinal
         facts: list[IncomingEvent] = []
         evidence: list[str] = []
+        originals = {order.client_order_id: order for order in original_orders}
 
         def observe(
             payload: EventPayload, obs: Observation, instrument_id: str | None = None
         ) -> None:
             facts.append(self.event(payload, obs, instrument_id=instrument_id))
             evidence.append(obs.raw_ref)
+
+        def order_observed(row: dict[str, Any], obs: Observation) -> None:
+            instruction = originals.get(row.get("clientOid", ""))
+            contract = self.normalizer.order_contract(row, instruction)
+            observe(contract, obs, instruction.instrument_id if instruction else None)
+            if instruction is None or contract.discrepancies:
+                reasons.add("ORDER_CONTRACT_CONFLICT" if instruction else "FOREIGN_ORDER")
+                return
+            spec = self.normalizer.spec(row)
+            observe(self.normalizer.order(row), obs, spec.instrument_id)
 
         def order_rows(pages: tuple[Observation, ...], *, open_snapshot: bool = False) -> list[str]:
             clients = []
@@ -488,8 +505,7 @@ class BitgetUTAAdapter:
                     if open_snapshot:
                         clients.append(str(row.get("clientOid", "")))
                     try:
-                        spec = self.normalizer.spec(row)
-                        observe(self.normalizer.order(row), page, spec.instrument_id)
+                        order_observed(row, page)
                     except (ValueError, KeyError, TypeError):
                         reasons.add(
                             "FOREIGN_ORDER" if open_snapshot else "UNNORMALIZED_ORDER_HISTORY"
@@ -515,7 +531,7 @@ class BitgetUTAAdapter:
                 )
                 if detail.data.get("clientOid") != original.client_order_id:
                     raise ValueError("lookup changed original client identity")
-                observe(self.normalizer.order(detail.data), detail, original.instrument_id)
+                order_observed(detail.data, detail)
             except VenueError as exc:
                 if exc.category in {"AUTH", "CLOCK"}:
                     raise
@@ -616,7 +632,9 @@ class BitgetUTAAdapter:
         protected: set[str] = set()
         protective_rows = []
         native_protection: list[NativeProtection] = []
-        for page in await self.read_protection():
+        protection_pages = await self.read_protection()
+        native_sources: dict[str, Observation] = {}
+        for page in protection_pages:
             evidence.append(page.raw_ref)
             protective_rows.extend(page.data)
             for row in page.data:
@@ -631,36 +649,52 @@ class BitgetUTAAdapter:
                     reasons.add("FOREIGN_OR_UNVERIFIED_PROTECTION")
                     continue
                 order = candidates[0]
-                spec = self.normalizer.spec(row)
+                native_sources[order.protection_group_id or ""] = page
+                observe(
+                    VenueObservation("protection", native, json.dumps(row, sort_keys=True)),
+                    page,
+                    order.instrument_id,
+                )
+                try:
+                    spec = self.normalizer.spec(row)
+                    native_lots = spec.quantity_to_lots(decimal(row["qty"]))
+                    trigger = decimal(row["stopLoss"])
+                    status = identifier(row["status"])
+                except (KeyError, ValueError, TypeError):
+                    reasons.add("PROTECTION_UNVERIFIED")
+                    continue
                 expected_basis = {"MARK": "mark", "LAST": "market"}.get(
                     order.native_trigger_basis or ""
                 )
-                lots = abs(position_lots.get(spec.instrument_id, 0))
-                if row.get("stopLoss"):
-                    native_protection.append(
-                        NativeProtection(
-                            native,
-                            order.protection_group_id or "",
-                            spec.quantity_to_lots(decimal(row["qty"])),
-                            "MARK" if row.get("slTriggerBy") == "mark" else "LAST",
-                            str(decimal(row["stopLoss"])),
-                            identifier(row["status"]),
-                            bool(self.protection_capability_evidence)
-                            and row.get("slOrderType") == "market",
-                            "SL",
-                        )
+                position = position_lots.get(order.instrument_id, 0)
+                lots = abs(position)
+                safe = (
+                    bool(self.protection_capability_evidence)
+                    and row.get("slOrderType") == "market"
+                    and row.get("slTriggerBy") in {"mark", "market"}
+                    and row.get("reduceOnly") == "yes"
+                    and spec.instrument_id == order.instrument_id
+                    and row.get("posSide") == ("long" if position > 0 else "short")
+                )
+                native_protection.append(
+                    NativeProtection(
+                        native,
+                        order.protection_group_id or "",
+                        native_lots,
+                        "MARK" if row.get("slTriggerBy") == "mark" else "LAST",
+                        str(trigger),
+                        status,
+                        safe,
+                        "SL",
                     )
+                )
                 if (
                     lots
-                    and self.protection_capability_evidence
-                    and row.get("status") == "pending"
-                    and row.get("slOrderType") == "market"
+                    and safe
+                    and status == "pending"
                     and row.get("slTriggerBy") == expected_basis
-                    and decimal(row["stopLoss"]) == order.native_trigger_value
-                    and spec.quantity_to_lots(decimal(row["qty"])) == lots
-                    and spec.instrument_id == order.instrument_id
-                    and row.get("posSide")
-                    == ("long" if position_lots[spec.instrument_id] > 0 else "short")
+                    and trigger == order.native_trigger_value
+                    and native_lots == lots
                 ):
                     protected.add(spec.instrument_id)
         for order in original_orders:
@@ -674,7 +708,7 @@ class BitgetUTAAdapter:
                         bool(self.protection_capability_evidence),
                         False,
                     ),
-                    assets,
+                    native_sources.get(order.protection_group_id, protection_pages[0]),
                     order.instrument_id,
                 )
         # Ignore volatile mark/PnL timestamps; preserve economic/control shape.

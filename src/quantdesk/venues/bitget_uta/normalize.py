@@ -16,9 +16,11 @@ from quantdesk.core.events import (
     CashTransfer,
     ExecutionReport,
     FundingSettlement,
+    OrderInstruction,
     OrderReport,
 )
 from quantdesk.core.types import BookLevel, EventPayload, ExecutionType, Side
+from quantdesk.execution.reconciliation import OrderContractObserved, order_contract_terms
 from quantdesk.venues.instruments import InstrumentSpec, exact
 
 
@@ -97,7 +99,7 @@ class Normalizer:
     def order(self, row: Mapping[str, Any]) -> OrderReport:
         spec = self.spec(row)
         statuses = {
-            "live": "CREATED",
+            "live": "OPEN",
             "new": "OPEN",
             "partially_filled": "PARTIALLY_FILLED",
             "filled": "FILLED",
@@ -112,6 +114,51 @@ class Normalizer:
             statuses[row["orderStatus"]],
             spec.quantity_to_lots(decimal(row["cumExecQty"])),
             timestamp(row["updatedTime"]),
+        )
+
+    def order_contract(
+        self, row: Mapping[str, Any], instruction: OrderInstruction | None
+    ) -> OrderContractObserved:
+        """An original client ID is not proof of an unchanged order contract."""
+
+        def field(name: str, convert: Any = identifier) -> Any:
+            try:
+                return convert(row[name])
+            except (KeyError, TypeError, ValueError):
+                return None
+
+        try:
+            spec = self.spec(row)
+        except (KeyError, TypeError, ValueError):
+            spec = None
+        observed: dict[str, str | int | bool | None] = {
+            "instrument_id": spec.instrument_id if spec else None,
+            "quantity_lots": field("qty", lambda v: spec.quantity_to_lots(decimal(v)))
+            if spec
+            else None,
+            "price_ticks": field("price", lambda v: spec.price_to_ticks(decimal(v)))
+            if spec
+            else None,
+            "side": field("side", lambda v: Side(identifier(v).upper()).value),
+            "order_type": field("orderType", lambda v: identifier(v).upper()),
+            "time_in_force": field("timeInForce", lambda v: identifier(v).upper()),
+            "reduce_only": {"yes": True, "no": False}.get(field("reduceOnly")),
+            "margin_mode": field("marginMode"),
+            "position_mode": {"one_way_mode": "one_way", "hedge_mode": "hedge"}.get(
+                field("holdMode")
+            ),
+        }
+        expected = order_contract_terms(instruction) if instruction else {}
+        discrepancies = tuple(
+            sorted(key for key, value in expected.items() if observed[key] != value)
+        )
+        return OrderContractObserved(
+            field("clientOid") or "UNKNOWN_CLIENT",
+            field("orderId"),
+            instruction.instruction_id if instruction else None,
+            tuple(sorted(observed.items())),
+            tuple(sorted(expected.items())),
+            discrepancies,
         )
 
     def fill(self, row: Mapping[str, Any], *, receipt_ns: int) -> ExecutionReport:

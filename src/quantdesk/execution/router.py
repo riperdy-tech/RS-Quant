@@ -120,6 +120,14 @@ class VenueBoundary(Protocol):
     ) -> Awaitable[SubmitTransportResult | CancelTransportResult]: ...
 
 
+class KnownUnsentError(Exception):
+    """Raised only by a synchronous boundary that proves no request bytes were handed off."""
+
+
+class UnsentDeadlineExceeded(KnownUnsentError, TimeoutError):
+    """A local pre-byte deadline, not an ambiguous transport response timeout."""
+
+
 class DispatchAuthority:
     """Only the account writer can mint, consume, or revoke a dispatch permit.
 
@@ -289,8 +297,12 @@ class DispatchAuthority:
         if policy.latch_version != permit.latch_version:
             raise PermissionError("dispatch permit latch version changed")
         self._durable(row, "UNKNOWN")
-        self._unsent.pop(permit.attempt_id, None)
         return instruction
+
+    def handoff_started(self, permit: DispatchPermit) -> None:
+        self.store.database.assert_owner()
+        if self._unsent.pop(permit.attempt_id, None) is not permit:
+            raise PermissionError("unowned dispatch handoff")
 
     def abort_unsent(
         self, row: OutboxInstruction, reason: str, permit: DispatchPermit | None = None
@@ -377,6 +389,27 @@ class Router:
                 try:
                     # There is no await between the final validation and handoff.
                     response = self.venue.handoff(instruction)
+                except KnownUnsentError:
+                    self.authority.abort_unsent(row, "DISPATCH_INVALIDATED", permit)
+                    discard = getattr(self.venue, "discard_prepared", None)
+                    if discard is not None:
+                        discard()
+                    continue
+                except (TimeoutError, ConnectionError, OSError):
+                    # A boundary error without an explicit no-byte guarantee
+                    # may have sent partially. It must retain OMS uncertainty.
+                    self.authority.handoff_started(permit)
+                    result = (
+                        CancelTransportResult(instruction.client_order_id, False, "TIMEOUT")
+                        if isinstance(instruction, CancelRequested)
+                        else SubmitTransportResult(
+                            instruction.instruction_id, False, None, "TIMEOUT"
+                        )
+                    )
+                    self.authority.observe(result, instruction)
+                    continue
+                self.authority.handoff_started(permit)
+                try:
                     sent.append(row.instruction_id)
                     result = await response
                 except (TimeoutError, ConnectionError, OSError):

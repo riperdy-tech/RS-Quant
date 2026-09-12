@@ -18,6 +18,7 @@ from typing import Any, Protocol
 from urllib.parse import urlencode, urlsplit
 
 from quantdesk.core.events import canonical_bytes
+from quantdesk.execution.router import KnownUnsentError, UnsentDeadlineExceeded
 from quantdesk.persistence.raw_journal import RawFrame, RawJournal
 from quantdesk.venues.bitget_uta.auth import Credentials, signed_headers
 
@@ -131,7 +132,7 @@ class StreamHTTPTransport:
 
     def handoff(self, request: Request) -> Awaitable[Response]:
         if self._socket is None or not request.wire:
-            raise ConnectionError("unprepared byte handoff")
+            raise KnownUnsentError("unprepared byte handoff")
         reader, writer = self._socket
         self._socket = None
         writer.write(request.wire)
@@ -327,10 +328,23 @@ class RestClient:
     def handoff(self, request: Request) -> Awaitable[Observation]:
         from dataclasses import replace
 
+        try:
+            wire = self._handoff_bytes(request)
+        except KnownUnsentError:
+            self.discard_prepared()
+            raise
+        except Exception as exc:
+            # No transport method has run at this boundary. Even malformed
+            # signing/header inputs have a provable no-byte outcome.
+            self.discard_prepared()
+            raise KnownUnsentError("request encoding failed before transport") from exc
+        response = self.transport.handoff(replace(request, wire=wire))
+        return self._finish(response, request)
+
+    def _handoff_bytes(self, request: Request) -> bytes:
         now = self.clock()
         if not 0 <= now - request.created_ns <= self.receive_window_ms * 1_000_000:
-            self.discard_prepared()
-            raise TimeoutError("prepared request expired before transport")
+            raise UnsentDeadlineExceeded("prepared request expired before transport")
         headers = {
             "Host": urlsplit(self.transport.base_url).netloc,
             "Content-Type": "application/json",
@@ -339,7 +353,7 @@ class RestClient:
         }
         if request.private:
             if self.credentials is None:
-                raise PermissionError("credentials unavailable")
+                raise KnownUnsentError("credentials unavailable before transport")
             headers.update(
                 signed_headers(
                     self.credentials, now // 1_000_000, request.method, request.target, request.body
@@ -347,13 +361,11 @@ class RestClient:
             )
         if self.environment == "SANDBOX":
             headers["paptrading"] = "1"
-        wire = (
+        return (
             f"{request.method} {request.target} HTTP/1.1\r\n"
             + "".join(f"{k}: {v}\r\n" for k, v in headers.items())
             + "\r\n"
         ).encode("ascii") + request.body
-        response = self.transport.handoff(replace(request, wire=wire))
-        return self._finish(response, request)
 
     async def _finish(self, future: Awaitable[Response], request: Request) -> Observation:
         response = await future

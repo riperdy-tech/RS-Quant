@@ -235,6 +235,241 @@ def test_concrete_adapter_writer_revalidation_revokes_prepared_bytes(tmp_path, c
     asyncio.run(run())
 
 
+def test_review_live_order_recovers_as_real_oms_open(tmp_path):
+    from tests.support.bitget_case import recovery_case
+
+    result = asyncio.run(recovery_case(tmp_path, fault="live_order"))
+    assert result["lifecycle"] == "OPEN"
+    assert result["converged"]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"qty": "0.200"},
+        {"side": "sell"},
+        {"marginMode": "cross"},
+        {"holdMode": "hedge_mode"},
+        {"price": "101"},
+        {"orderType": "market"},
+        {"timeInForce": "ioc"},
+        {"reduceOnly": "yes"},
+        {"qty": None},
+    ],
+)
+def test_review_conflicting_known_order_contract_is_durable_block(tmp_path, changes):
+    from tests.support.bitget_case import recovery_case
+
+    result = asyncio.run(recovery_case(tmp_path, order_changes=changes))
+    assert not result["converged"] and not result["cursor_committed"]
+    assert "ORDER_CONTRACT_CONFLICT" in result["reasons"]
+    assert result["order_evidence"]
+    assert any(row["discrepancies"] for row in result["order_evidence"])
+
+
+def test_review_buffered_private_order_contract_is_checked_against_writer(tmp_path):
+    from tests.support.bitget_case import recovery_case
+
+    result = asyncio.run(recovery_case(tmp_path, private_order_changes={"qty": "0.200"}))
+    assert not result["converged"] and "ORDER_CONTRACT_CONFLICT" in result["reasons"]
+
+
+def test_review_missing_active_open_order_prevents_flat_and_stop_cleanup(tmp_path):
+    from tests.support.bitget_case import recovery_case
+
+    result = asyncio.run(recovery_case(tmp_path, fault="missing_open_order"))
+    assert not result["converged"]
+    assert "ACTIVE_ORDER_SET_MISMATCH" in result["reasons"]
+    assert not any("CANCEL_STOP" in row["actions"] for row in result["action_facts"])
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"posSide": "short"},
+        {"reduceOnly": "no"},
+        {"posSide": "short", "reduceOnly": "no"},
+        {"reduceOnly": None},
+        {"slTriggerBy": "index"},
+        {"qty": None},
+        {"symbol": "ETHUSDT"},
+    ],
+)
+def test_review_unsafe_native_stop_cannot_be_protected_without_actions(tmp_path, changes):
+    from tests.support.bitget_case import recovery_case
+
+    result = asyncio.run(recovery_case(tmp_path, stop_changes=changes))
+    assert result["protection"]["group"]["state"]["status"] != "PROTECTED"
+    assert "BOUNDED_REDUCE_ONLY_EXIT" in result["protection"]["group"]["actions"]
+    assert not result["converged"]
+
+
+def test_review_old_canceled_group_does_not_own_later_filled_position(tmp_path):
+    from tests.support.bitget_case import recovery_case
+
+    result = asyncio.run(recovery_case(tmp_path, old_canceled=True))
+    assert not any(
+        "BOUNDED_REDUCE_ONLY_EXIT" in row["actions"]
+        for row in result["action_facts"]
+        if row["group_id"] == "old-group"
+    )
+    assert result["protection"]["group"]["state"]["status"] == "PROTECTED"
+    assert result["converged"]
+
+
+def test_review_protection_owner_changes_only_after_actual_flat_cycle_and_replays(tmp_path):
+    import json
+    from dataclasses import replace
+    from decimal import Decimal
+
+    from quantdesk.core.engine import Engine, EngineMode
+    from quantdesk.core.events import CashTransfer
+    from quantdesk.core.types import Side
+    from quantdesk.execution.intents import OrderApproved
+    from quantdesk.execution.protection import NativeProtection, ProtectionReview
+    from tests.support.accounting_case import fill
+    from tests.support.bitget_case import RecoveryAccount
+    from tests.support.oms_case import instruction
+
+    async def run():
+        account = RecoveryAccount(tmp_path)
+        try:
+            checkpoint = account.engine.checkpoint()
+            account.send(CashTransfer("deposit", Decimal("1000"), "USDT", "IN", account.time))
+            for client, side, group, reducing in (
+                ("old", Side.BUY, "old-group", False),
+                ("close", Side.SELL, None, True),
+                ("new", Side.BUY, "new-group", False),
+            ):
+                order = instruction(
+                    client,
+                    instrument_id=account.spec.instrument_id,
+                    quantity_lots=100,
+                    price_ticks=1000,
+                    side=side,
+                    reduce_only=reducing,
+                    native_trigger_basis="MARK" if group else None,
+                    native_trigger_value=Decimal("90") if group else None,
+                    protection_group_id=group,
+                    expires_at_ns=account.time + 10000000000,
+                )
+                account.send(OrderApproved(order, Decimal("10"), Decimal("1")))
+                account.send(
+                    replace(
+                        fill(client + "-fill", side, 100),
+                        client_order_id=client,
+                        venue_order_id=client + "-order",
+                    )
+                )
+            # Replayed old execution is factual corroboration, not a new owner.
+            account.send(
+                replace(
+                    fill("old-fill", Side.BUY, 100),
+                    client_order_id="old",
+                    venue_order_id="old-order",
+                )
+            )
+            account.send(ProtectionReview("old-group", (), account.time, False, True, False))
+            stop = NativeProtection("new-stop", "new-group", 100, "MARK", "90", "pending", True)
+            account.send(ProtectionReview("new-group", (stop,), account.time, False, True, False))
+            old = json.loads(account.engine.state.get("protection", "old-group"))
+            assert old["state"]["desired_lots"] == 0 and old["actions"] == []
+            assert (
+                json.loads(account.engine.state.get("protection", "new-group"))["state"]["status"]
+                == "PROTECTED"
+            )
+            replay = Engine(
+                "uta-test",
+                account.store,
+                raw_watermark=account.journal.sync,
+                reducers=account.reducers,
+                producers=account.producers,
+                code_hash="uta-test",
+                schema_hash="uta-test",
+                mode=EngineMode.RECOVERY,
+            )
+            replay.restore(checkpoint, account.store.read_after(checkpoint.engine_seq))
+            assert replay.state.protection == account.engine.state.protection
+            assert replay.state.get("oms", "protection-ownership-v1") == account.engine.state.get(
+                "oms", "protection-ownership-v1"
+            )
+        finally:
+            await account.close()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "fault", ["semantic_quarantine", "prebyte_expiry", "prebyte_header", "prebyte_filter_revision"]
+)
+def test_review_private_quarantine_and_prebyte_expiry_release_unsent(tmp_path, fault):
+    from decimal import Decimal
+
+    from quantdesk.core.events import CashTransfer
+    from quantdesk.execution.intents import OrderApproved
+    from tests.support.bitget_case import RecoveryAccount
+    from tests.support.oms_case import instruction
+
+    async def run():
+        account = RecoveryAccount(tmp_path)
+        ownership = None
+        try:
+            account.send(CashTransfer("deposit", Decimal("1000"), "USDT", "IN", account.time))
+            order = instruction(
+                instrument_id=account.spec.instrument_id,
+                quantity_lots=100,
+                price_ticks=1000,
+                native_trigger_basis="MARK",
+                native_trigger_value=Decimal("90"),
+                protection_group_id="group",
+                expires_at_ns=account.time + 60000000000,
+            )
+            account.send(OrderApproved(order, Decimal("10"), Decimal("1")))
+            await account.adapter.connect_private()
+            router, authority, ownership, policy = gateway(account, account.adapter)
+            if fault == "semantic_quarantine":
+                await account.socket.queue.put(
+                    '{"arg":{"instType":"UTA","topic":"fill"},"data":[{}]}'
+                )
+                await asyncio.wait_for(account.adapter.private.changed.wait(), 1)
+                events = account.adapter.drain_private()
+                assert events[0].event_type == "DataGap"
+                assert not account.adapter.private_healthy()
+                assert account.adapter.last_profile is None
+            else:
+
+                def jump_after_prepare():
+                    if account.adapter._prepared is not None:
+                        if fault == "prebyte_expiry":
+                            account.time += 6000000000
+                        elif fault == "prebyte_header":
+                            from dataclasses import replace
+
+                            account.adapter.rest.credentials = replace(
+                                account.adapter.rest.credentials, api_key="unencodable-한글"
+                            )
+                        else:
+                            from dataclasses import replace
+
+                            account.adapter.normalizer.specs["BTCUSDT"] = replace(
+                                account.spec, tick_size=Decimal("0.2")
+                            )
+                    return policy[0]
+
+                authority.current_policy = jump_after_prepare
+            await router.dispatch_ready()
+            assert account.transport.accepted == []
+            assert account.state.commands[0].status == "BLOCKED"
+            assert not authority._issued and not authority._unsent
+            assert account.portfolio.reservations[0].remaining_lots == 0
+        finally:
+            if ownership:
+                ownership.close()
+            await account.close()
+
+    asyncio.run(run())
+
+
 def test_protection_decisions_are_durable_and_restoration_deadline_survives_replay(tmp_path):
     from decimal import Decimal
 

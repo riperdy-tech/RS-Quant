@@ -30,8 +30,8 @@ from quantdesk.core.events import (
 )
 from quantdesk.core.reducers import FactReducer, Reduction, Stage, _decode_value, decode_payload
 from quantdesk.core.types import EventPayload
-from quantdesk.execution.order_state import Knowledge, OMSState
-from quantdesk.execution.protection import ProtectionReview
+from quantdesk.execution.order_state import TERMINAL, Knowledge, OMSState
+from quantdesk.execution.protection import ProtectionReview, protection_ownership
 from quantdesk.persistence.event_store import ProjectionUpdate
 from quantdesk.portfolio.events import FinancialEventObserved
 from quantdesk.portfolio.ledger import LedgerState
@@ -79,9 +79,80 @@ class RecoveryProgress(EventPayload):
 type ReconciliationReport = RecoveryProgress
 
 
+@PAYLOAD_TYPES.register
+@dataclass(frozen=True, slots=True)
+class OrderContractObserved(EventPayload):
+    client_order_id: str
+    venue_order_id: str | None
+    instruction_id: str | None
+    observed: tuple[tuple[str, str | int | bool | None], ...]
+    expected: tuple[tuple[str, str | int | bool | None], ...]
+    discrepancies: tuple[str, ...]
+
+
+def order_contract_terms(instruction: OrderInstruction) -> dict[str, str | int | bool | None]:
+    return {
+        "instrument_id": instruction.instrument_id,
+        "quantity_lots": instruction.quantity_lots,
+        "price_ticks": instruction.price_ticks,
+        "side": instruction.side.value,
+        "order_type": instruction.order_type.value,
+        "time_in_force": instruction.time_in_force.value,
+        "reduce_only": instruction.reduce_only,
+        "margin_mode": "isolated",
+        "position_mode": "one_way",
+    }
+
+
 def recovery_reducer() -> FactReducer:
     def apply(event: Envelope, state: EngineState) -> Reduction:
         value = decode_payload(event)
+        if isinstance(value, OrderContractObserved):
+            orders = OMSState.from_bytes(state.get("oms", "state-v1"))
+            order = next(
+                (
+                    order
+                    for order in orders.orders
+                    if order.instruction.client_order_id == value.client_order_id
+                ),
+                None,
+            )
+            expected = order_contract_terms(order.instruction) if order else {}
+            discrepancies = set(value.discrepancies)
+            if order is None:
+                discrepancies.add("UNKNOWN_CLIENT")
+            else:
+                observed = dict(value.observed)
+                discrepancies.update(
+                    key
+                    for key, expected_value in expected.items()
+                    if observed.get(key) != expected_value
+                )
+                if value.instruction_id not in {None, order.instruction.instruction_id} or (
+                    value.expected and dict(value.expected) != expected
+                ):
+                    discrepancies.add("UNKNOWN_CONTRACT_REVISION")
+                if (
+                    order.venue_order_id is not None
+                    and value.venue_order_id != order.venue_order_id
+                ):
+                    discrepancies.add("VENUE_ORDER_ID")
+            evidence = replace(
+                value,
+                expected=tuple(sorted(expected.items())),
+                discrepancies=tuple(sorted(discrepancies)),
+            )
+            prior = json.loads(state.get("oms", "order-contract-conflicts-v1", b"[]"))
+            if discrepancies:
+                prior = sorted(set((*prior, value.client_order_id)))
+            return Reduction(
+                state.put("oms", "order-contract-conflicts-v1", canonical_bytes(prior)),
+                projection_updates=(
+                    ProjectionUpdate(
+                        "reconciliation_runs", event.event_id, canonical_bytes(evidence)
+                    ),
+                ),
+            )
         if not isinstance(value, RecoveryProgress):
             return Reduction(state)
         if value.status not in {"RECONCILING", "BLOCKED", "CONVERGED"}:
@@ -187,16 +258,35 @@ class Reconciler:
                 if not self.boundary.private_healthy():
                     issues.add("PRIVATE_STREAM_UNHEALTHY")
                 portfolio, orders = self.portfolio(), self.orders()
+                if json.loads(self.engine.state.get("oms", "order-contract-conflicts-v1", b"[]")):
+                    issues.add("ORDER_CONTRACT_CONFLICT")
                 for _, projection in self.engine.state.protection:
                     protection = json.loads(projection)["state"]
-                    if (
-                        portfolio.position(protection["instrument_id"]).signed_lots
-                        and protection["status"] != "PROTECTED"
-                    ):
+                    if protection["desired_lots"] and protection["status"] != "PROTECTED":
                         issues.add("PROTECTION_UNVERIFIED")
+                    if protection["status"] in {
+                        "OWNERSHIP_UNVERIFIED",
+                        "INACTIVE_PENDING_PROTECTION",
+                    }:
+                        issues.add("PROTECTION_OWNERSHIP_UNVERIFIED")
+                for position in portfolio.positions:
+                    if position.signed_lots and not any(
+                        owner.instrument_id == position.instrument_id
+                        and owner.group_id
+                        and owner.signed_lots == position.signed_lots
+                        for owner in protection_ownership(self.engine.state)
+                    ):
+                        issues.add("PROTECTION_OWNERSHIP_UNVERIFIED")
                 known = {o.instruction.client_order_id for o in orders.orders}
                 if set(window.open_client_ids) - known:
                     issues.add("FOREIGN_ORDER")
+                active = {
+                    order.instruction.client_order_id
+                    for order in orders.orders
+                    if order.transport_started and order.lifecycle not in TERMINAL
+                }
+                if active != set(window.open_client_ids):
+                    issues.add("ACTIVE_ORDER_SET_MISMATCH")
                 if any(o.knowledge != Knowledge.CONFIRMED for o in orders.orders):
                     issues.add("MISSING_EXECUTION_HISTORY")
                 if any(e.client_order_id not in known for e in orders.executions):
