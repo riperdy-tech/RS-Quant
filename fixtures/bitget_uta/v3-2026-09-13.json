@@ -1,0 +1,35 @@
+{
+  "fixture_version": "bitget-uta-v3-2026-09-13",
+  "origin": "synthetic values in independently reauthored official V3 field shapes; not a private capture",
+  "verified_date": "2026-09-13 Asia/Seoul",
+  "sources": {
+    "book": "https://www.bitget.com/docs/uta/websocket/public/Order-Book-Channel",
+    "public_trade": "https://www.bitget.com/docs/uta/websocket/public/New-Trades-Channel",
+    "fill": "https://www.bitget.com/zh-CN/api-doc/uta/websocket/private/Fill-Channel",
+    "order": "https://www.bitget.com/docs/catalog/trading/order-management",
+    "account": "https://www.bitget.com/docs/catalog/account/account-settings",
+    "position": "https://www.bitget.com/docs/catalog/trading/position-management"
+  },
+  "public_trade": {
+    "arg": {"instType": "usdt-futures", "topic": "publicTrade", "symbol": "BTCUSDT"},
+    "action": "snapshot",
+    "data": [{"i": "9007199254740993123", "L": "correlation-not-an-alias", "p": "100.1", "v": "0.003", "S": "buy", "T": "1789200000123", "isRPI": "no"}],
+    "ts": 1789200000124
+  },
+  "book": {
+    "arg": {"instType": "usdt-futures", "topic": "books", "symbol": "BTCUSDT"},
+    "action": "snapshot",
+    "data": [{"a": [["100.1", "0.010"]], "b": [["100.0", "0.011"]], "seq": "9007199254740993123", "pseq": "0", "maxDepth": "50", "ts": "1789200000123"}],
+    "ts": 1789200000124
+  },
+  "fill": {
+    "arg": {"instType": "UTA", "topic": "fill"},
+    "action": "snapshot",
+    "data": [{"category": "usdt-futures", "symbol": "BTCUSDT", "clientOid": "sample-client", "orderId": "sample-order", "execId": "sample-execution", "execLinkId": "sample-correlation", "execPrice": "100.1", "execQty": "0.100", "side": "buy", "execTime": "1789200000123", "updatedTime": "1789200000123", "tradeScope": "taker", "tradeSide": "open", "holdSide": "long", "execPnl": "0", "feeDetail": [{"feeCoin": "USDT", "fee": "0.006006"}]}],
+    "ts": 1789200000124
+  },
+  "order": {"code": "00000", "data": {"category": "USDT-FUTURES", "symbol": "BTCUSDT", "clientOid": "sample-client", "orderId": "sample-order", "orderStatus": "filled", "cumExecQty": "0.100", "updatedTime": "1789200000123", "marginMode": "isolated", "holdMode": "one_way_mode", "reduceOnly": "no"}},
+  "position": {"code": "00000", "data": {"list": [{"category": "USDT-FUTURES", "symbol": "BTCUSDT", "total": "0.100", "available": "0.100", "frozen": "0", "posSide": "long", "avgPrice": "100.1", "marginMode": "isolated", "holdMode": "one_way_mode"}]}},
+  "empty_page": {"code": "00000", "data": {"list": [], "cursor": ""}},
+  "venue_error_http_200": {"code": "40010", "msg": "synthetic uncertain result", "data": null}
+}

@@ -8,6 +8,7 @@ boundary that future venue adapters and the simulator implement.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -351,6 +352,12 @@ class Router:
                 try:
                     await self.venue.prepare(instruction)
                     instruction = self.authority.consume(permit, row)
+                except asyncio.CancelledError:
+                    self.authority.abort_unsent(row, "DISPATCH_INVALIDATED", permit)
+                    discard = getattr(self.venue, "discard_prepared", None)
+                    if discard is not None:
+                        discard()
+                    raise
                 except (PermissionError, TimeoutError, ConnectionError) as exc:
                     # No transport handoff happened. Only this known-unsent path
                     # may release a claim; an ambiguous sent request never does.
@@ -363,6 +370,9 @@ class Router:
                         else "DISPATCH_INVALIDATED",
                         permit,
                     )
+                    discard = getattr(self.venue, "discard_prepared", None)
+                    if discard is not None:
+                        discard()
                     continue
                 try:
                     # There is no await between the final validation and handoff.

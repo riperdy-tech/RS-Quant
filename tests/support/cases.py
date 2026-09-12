@@ -12,6 +12,7 @@ from quantdesk.config.loader import load_config
 from quantdesk.core.events import canonical_bytes
 from quantdesk.core.ids import derive_id
 from tests.support.accounting_case import accounting_worked_example_case
+from tests.support.bitget_case import bitget_uta_accept_then_disconnect
 from tests.support.data_case import book_gap_and_rebuild_case
 from tests.support.engine_case import deterministic_replay_case
 from tests.support.oms_case import partial_fill_cancel_race_case
@@ -157,3 +158,4 @@ def _crash_before_commit_case(**overrides: object) -> dict[str, object]:
 
 register_case("crash_before_commit", _crash_before_commit_case)
 register_case("deterministic_replay", deterministic_replay_case)
+register_case("bitget_uta_accept_then_disconnect", bitget_uta_accept_then_disconnect)
