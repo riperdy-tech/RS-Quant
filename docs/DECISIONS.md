@@ -31,3 +31,10 @@ Material assumptions, substitutions, and deviations from the implementation plan
 - Task 04 ships only explicitly named generic recorded/synthetic book-sequence contracts and a declared generic raw-trade import schema. Unknown checksum/topic semantics fail closed until the versioned Bitget adapter in Task 07 supplies official protocol rules.
 - Late venue identifiers are appended through an atomic `EconomicAliasUpdate` effect tied to a current canonical observation and the original transaction scope. Supplemental alias/adjustment evidence is itself recorded as `FinancialEventObserved`; an in-memory wrapper alone is never replay evidence.
 - Margin preserves the position subledger's stored base quantity and treats compatible current metadata only as the unit converter for possible future fills. Future, unverifiable, or incompatible instrument revisions yield `INCOMPLETE_MARGIN_MODEL`; pending extrema include valid reduce-only-before-ordinary execution orderings.
+
+## 2026-09-13
+
+- Outbox status changes are first-class atomic transition effects with causal-event validation and compare-and-set rules. The additive schema migration retains prior rows while allowing explicit UNKNOWN/BLOCKED/CANCELED/REJECTED states.
+- Reported-but-unaccounted executions remain a separate unresolved financial-reserve dimension. They retain quantity, cash, and fee exposure even after local position changes; only executable close lots compete for known closing capacity.
+- The account writer owns dispatch authorization and revalidates committed OMS state after every preparation await. A cancellation committed before transport handoff revokes a known-unsent submission and resolves its submit/cancel/reservation/outbox effects atomically. Task 07 must make and test the concrete adapter's synchronous byte-handoff boundary.
+- No production transport is enabled by the core router. Bitget credentials, sandbox writes, and account-setting changes remain external and unauthorized.

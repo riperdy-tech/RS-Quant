@@ -22,8 +22,9 @@ Authoritative plan: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 | 03 | COMPLETE | 52 engine/replay/property tests; 96 prior regressions; Ruff/mypy clean; independent review clean after one fix round |
 | 04 | COMPLETE | 59 data/book/import/export tests; 148 regressions; Ruff/mypy clean; review clean after one fix round |
 | 05 | COMPLETE | 51 accounting/property tests; 207 regressions; Ruff/mypy clean; review clean after one fix round |
-| 06 | IN PROGRESS | OMS/router/idempotency gate next |
-| 07–18 | NOT STARTED | — |
+| 06 | COMPLETE | 63 OMS/property tests; 321 total regressions; Ruff/mypy clean; review clean after one fix round |
+| 07 | IN PROGRESS | Bitget UTA V3 connector/recovery/protection gate next |
+| 08–18 | NOT STARTED | — |
 
 ## Safety
 
@@ -78,3 +79,11 @@ Authoritative plan: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 - Controller rerun: Task 05 gate → 51 passed; Tasks 01–04 regressions → 207 passed; Ruff and strict mypy clean.
 - Review: three Important financial edge cases fixed; scoped re-review PASS plus 567 exhaustive mixed-order/flat-position cases under low Decimal precision.
 - Implemented: exact balanced postings, average-cost long/short/reversal state, separated fees/funding/cash/adjustments, restart-safe economic dedup and late aliases, reservations, mark/FX freshness, conservative margin tiers, and immutable reconciliation observations.
+
+## Task 06 evidence
+
+- Commits: `e23bf55` (shared OMS/arbitration/router/fencing), `f67d35f` (uncertainty, unresolved-reserve, and pre-handoff cancellation fixes).
+- TDD report: `.superpowers/sdd/IMPLEMENTATION_PLAN/task-06-report.md`.
+- Controller rerun: Task 06 gate → 63 passed; Tasks 01–06 regressions → 321 passed; Ruff and strict mypy clean.
+- Review: three Important order-race and exposure-reservation defects fixed; scoped re-review PASS with no new findings. Two explicitly deferred integration/hardening checks remain ledgered for Task 07/final review.
+- Implemented: immutable typed intents/instructions/reports, independent lifecycle/action/knowledge state, stable order/execution identities, idempotent fill economics, deterministic arbitration, cancel-confirm-replace, late-fill reservation reconciliation, composed OMS/ledger transitions, durable outbox CAS, account-writer ownership, single-use dispatch permits, final post-await revalidation, and no enabled production dispatch path.
