@@ -229,6 +229,7 @@ PAYLOAD_CONTRACTS = {
         "fee_buffer",
         "reduce_only",
         "revision",
+        "unresolved_lots",
     },
     "ConversionRateObserved": {"base_asset", "quote_asset", "rate", "event_ns", "source"},
     "ReservationBatchChanged": {"instrument_id", "reservations"},

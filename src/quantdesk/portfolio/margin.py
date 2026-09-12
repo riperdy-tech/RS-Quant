@@ -74,21 +74,26 @@ class Margin:
         # can be left unfilled; a reduce-only fill itself never crosses zero.
         close_short = min(
             max(-lots, 0),
-            sum(r.remaining_lots for r in relevant if r.side == Side.BUY and r.reduce_only),
+            sum(r.executable_lots for r in relevant if r.side == Side.BUY and r.reduce_only),
         )
         close_long = min(
             max(lots, 0),
-            sum(r.remaining_lots for r in relevant if r.side == Side.SELL and r.reduce_only),
+            sum(r.executable_lots for r in relevant if r.side == Side.SELL and r.reduce_only),
         )
+        # Missing execution details are already-reported financial exposure,
+        # not permission for a new reduce-only send. Do not clip that exposure
+        # to today's local position: later facts may have closed it meanwhile.
         long = (
             lots
             + close_short
             + sum(r.remaining_lots for r in relevant if r.side == Side.BUY and not r.reduce_only)
+            + sum(r.unresolved_lots for r in relevant if r.side == Side.BUY and r.reduce_only)
         )
         short = (
             lots
             - close_long
             - sum(r.remaining_lots for r in relevant if r.side == Side.SELL and not r.reduce_only)
+            - sum(r.unresolved_lots for r in relevant if r.side == Side.SELL and r.reduce_only)
         )
         reasons: list[str] = []
         registry = InstrumentRegistry()

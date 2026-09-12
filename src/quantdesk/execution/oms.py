@@ -83,6 +83,7 @@ def _reservation(order: OrderState) -> ReservationChanged:
         fee,
         instruction.reduce_only,
         order.revision,
+        unresolved_lots=order.unresolved_fill_lots,
     )
 
 
@@ -405,7 +406,10 @@ class OMS:
             if cancel_instruction_id is None and len(attempts) > 1:
                 # The legacy uncorrelated transport fact cannot identify which
                 # cancellation failed. Keep the current request pending.
-                candidate = _put_order(state, replace(order, knowledge=Knowledge.UNCERTAIN))
+                candidate = _command_status(
+                    state, attempts[-1].instruction.instruction_id, "UNKNOWN"
+                )
+                candidate = self._link_and_project(candidate)
                 return self._change(state, candidate, report)
             if cancel_instruction_id is not None:
                 matched = next(
@@ -459,7 +463,11 @@ class OMS:
                 candidate = _command_status(
                     state,
                     payload.instruction_id,
-                    "EXPIRED" if payload.reason == "EXPIRED" else "BLOCKED",
+                    "EXPIRED"
+                    if payload.reason == "EXPIRED"
+                    else "CANCELED"
+                    if payload.reason == "CANCELED" and not is_cancel
+                    else "BLOCKED",
                 )
                 candidate = _put_order(
                     candidate,
@@ -470,10 +478,18 @@ class OMS:
                         if is_cancel
                         else Lifecycle.EXPIRED
                         if payload.reason == "EXPIRED"
+                        else Lifecycle.CANCELED
+                        if payload.reason == "CANCELED"
                         else Lifecycle.REJECTED,
                         pending=PendingAction.NONE,
                     ),
                 )
+                if not is_cancel:
+                    # The writer's known-unsent fact settles any queued cancel
+                    # in the same event/reservation/outbox transaction.
+                    candidate = _resolve_command(
+                        candidate, order.instruction.client_order_id, cancel=True
+                    )
         else:
             return OMSChange(state)
         candidate = self._link_and_project(candidate)
@@ -581,23 +597,33 @@ class OMS:
                 )
             elif accounted and status not in TERMINAL:
                 status = Lifecycle.PARTIALLY_FILLED
-            knowledge = order.knowledge
-            cancel_unknown = any(
-                isinstance(c.instruction, CancelRequested)
-                and c.instruction.client_order_id == order.instruction.client_order_id
-                and c.status == "UNKNOWN"
+            unresolved = tuple(
+                c
                 for c in candidate.commands
+                if c.instruction.client_order_id == order.instruction.client_order_id
+                and c.status in {"PENDING", "UNKNOWN", "SENT"}
             )
-            if cancel_unknown and status not in TERMINAL:
-                knowledge = Knowledge.UNCERTAIN
+            # An outcome for one action says nothing about another action's
+            # ambiguous handoff. In particular, cancel ACK/rejection/expiry
+            # cannot establish whether the original submission reached venue.
+            knowledge = (
+                Knowledge.UNCERTAIN
+                if any(c.status == "UNKNOWN" for c in unresolved)
+                else Knowledge.CONFIRMED
+            )
+            pending = (
+                PendingAction.CANCEL
+                if any(isinstance(c.instruction, CancelRequested) for c in unresolved)
+                else PendingAction.SUBMIT
+                if unresolved
+                else PendingAction.NONE
+            )
             expected = max(
                 order.reported_fill_lots,
                 order.instruction.quantity_lots if status == Lifecycle.FILLED else 0,
             )
             if expected > accounted:
                 knowledge = Knowledge.RECONCILING
-            elif knowledge == Knowledge.RECONCILING:
-                knowledge = Knowledge.CONFIRMED
             if max(accounted, order.reported_fill_lots) > order.instruction.quantity_lots:
                 candidate = replace(
                     candidate,
@@ -611,7 +637,7 @@ class OMS:
                     accounted_fill_lots=accounted,
                     lifecycle=status,
                     knowledge=knowledge,
-                    pending=PendingAction.NONE if status in TERMINAL else order.pending,
+                    pending=PendingAction.NONE if status in TERMINAL else pending,
                 ),
             )
         return candidate
@@ -710,24 +736,25 @@ def execution_reducer(
                 position = portfolio.position(reservation.instrument_id).signed_lots
                 eligible = (reservation.side == Side.SELL) == (position > 0)
                 allowed = (
-                    min(reservation.remaining_lots, free_close.get(reservation.instrument_id, 0))
+                    min(reservation.executable_lots, free_close.get(reservation.instrument_id, 0))
                     if eligible
                     else 0
                 )
                 free_close[reservation.instrument_id] = (
                     free_close.get(reservation.instrument_id, 0) - allowed
                 )
-                if allowed < reservation.remaining_lots:
+                if allowed < reservation.executable_lots:
                     close_conflict = True
+                    retained = allowed + reservation.unresolved_lots
                     with localcontext(ACCOUNTING_CONTEXT):
                         reservation = replace(
                             reservation,
-                            remaining_lots=allowed,
+                            remaining_lots=retained,
                             cash_amount=reservation.cash_amount
-                            * allowed
+                            * retained
                             / reservation.remaining_lots,
                             fee_buffer=reservation.fee_buffer
-                            * allowed
+                            * retained
                             / reservation.remaining_lots,
                         )
             prior = prior_reserves.get(key)

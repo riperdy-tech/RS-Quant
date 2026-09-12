@@ -815,3 +815,203 @@ def test_historical_reduce_only_fill_does_not_flag_a_later_authorized_new_direct
     )
     assert account.portfolio.position(INSTRUMENT).signed_lots == -5
     assert "REDUCE_ONLY_VENUE_VIOLATION" not in account.state.incidents
+
+
+@pytest.mark.parametrize("cancel_outcome", ["rejected", "expired", "accepted"])
+def test_cancel_outcome_cannot_confirm_an_unknown_original_submission(account, cancel_outcome):
+    value = account.approve()
+    account.send(SubmitTransportResult(value.instruction_id, False, None, "TIMEOUT"))
+    account.send(CancelRequested("cancel-unknown", "client", 10000, "risk-1", "1"))
+    if cancel_outcome == "expired":
+        account.send(UnsentAborted("cancel-unknown", "EXPIRED"))
+    else:
+        account.send(
+            CancelTransportResult(
+                "client",
+                cancel_outcome == "accepted",
+                None if cancel_outcome == "accepted" else "VENUE_REJECTED",
+            )
+        )
+    order = account.state.order("client")
+    assert order.knowledge == Knowledge.UNCERTAIN
+    assert order.pending == (
+        PendingAction.CANCEL if cancel_outcome == "accepted" else PendingAction.SUBMIT
+    )
+    assert order.reserved_lots == 5
+    assert (
+        next(
+            c.status
+            for c in account.state.commands
+            if c.instruction.instruction_id == value.instruction_id
+        )
+        == "UNKNOWN"
+    )
+    with pytest.raises(ValueError, match="unresolved"):
+        account.approve(instruction("fresh-id"))
+
+
+def test_terminal_missing_close_execution_keeps_reserves_after_other_closes_reach_flat(account):
+    from quantdesk.core.engine import Engine, EngineMode
+    from quantdesk.execution.oms import execution_reducer
+    from quantdesk.portfolio.margin import Margin, MarginSpec
+
+    checkpoint = account.engine.checkpoint()
+    account.send(
+        replace(fill("initial", lots=5), client_order_id="external", venue_order_id="external")
+    )
+    account.approve(instruction("exit-a", side=Side.SELL, reduce_only=True, quantity_lots=3))
+    account.send(OrderReport("exit-a", "venue-a", "CANCELED", 0, 0))
+    account.approve(instruction("exit-b", side=Side.SELL, reduce_only=True, quantity_lots=3))
+    account.approve(instruction("exit-c", side=Side.SELL, reduce_only=True, quantity_lots=2))
+    account.send(OrderReport("exit-b", "venue-b", "FILLED", 3, 0))
+    account.send(
+        replace(
+            fill("late-a", Side.SELL, lots=3), client_order_id="exit-a", venue_order_id="venue-a"
+        )
+    )
+    account.send(
+        replace(
+            fill("external-close", Side.SELL, lots=2),
+            client_order_id="external-close",
+            venue_order_id="external-close",
+        )
+    )
+    assert account.portfolio.position(INSTRUMENT).signed_lots == 0
+    reserve = next(
+        r for r in account.portfolio.reservations if r.reservation_id == "instruction-exit-b"
+    )
+    assert reserve.remaining_lots == 3
+    assert reserve.unresolved_lots == 3
+    assert reserve.executable_lots == 0
+    assert reserve.cash_amount == Decimal(50)
+    assert reserve.fee_buffer == Decimal(5)
+    assert sum(r.executable_lots for r in account.portfolio.reservations if r.reduce_only) == 0
+    assert account.ledger.snapshot(account.portfolio).reserved_cash == Decimal(55)
+    assert account.state.order("exit-b").knowledge == Knowledge.RECONCILING
+    assert len(account.portfolio.transactions) == 3
+    margin = Margin.estimate(
+        account.ledger.snapshot(account.portfolio),
+        account.portfolio.reservations,
+        MarginSpec(spec(), Decimal(1), Decimal(0), (), "tiers", 0, 10000),
+    )
+    assert (margin.worst_long_lots, margin.worst_short_lots) == (0, -3)
+    recovered = Engine(
+        "accounting",
+        account.store,
+        raw_watermark=account.journal.sync,
+        reducers=(
+            execution_reducer(
+                OMS(),
+                account.ledger,
+                OMSState("fixture", "DEMO", "demo"),
+                LedgerState("fixture", "DEMO", "demo"),
+            ),
+        ),
+        mode=EngineMode.RECOVERY,
+        code_hash="oms-v1",
+        schema_hash="oms-v1",
+    )
+    recovered.restore(checkpoint, account.store.read_after(0))
+    assert recovered.state == account.engine.state
+    details = replace(
+        fill("missing-b", Side.SELL, lots=3), client_order_id="exit-b", venue_order_id="venue-b"
+    )
+    account.send(details)
+    account.send(details)
+    assert account.portfolio.position(INSTRUMENT).signed_lots == -3
+    assert len(account.portfolio.transactions) == 4
+    assert account.ledger.snapshot(account.portfolio).reserved_cash == 0
+
+
+@pytest.mark.parametrize("unresolved", [-1, 4, True, 1.5])
+def test_unresolved_reservation_quantity_must_be_exact_and_within_total(unresolved):
+    from quantdesk.portfolio.events import ReservationChanged
+
+    with pytest.raises(ValueError, match="unresolved"):
+        ReservationChanged(
+            "missing",
+            INSTRUMENT,
+            Side.SELL,
+            3,
+            Decimal(50),
+            Decimal(5),
+            True,
+            1,
+            unresolved_lots=unresolved,
+        )
+
+
+@pytest.mark.parametrize("side,expected", [(Side.BUY, (3, 0)), (Side.SELL, (0, -3))])
+def test_missing_execution_exposure_is_not_an_executable_close_at_flat(side, expected):
+    from quantdesk.portfolio.events import ReservationChanged
+    from quantdesk.portfolio.margin import Margin, MarginSpec
+
+    ledger = Ledger((spec(),))
+    state = LedgerState("fixture", "DEMO", "demo")
+    reserve = ReservationChanged(
+        "missing", INSTRUMENT, side, 3, Decimal(50), Decimal(5), True, 1, unresolved_lots=3
+    )
+    state = ledger.apply(envelope(reserve, 1), state).state
+    assert state.reservations == (reserve,)
+    estimate = Margin.estimate(
+        ledger.snapshot(state),
+        state.reservations,
+        MarginSpec(spec(), Decimal(1), Decimal(0), (), "tiers", 0, 10000),
+    )
+    assert (estimate.worst_long_lots, estimate.worst_short_lots) == expected
+    with pytest.raises(ValueError, match="exceed"):
+        ledger.apply(envelope(replace(reserve, remaining_lots=4, revision=2), 2), state)
+    assert LedgerState.from_bytes(state.to_bytes()) == state
+
+
+def test_cancel_during_prepare_revokes_unsent_entry_and_resolves_cancel_atomically(account):
+    value = account.approve()
+    venue = BoundaryVenue(
+        prepare=lambda: account.send(
+            CancelRequested("cancel-preparing", "client", 10000, "risk-1", "1")
+        )
+    )
+    router, _authority, ownership, _ = gateway(account, venue)
+    try:
+        assert asyncio.run(router.dispatch_ready()) == ()
+        assert venue.accepted == []
+        order = account.state.order("client")
+        assert (order.lifecycle, order.pending, order.knowledge) == (
+            Lifecycle.CANCELED,
+            PendingAction.NONE,
+            Knowledge.CONFIRMED,
+        )
+        statuses = {c.instruction.instruction_id: c.status for c in account.state.commands}
+        assert statuses[value.instruction_id] == "CANCELED"
+        assert statuses["cancel-preparing"] == "RESOLVED"
+        assert account.portfolio.reservations[0].remaining_lots == 0
+        assert Outbox(account.db.path).pending() == ()
+        assert account.store.read_after(0)[-1].envelope.event_type == "UnsentAborted"
+    finally:
+        ownership.close()
+
+
+def test_prepare_cancel_abort_commit_failure_preserves_claim_and_cancel_without_sending(account):
+    account.approve()
+
+    def cancel_and_fail_abort():
+        account.send(CancelRequested("cancel-preparing", "client", 10000, "risk-1", "1"))
+        account.db.connection.execute(
+            "CREATE TRIGGER abort_failure BEFORE INSERT ON reservations "
+            "BEGIN SELECT RAISE(ABORT, 'abort rollback'); END"
+        )
+
+    venue = BoundaryVenue(prepare=cancel_and_fail_abort)
+    router, _authority, ownership, _ = gateway(account, venue)
+    try:
+        with pytest.raises(sqlite3.IntegrityError, match="abort rollback"):
+            asyncio.run(router.dispatch_ready())
+        assert venue.accepted == []
+        assert account.state.order("client").pending == PendingAction.CANCEL
+        assert {c.instruction.instruction_id: c.status for c in account.state.commands} == {
+            "instruction-client": "UNKNOWN",
+            "cancel-preparing": "PENDING",
+        }
+        assert account.portfolio.reservations[0].remaining_lots == 5
+    finally:
+        ownership.close()

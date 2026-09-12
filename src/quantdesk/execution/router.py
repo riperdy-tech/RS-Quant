@@ -24,6 +24,7 @@ from quantdesk.execution.intents import (
     GatewayInstruction,
     UnsentAborted,
 )
+from quantdesk.execution.order_state import TERMINAL, OMSState, PendingAction
 from quantdesk.persistence.db import Database, FileOwnership
 from quantdesk.persistence.event_store import EventStore, OutboxInstruction
 from quantdesk.persistence.outbox import Outbox
@@ -205,6 +206,25 @@ class DispatchAuthority:
                 raise PermissionError("risk latch prohibits entries")
         if not self.validate_filters(instruction):
             raise PermissionError("current authorization/instrument filters failed")
+        # A committed dispatch claim is not a transport send. Read the current
+        # account-writer projection again after preparation, so a cancel fact
+        # can revoke a still-unsent submission even though its claim is UNKNOWN.
+        projection = self.store.projection("orders", "oms-state-v1")
+        if projection is None:
+            raise PermissionError("authoritative OMS state unavailable")
+        state = OMSState.from_bytes(projection[0])
+        order = state.order(instruction.client_order_id)
+        if not any(c.instruction == instruction for c in state.commands):
+            raise PermissionError("instruction does not match authoritative OMS state")
+        if isinstance(instruction, OrderInstruction) and order.pending == PendingAction.CANCEL:
+            raise PermissionError("CANCEL_REQUESTED")
+        pending = (
+            PendingAction.SUBMIT
+            if isinstance(instruction, OrderInstruction)
+            else PendingAction.CANCEL
+        )
+        if order.lifecycle in TERMINAL or order.pending != pending:
+            raise PermissionError("order is no longer dispatchable")
         return policy
 
     def _committed_status(self, row: OutboxInstruction) -> str:
@@ -335,7 +355,13 @@ class Router:
                     # No transport handoff happened. Only this known-unsent path
                     # may release a claim; an ambiguous sent request never does.
                     self.authority.abort_unsent(
-                        row, "EXPIRED" if str(exc) == "EXPIRED" else "DISPATCH_INVALIDATED", permit
+                        row,
+                        "EXPIRED"
+                        if str(exc) == "EXPIRED"
+                        else "CANCELED"
+                        if str(exc) == "CANCEL_REQUESTED"
+                        else "DISPATCH_INVALIDATED",
+                        permit,
                     )
                     continue
                 try:

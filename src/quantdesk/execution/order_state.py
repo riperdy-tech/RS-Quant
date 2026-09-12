@@ -61,7 +61,11 @@ class OrderState:
     @property
     def reserved_lots(self) -> int:
         if self.lifecycle not in TERMINAL:
-            return self.remaining_lots
+            return max(self.remaining_lots, self.unresolved_fill_lots)
+        return self.unresolved_fill_lots
+
+    @property
+    def unresolved_fill_lots(self) -> int:
         expected = self.reported_fill_lots
         if self.lifecycle == Lifecycle.FILLED:
             expected = max(expected, self.instruction.quantity_lots)

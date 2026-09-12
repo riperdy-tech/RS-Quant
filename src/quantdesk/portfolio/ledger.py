@@ -276,10 +276,10 @@ class Ledger:
             closing = [
                 r
                 for r in reservations.values()
-                if r.instrument_id == payload.instrument_id and r.reduce_only and r.remaining_lots
+                if r.instrument_id == payload.instrument_id and r.reduce_only and r.executable_lots
             ]
             if any((r.side == Side.SELL) != (position.signed_lots > 0) for r in closing) or sum(
-                r.remaining_lots for r in closing
+                r.executable_lots for r in closing
             ) > abs(position.signed_lots):
                 raise ValueError("closing reservations exceed available position")
             return LedgerChange(

@@ -405,7 +405,7 @@ class EventStore:
                         "REJECTED",
                         "RESOLVED",
                     },
-                    "UNKNOWN": {"SENT", "EXPIRED", "BLOCKED", "REJECTED", "RESOLVED"},
+                    "UNKNOWN": {"SENT", "EXPIRED", "BLOCKED", "REJECTED", "RESOLVED", "CANCELED"},
                     "SENT": {"UNKNOWN", "RESOLVED"},
                 }
                 if outbox_update.event_id not in events or outbox_update.status not in allowed.get(
