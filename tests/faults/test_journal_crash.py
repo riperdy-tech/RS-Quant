@@ -72,6 +72,66 @@ def test_damaged_interior_length_followed_by_valid_frame_is_not_a_torn_tail(tmp_
     assert active.read_bytes() == damaged
 
 
+def test_crc_valid_payload_fragment_with_incomplete_metadata_is_not_a_later_frame(
+    tmp_path: Path,
+) -> None:
+    import struct
+    import zlib
+
+    metadata = b'{"frame_ordinal":3}'
+    fragment = struct.pack(">4sIQ", b"QDJ1", len(metadata), 1) + metadata + b"x"
+    fragment += struct.pack(">I", zlib.crc32(fragment))
+    with RawJournal(tmp_path) as journal:
+        first = journal.append(frame())
+        journal.sync()
+        journal.append(frame(b"opaque-prefix" + fragment + b"opaque-suffix"))
+        active = journal.active_path
+    active.write_bytes(active.read_bytes()[:-1])
+    with RawJournal(tmp_path) as recovered:
+        assert recovered.recovery.complete_frames == 1
+        assert recovered.read(first).payload == b'{ "price": "100.00" }'
+        assert active.stat().st_size == first.end_offset
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"venue": ""},
+        {"receive_wall_ns": True},
+        {"private": "false"},
+        {"private": True, "key_id": None},
+        {"message_ordinal": -1},
+    ],
+)
+def test_complete_raw_frame_rejects_invalid_metadata_without_mutating_history(
+    tmp_path: Path, change: dict[str, object]
+) -> None:
+    import json
+    import struct
+    import zlib
+
+    with RawJournal(tmp_path) as journal:
+        ref = journal.append(frame())
+        active = journal.active_path
+    original = active.read_bytes()
+    _, metadata_length, payload_length = struct.unpack_from(">4sIQ", original)
+    metadata = json.loads(original[16 : 16 + metadata_length])
+    metadata.update(change)
+    encoded_metadata = json.dumps(metadata).encode()
+    payload = original[16 + metadata_length : 16 + metadata_length + payload_length]
+    invalid = (
+        struct.pack(">4sIQ", b"QDJ1", len(encoded_metadata), len(payload))
+        + encoded_metadata
+        + payload
+    )
+    invalid += struct.pack(">I", zlib.crc32(invalid))
+    assert ref.start_offset == 0
+    active.write_bytes(invalid)
+    with pytest.raises(JournalCorruption, match="metadata"):
+        RawJournal(tmp_path)
+    assert active.read_bytes() == invalid
+
+
 def test_truncated_durable_frame_is_corruption_not_recoverable_tail(tmp_path: Path) -> None:
     with RawJournal(tmp_path) as journal:
         ref = journal.append(frame())

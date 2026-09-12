@@ -14,12 +14,14 @@ import shutil
 import sqlite3
 import tempfile
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 
 from quantdesk.core.events import canonical_bytes
 from quantdesk.persistence.db import Database, open_reader
 from quantdesk.persistence.event_store import EventStore
 from quantdesk.persistence.manifests import DurableWatermark, RawRef, atomic_write, sync_directory
+from quantdesk.persistence.migrations import migrate
 from quantdesk.persistence.raw_journal import JournalCipher, RawJournal
 
 _BACKUP_AAD = b"QuantDesk SQLite backup v1"
@@ -37,6 +39,30 @@ _PUBLIC_EVENT_TYPES = frozenset(
 )
 _PUBLIC_INFRASTRUCTURE_TABLES = frozenset({"events", "projection_watermarks", "store_metadata"})
 
+type _Schema = tuple[int, tuple[tuple[str, str, str, str | None], ...]]
+
+
+def _schema_snapshot(connection: sqlite3.Connection) -> _Schema:
+    objects = tuple(
+        (str(row[0]), str(row[1]), str(row[2]), row[3])
+        for row in connection.execute(
+            "SELECT type, name, tbl_name, sql FROM sqlite_schema ORDER BY type, name"
+        )
+    )
+    return int(connection.execute("PRAGMA user_version").fetchone()[0]), objects
+
+
+@cache
+def _known_schema() -> _Schema:
+    # Use the actual authoritative migrations, including exact columns, declared
+    # types, constraints and schema objects; no table-name-only exemptions.
+    reference = sqlite3.connect(":memory:", isolation_level=None)
+    try:
+        migrate(reference)
+        return _schema_snapshot(reference)
+    finally:
+        reference.close()
+
 
 def _database_requires_encryption(connection: sqlite3.Connection) -> bool:
     """Allow plaintext only for accountless public market facts and bookkeepers.
@@ -46,6 +72,8 @@ def _database_requires_encryption(connection: sqlite3.Connection) -> bool:
     command results and opaque checkpoints. New schema tables fail closed until
     explicitly reviewed; DEMO does not waive this data-confidentiality policy.
     """
+    if _schema_snapshot(connection) != _known_schema():
+        return True
     for event_type, envelope_bytes in connection.execute("SELECT type, envelope_json FROM events"):
         if event_type not in _PUBLIC_EVENT_TYPES:
             return True
@@ -241,19 +269,26 @@ def create_backup(
     checkpoint = store.latest_checkpoint()
     temporary = Path(tempfile.mkdtemp(prefix=f".{name}-", dir=backup_directory))
     try:
-        # Encrypted backups never place a plaintext SQLite intermediate on disk.
+        # Always rebuild the consistent image in memory before writing a bundle.
+        # Current-row classification cannot classify deleted cells/free pages;
+        # VACUUM removes that residual history without modifying the source DB.
         filename = "engine.sqlite.enc" if cipher else "engine.sqlite"
-        target_connection = sqlite3.connect(":memory:" if cipher else temporary / filename)
+        target_connection = sqlite3.connect(":memory:")
         try:
             database.connection.backup(target_connection)
-            target_connection.execute("PRAGMA journal_mode=DELETE")
-            if cipher:
-                # A backup of WAL into :memory: retains WAL header flags. Rebuild
-                # inside SQLite to produce a standalone image for deserialize.
-                target_connection.execute("PRAGMA journal_mode=OFF")
-                target_connection.execute("VACUUM")
-                serialized = target_connection.serialize()
-                atomic_write(temporary / filename, cipher.encrypt(serialized, _BACKUP_AAD))
+            # A WAL backup into :memory: retains WAL flags. Rebuilding also makes
+            # a standalone image suitable for deserialize and removes free pages.
+            target_connection.execute("PRAGMA journal_mode=OFF")
+            target_connection.execute("VACUUM")
+            if target_connection.execute("PRAGMA integrity_check").fetchone() != (
+                "ok",
+            ) or target_connection.execute("PRAGMA freelist_count").fetchone() != (0,):
+                raise ValueError("sanitized SQLite export validation failed")
+            serialized = target_connection.serialize()
+            atomic_write(
+                temporary / filename,
+                cipher.encrypt(serialized, _BACKUP_AAD) if cipher else serialized,
+            )
         finally:
             target_connection.close()
         with (temporary / filename).open("r+b") as stream:

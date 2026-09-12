@@ -18,7 +18,7 @@ from quantdesk.core.events import (
     canonical_bytes,
 )
 from quantdesk.core.types import OrderType, Side, TimeInForce
-from quantdesk.persistence.backup import create_backup, restore_backup
+from quantdesk.persistence.backup import create_backup, restore_backup, validate_backup
 from quantdesk.persistence.db import Database, WriterOwnershipError
 from quantdesk.persistence.event_store import (
     EconomicIdentity,
@@ -794,3 +794,85 @@ def test_accountless_market_only_history_can_be_backed_up_without_a_cipher(tmp_p
         restored = restore_backup(bundle.path, tmp_path / "restored")
         with Database(restored / "engine.sqlite") as restored_db:
             assert EventStore(restored_db).read_after(0)[0] == public_event
+
+
+def test_plaintext_backup_export_removes_deleted_private_projection_bytes(tmp_path: Path) -> None:
+    private_marker = b"DELETED-PRIVATE-POSITION-482961"
+    with RawJournal(tmp_path / "raw") as journal, Database(tmp_path / "engine.sqlite") as db:
+        db.connection.execute("PRAGMA secure_delete=OFF")
+        public_event = replace(
+            event("event-1", 1),
+            envelope=replace(
+                event("event-1", 1).envelope,
+                account_id=None,
+                event_type="Quote",
+                payload=canonical_bytes(Quote(100, 1, 101, 1, None, ())),
+            ),
+        )
+        store = EventStore(db)
+        store.commit(
+            PersistenceTransition(
+                "event-1",
+                0,
+                (public_event,),
+                projection_updates=(ProjectionUpdate("positions", "BTCUSDT", private_marker),),
+            ),
+            journal.sync(),
+        )
+        db.connection.execute("DELETE FROM positions")
+        db.connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        assert private_marker in db.path.read_bytes()
+        bundle = create_backup(db, journal, tmp_path / "backups", "sanitized")
+        assert private_marker not in (bundle.path / "engine.sqlite").read_bytes()
+        restored = restore_backup(bundle.path, tmp_path / "restored")
+        with Database(restored / "engine.sqlite") as restored_db:
+            assert EventStore(restored_db).read_after(0)[0] == public_event
+            assert EventStore(restored_db).projection("positions", "BTCUSDT") is None
+
+
+@pytest.mark.parametrize(
+    "table", ["events", "projection_watermarks", "store_metadata", "unknown_empty_table"]
+)
+@pytest.mark.parametrize("phase", ["creation", "validation"])
+def test_plaintext_backup_rejects_schema_drift_even_in_infrastructure(
+    tmp_path: Path, table: str, phase: str
+) -> None:
+    import hashlib
+
+    with RawJournal(tmp_path / "raw") as journal, Database(tmp_path / "engine.sqlite") as db:
+        public_event = replace(
+            event("event-1", 1),
+            envelope=replace(
+                event("event-1", 1).envelope,
+                account_id=None,
+                event_type="Quote",
+                payload=canonical_bytes(Quote(100, 1, 101, 1, None, ())),
+            ),
+        )
+        EventStore(db).commit(PersistenceTransition("event-1", 0, (public_event,)), journal.sync())
+        if phase == "validation":
+            bundle = create_backup(db, journal, tmp_path / "backups", "original")
+            connection = sqlite3.connect(bundle.path / "engine.sqlite")
+        else:
+            connection = db.connection
+        if table == "unknown_empty_table":
+            connection.execute("CREATE TABLE unknown_empty_table(account_notes TEXT)")
+        else:
+            connection.execute(
+                f"ALTER TABLE {table} ADD COLUMN account_notes TEXT DEFAULT 'PRIVATE-SCHEMA-NOTES'"
+            )
+        if phase == "validation":
+            connection.commit()
+            connection.close()
+            files = tuple(
+                (name, hashlib.sha256((bundle.path / name).read_bytes()).hexdigest())
+                for name, _ in bundle.manifest.files
+            )
+            (bundle.path / "backup.json").write_bytes(
+                canonical_bytes(replace(bundle.manifest, files=files))
+            )
+            with pytest.raises(ValueError, match="encrypt"):
+                validate_backup(bundle.path)
+        else:
+            with pytest.raises(ValueError, match="encrypt"):
+                create_backup(db, journal, tmp_path / "backups", "drifted")

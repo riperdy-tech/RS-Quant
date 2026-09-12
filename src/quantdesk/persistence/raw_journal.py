@@ -228,6 +228,61 @@ class _StoredFrame:
     payload: bytes
 
 
+def _metadata_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    value = dict(pairs)
+    if len(value) != len(pairs):
+        raise JournalCorruption("duplicate raw metadata field")
+    return value
+
+
+def _metadata_integer(value: object) -> int:
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    if isinstance(value, str) and re.fullmatch(r"0|[1-9][0-9]*", value):
+        return int(value)
+    raise JournalCorruption("invalid raw metadata integer")
+
+
+def _validated_frame_ordinal(data: bytes) -> int:
+    """One complete metadata contract for writing, scans and recovery candidates."""
+    try:
+        metadata = json.loads(data, object_pairs_hook=_metadata_object)
+        required = {
+            "venue",
+            "environment",
+            "transport",
+            "receive_wall_ns",
+            "receive_monotonic_ns",
+            "connection_epoch",
+            "message_ordinal",
+            "private",
+            "url",
+            "frame_ordinal",
+            "key_id",
+        }
+        if not isinstance(metadata, dict) or set(metadata) != required:
+            raise JournalCorruption("incomplete or unknown raw metadata fields")
+        for name in ("venue", "environment", "transport", "connection_epoch"):
+            if not isinstance(metadata[name], str) or not metadata[name]:
+                raise JournalCorruption("invalid raw metadata identity")
+        for name in ("receive_wall_ns", "receive_monotonic_ns", "message_ordinal"):
+            _metadata_integer(metadata[name])
+        ordinal = _metadata_integer(metadata["frame_ordinal"])
+        if ordinal < 1 or not isinstance(metadata["private"], bool):
+            raise JournalCorruption("invalid raw metadata ordinal/privacy")
+        if metadata["url"] is not None and not isinstance(metadata["url"], str):
+            raise JournalCorruption("invalid raw metadata URL")
+        key_id = metadata["key_id"]
+        if metadata["private"]:
+            if not isinstance(key_id, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", key_id):
+                raise JournalCorruption("private raw metadata requires a key identifier")
+        elif key_id is not None:
+            raise JournalCorruption("public raw metadata cannot declare an encryption key")
+        return ordinal
+    except (ValueError, TypeError, KeyError) as exc:
+        raise JournalCorruption("invalid raw metadata") from exc
+
+
 def _has_later_complete_frame(data: bytes, start: int, minimum_ordinal: int) -> bool:
     """Recognize framing evidence, never a magic string inside a payload alone."""
     candidate = data.find(_MAGIC, start)
@@ -244,13 +299,12 @@ def _has_later_complete_frame(data: bytes, start: int, minimum_ordinal: int) -> 
             ):
                 metadata_start = candidate + _HEADER.size
                 try:
-                    metadata = json.loads(data[metadata_start : metadata_start + metadata_length])
-                    if (
-                        isinstance(metadata, dict)
-                        and int(metadata["frame_ordinal"]) >= minimum_ordinal
-                    ):
+                    ordinal = _validated_frame_ordinal(
+                        data[metadata_start : metadata_start + metadata_length]
+                    )
+                    if ordinal >= minimum_ordinal:
                         return True
-                except (ValueError, TypeError, KeyError):
+                except JournalCorruption:
                     pass
         candidate = data.find(_MAGIC, candidate + len(_MAGIC))
     return False
@@ -282,12 +336,8 @@ def _scan(
         metadata_start = offset + _HEADER.size
         metadata = data[metadata_start : metadata_start + metadata_length]
         ordinal = first_ordinal + len(frames)
-        try:
-            decoded = json.loads(metadata)
-            if int(decoded["frame_ordinal"]) != ordinal:
-                raise JournalCorruption("raw frame ordinal discontinuity")
-        except (ValueError, KeyError, TypeError) as exc:
-            raise JournalCorruption("invalid journal metadata") from exc
+        if _validated_frame_ordinal(metadata) != ordinal:
+            raise JournalCorruption("raw frame ordinal discontinuity")
         frames.append(
             _StoredFrame(
                 RawRef(journal_id, chunk, offset, end, ordinal),
@@ -482,6 +532,7 @@ class RawJournal:
                 "key_id": self._cipher.key_id if safe.private and self._cipher else None,
             }
         )
+        _validated_frame_ordinal(metadata)
         payload = (
             self._cipher.encrypt(safe.payload, metadata)
             if safe.private and self._cipher
