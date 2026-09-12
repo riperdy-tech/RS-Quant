@@ -19,8 +19,9 @@ Authoritative plan: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 | Preflight | COMPLETE | Plan read in full; Astra audit at ignored SDD evidence path; rulings recorded |
 | 01 | COMPLETE | `uv sync --frozen`; 18 tests passed; Ruff clean; mypy clean; isolated import OK; independent review clean after one fix round |
 | 02 | COMPLETE | 78 persistence/fault tests; 18 foundation regressions; Ruff/mypy clean; independent review clean after three fix rounds |
-| 03 | IN PROGRESS | Task brief generated; deterministic engine/replay gate next |
-| 04–18 | NOT STARTED | — |
+| 03 | COMPLETE | 52 engine/replay/property tests; 96 prior regressions; Ruff/mypy clean; independent review clean after one fix round |
+| 04 | IN PROGRESS | Task brief generated; market-data/book/dataset gate next |
+| 05–18 | NOT STARTED | — |
 
 ## Safety
 
@@ -51,3 +52,11 @@ Authoritative plan: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 - Review: four initial Important findings and three adversarial follow-ons were fixed in three bounded rounds; final scoped review PASS.
 - Implemented: framed CRC/hash-chained Zstd journal, explicit fsync watermark and torn-tail recovery, encrypted private capture/redaction, one-writer WAL SQLite, atomic event/ledger/projection/outbox commit, exact signed double entry and economic deduplication, checkpoint manifests, consistent encrypted/sanitized backup and disarmed isolated restore.
 - External limits: no physical power-cut certification; Windows ACL/key-store setup remains an installer/supervisor acceptance item. No venue credentials or network activity were used.
+
+## Task 03 evidence
+
+- Commits: `ee6d17a` (engine/checkpoint/replay), `ff1ef3c` (stable property timing), `7a9f5c5` (typed validation/stage/recovery/timer fixes).
+- TDD report: `.superpowers/sdd/IMPLEMENTATION_PLAN/task-03-report.md`.
+- Controller rerun: `uv run pytest tests/replay/test_determinism.py tests/property/test_event_ordering.py -q` → 52 passed; Task 01/02 regressions → 96 passed; Ruff and strict mypy clean.
+- Review: four Important correctness gaps were reproduced and fixed; scoped re-review PASS, including an independent nonzero-checkpoint SQLite recovery probe.
+- Implemented: stable stage-major reducer/decision scheduling, deterministic IDs and timers, typed payload decoding, immutable candidate/commit boundary, complete causal checkpoints, fact-only recovery, forensic regeneration/verification, fresh counterfactual branches, distinct hash scopes, and hard network-dispatch prohibition.
