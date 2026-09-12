@@ -316,19 +316,12 @@ class Ledger:
         if isinstance(payload, ExecutionReport):
             if payload.execution_type != ExecutionType.TRADE or event.instrument_id is None:
                 raise ValueError("execution must be a trade with an instrument")
-            spec = self._spec(event.instrument_id, payload.event_ns, event.available_ns)
-            prior = state.position(event.instrument_id)
-            if prior.signed_lots and prior.base_quantity != spec.base_quantity(prior.signed_lots):
-                raise ValueError("instrument unit revision conflicts with open position")
-            signed = payload.executed_lots * (1 if payload.side == Side.BUY else -1)
-            position, realized, legs = apply_fill(prior, signed, payload.price, spec)
-            position_updates = (position,)
             native, component, instrument = (
                 payload.native_execution_id,
                 "execution",
                 event.instrument_id,
             )
-            postings = _pair("USDT", realized, "income:realized_pnl") + _pair(
+            postings = _pair(
                 payload.fee_currency, payload.fee_amount.copy_negate(), "expense:trading_fees"
             )
             signature: object = (
@@ -457,6 +450,18 @@ class Ledger:
                     for i in additions
                 ),
             )
+        if isinstance(payload, ExecutionReport):
+            # Only unseen executions need historical units or current-position
+            # calculations. Previously booked facts remain duplicates even after
+            # a flat/reopen boundary changes the instrument's quantity units.
+            spec = self._spec(instrument, payload.event_ns, event.available_ns)
+            prior = state.position(instrument)
+            if prior.signed_lots and prior.base_quantity != spec.base_quantity(prior.signed_lots):
+                raise ValueError("instrument unit revision conflicts with open position")
+            signed = payload.executed_lots * (1 if payload.side == Side.BUY else -1)
+            position, realized, legs = apply_fill(prior, signed, payload.price, spec)
+            position_updates = (position,)
+            postings = _pair("USDT", realized, "income:realized_pnl") + postings
         transaction_id = sha256(canonical_bytes(economic_key(identity))).hexdigest()
         transaction = LedgerTransaction(
             transaction_id, event.event_id, identity, postings, aliases, approved_by, reversal_of

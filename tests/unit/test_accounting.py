@@ -740,3 +740,235 @@ def test_worked_postings_and_fee_correction_persist_with_exact_native_precision(
             assert sum((Fraction(p.amount) for p in stored), Fraction()) == 0
         assert state.balance("expense:trading_fees") == Decimal("0.41")
         assert len(store.read_after(0)) == 6
+
+
+@pytest.mark.parametrize(
+    "opening_side,reducing_side,expected_long,expected_short",
+    [(Side.BUY, Side.SELL, 10, -15), (Side.SELL, Side.BUY, 15, -10)],
+)
+def test_reduction_before_ordinary_reversal_reaches_larger_margin_tier(
+    opening_side: Side, reducing_side: Side, expected_long: int, expected_short: int
+) -> None:
+    from quantdesk.portfolio.events import ReservationChanged
+    from quantdesk.portfolio.margin import Margin, MarginSpec, MarginTier
+
+    ledger, state = start()
+    state = ledger.apply(envelope(fill("open", opening_side, lots=10), 2), state).state
+    state = ledger.apply(envelope(MarkPrice(Decimal(100), 3, "fixture"), 3), state).state
+    pending = (
+        ReservationChanged(
+            "close", INSTRUMENT, reducing_side, 10, Decimal(0), Decimal("0.25"), True, 1
+        ),
+        ReservationChanged(
+            "entry", INSTRUMENT, reducing_side, 15, Decimal(0), Decimal("0.25"), False, 1
+        ),
+    )
+    model = MarginSpec(
+        spec(),
+        Decimal(5),
+        Decimal("0.5"),
+        (
+            MarginTier(Decimal(1000), Decimal("0.01"), Decimal(0)),
+            MarginTier(Decimal(2000), Decimal("0.02"), Decimal(10)),
+        ),
+        "two-tiers",
+        3,
+        10,
+    )
+    estimate = Margin.estimate(ledger.snapshot(state), pending, model)
+    assert (estimate.worst_long_lots, estimate.worst_short_lots) == (expected_long, expected_short)
+    assert estimate.initial_margin == Decimal(301)
+    assert estimate.incremental_pending_reserve == Decimal(100)
+    assert estimate.maintenance_margin == Decimal(20)
+    assert Margin.estimate(ledger.snapshot(state), tuple(reversed(pending)), model) == estimate
+
+
+@pytest.mark.parametrize(
+    "opening_side,reducing_side,expected_long,expected_short",
+    [(Side.BUY, Side.SELL, 10, -9), (Side.SELL, Side.BUY, 9, -10)],
+)
+def test_partial_reduce_only_reservation_preserves_no_fill_extreme(
+    opening_side: Side, reducing_side: Side, expected_long: int, expected_short: int
+) -> None:
+    from quantdesk.portfolio.events import ReservationChanged
+    from quantdesk.portfolio.margin import Margin, MarginSpec, MarginTier
+
+    ledger, state = start()
+    state = ledger.apply(envelope(fill("open", opening_side, lots=10), 2), state).state
+    state = ledger.apply(envelope(MarkPrice(Decimal(100), 3, "fixture"), 3), state).state
+    pending = (
+        ReservationChanged("close", INSTRUMENT, reducing_side, 4, Decimal(0), Decimal(0), True, 1),
+        ReservationChanged(
+            "entry", INSTRUMENT, reducing_side, 15, Decimal(0), Decimal(0), False, 1
+        ),
+    )
+    model = MarginSpec(
+        spec(),
+        Decimal(5),
+        Decimal(0),
+        (MarginTier(Decimal(2000), Decimal("0.01"), Decimal(0)),),
+        "tier",
+        3,
+        10,
+    )
+    estimate = Margin.estimate(ledger.snapshot(state), pending, model)
+    assert (estimate.worst_long_lots, estimate.worst_short_lots) == (expected_long, expected_short)
+    assert estimate.initial_margin == Decimal(200)
+
+
+@pytest.mark.parametrize(
+    "quantity_step,multiplier,valid_from,known_from,reason",
+    [
+        ("0.1", "1", 0, 0, "POSITION_UNIT_MISMATCH"),
+        ("1", "0.1", 0, 0, "POSITION_UNIT_MISMATCH"),
+        ("1", "1", 4, 0, "INSTRUMENT_SPEC_UNAVAILABLE"),
+        ("1", "1", 0, 4, "INSTRUMENT_SPEC_UNAVAILABLE"),
+    ],
+)
+def test_margin_does_not_reinterpret_position_with_incompatible_or_future_units(
+    quantity_step: str, multiplier: str, valid_from: int, known_from: int, reason: str
+) -> None:
+    from quantdesk.portfolio.margin import Margin, MarginSpec, MarginTier
+    from quantdesk.venues.instruments import InstrumentSpec
+
+    ledger, state = start()
+    state = ledger.apply(envelope(fill("open", lots=10), 2), state).state
+    state = ledger.apply(envelope(MarkPrice(Decimal(100), 3, "fixture"), 3), state).state
+    alternate = InstrumentSpec.create(
+        instrument_id=INSTRUMENT,
+        tick_size=Decimal("0.01"),
+        quantity_step=Decimal(quantity_step),
+        contract_multiplier=Decimal(multiplier),
+        valid_from_ns=valid_from,
+        known_from_ns=known_from,
+        max_leverage=Decimal(20),
+    )
+    model = MarginSpec(
+        alternate,
+        Decimal(5),
+        Decimal(0),
+        (MarginTier(Decimal(10000), Decimal("0.01"), Decimal(0)),),
+        "tier",
+        3,
+        10,
+    )
+    before = state.to_bytes()
+    estimate = Margin.estimate(ledger.snapshot(state), (), model)
+    assert estimate.status == "INCOMPLETE_MARGIN_MODEL"
+    assert estimate.initial_margin is None and estimate.maintenance_margin is None
+    assert reason in estimate.reasons
+    assert state.to_bytes() == before
+    assert state.position(INSTRUMENT).base_quantity == Decimal(10)
+
+
+@pytest.mark.parametrize("missing_position_revision", [False, True])
+def test_margin_requires_verifiable_spec_revisions(missing_position_revision: bool) -> None:
+    from quantdesk.portfolio.margin import Margin, MarginSpec, MarginTier
+
+    ledger, state = start()
+    state = ledger.apply(envelope(fill("open", lots=10), 2), state).state
+    state = ledger.apply(envelope(MarkPrice(Decimal(100), 3, "fixture"), 3), state).state
+    instrument = spec()
+    if missing_position_revision:
+        state = replace(state, positions=(replace(state.position(INSTRUMENT), spec_revision=""),))
+    else:
+        instrument = replace(instrument, revision_hash="unverified")
+    model = MarginSpec(
+        instrument,
+        Decimal(5),
+        Decimal(0),
+        (MarginTier(Decimal(10000), Decimal("0.01"), Decimal(0)),),
+        "tier",
+        3,
+        10,
+    )
+    estimate = Margin.estimate(ledger.snapshot(state), (), model)
+    assert estimate.status == "INCOMPLETE_MARGIN_MODEL"
+    assert estimate.initial_margin is None and estimate.maintenance_margin is None
+
+
+def test_margin_allows_newer_verified_metadata_with_unchanged_position_units() -> None:
+    from quantdesk.portfolio.margin import Margin, MarginSpec, MarginTier
+    from quantdesk.venues.instruments import InstrumentSpec
+
+    ledger, state = start()
+    state = ledger.apply(envelope(fill("open", lots=10), 2), state).state
+    state = ledger.apply(envelope(MarkPrice(Decimal(100), 3, "fixture"), 3), state).state
+    revised_tick = InstrumentSpec.create(
+        instrument_id=INSTRUMENT,
+        tick_size=Decimal("0.02"),
+        quantity_step=Decimal(1),
+        valid_from_ns=2,
+        known_from_ns=2,
+        max_leverage=Decimal(20),
+    )
+    model = MarginSpec(
+        revised_tick,
+        Decimal(5),
+        Decimal(0),
+        (MarginTier(Decimal(10000), Decimal("0.01"), Decimal(0)),),
+        "tier",
+        3,
+        10,
+    )
+    estimate = Margin.estimate(ledger.snapshot(state), (), model)
+    assert state.position(INSTRUMENT).spec_revision != revised_tick.revision_hash
+    assert estimate.status == "ESTIMATED"
+    assert estimate.initial_margin == Decimal(200)
+    assert estimate.maintenance_margin == Decimal(10)
+
+
+@pytest.mark.parametrize("restore_checkpoint", [False, True])
+@pytest.mark.parametrize("keep_historical_metadata", [False, True])
+def test_old_execution_duplicate_and_late_alias_survive_close_reopen_with_changed_units(
+    restore_checkpoint: bool, keep_historical_metadata: bool
+) -> None:
+    from quantdesk.venues.instruments import InstrumentSpec
+
+    original_spec = spec()
+    revised = InstrumentSpec.create(
+        instrument_id=INSTRUMENT,
+        tick_size=Decimal("0.01"),
+        quantity_step=Decimal("0.1"),
+        valid_from_ns=10,
+        known_from_ns=10,
+        max_leverage=Decimal(20),
+    )
+    ledger = Ledger((original_spec, revised))
+    state = LedgerState("fixture", "DEMO", "demo")
+    state = ledger.apply(
+        envelope(CashTransfer("deposit", Decimal(1000), "USDT", "IN", 0)), state
+    ).state
+    original = replace(fill("old-execution", lots=2, fee="0.20"), event_ns=2, receipt_ns=2)
+    booked = ledger.apply(envelope(original, 2), state)
+    state = ledger.apply(
+        envelope(replace(fill("close-old", Side.SELL, lots=2, fee="0.20"), event_ns=3), 3),
+        booked.state,
+    ).state
+    assert state.position(INSTRUMENT).signed_lots == 0
+    state = ledger.apply(
+        envelope(replace(fill("open-new", lots=3, fee="0.03"), event_ns=10), 10), state
+    ).state
+    assert state.position(INSTRUMENT).base_quantity == Decimal("0.3")
+    assert state.balance("cash:USDT") == Decimal("999.57")
+    if restore_checkpoint:
+        state = LedgerState.from_bytes(state.to_bytes())
+    reader = ledger if keep_historical_metadata else Ledger((revised,))
+    duplicate = reader.apply(envelope(replace(original, receipt_ns=11), 11), state)
+    assert duplicate.duplicate and duplicate.state == replace(state, available_ns=11)
+    assert duplicate.transactions == () and duplicate.position_updates == ()
+    assert duplicate.position_legs == ()
+    rest_report = replace(original, native_execution_id="REST-old", receipt_ns=12)
+    aliased = reader.apply(
+        FinancialEvent(envelope(rest_report, 12), ("old-execution",)), duplicate.state
+    )
+    assert aliased.duplicate and aliased.transactions == ()
+    assert len(aliased.alias_updates) == 1
+    assert aliased.alias_updates[0].transaction_id == booked.transactions[0].transaction_id
+    assert aliased.state.position(INSTRUMENT) == state.position(INSTRUMENT)
+    assert aliased.state.balances == state.balances
+    assert aliased.state.transactions == state.transactions
+    restored_alias = LedgerState.from_bytes(aliased.state.to_bytes())
+    assert reader.apply(envelope(rest_report, 13), restored_alias).duplicate
+    with pytest.raises(ValueError, match="conflicting economic duplicate"):
+        reader.apply(envelope(replace(original, price=Decimal(101)), 13), aliased.state)

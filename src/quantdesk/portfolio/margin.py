@@ -7,7 +7,7 @@ from quantdesk.core.types import Side
 from quantdesk.portfolio.arithmetic import ACCOUNTING_CONTEXT, ZERO, exact_sum, money
 from quantdesk.portfolio.events import ReservationChanged
 from quantdesk.portfolio.ledger import PortfolioView
-from quantdesk.venues.instruments import InstrumentSpec
+from quantdesk.venues.instruments import InstrumentRegistry, InstrumentSpec
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,17 +69,47 @@ class Margin:
             None,
         )
         lots = 0 if position is None else position.position.signed_lots
-        long = lots + sum(
-            r.remaining_lots for r in relevant if r.side == Side.BUY and not r.reduce_only
+        # For each extreme, reducing the initial opposite position first makes
+        # more room for ordinary orders to open new exposure. Other-side orders
+        # can be left unfilled; a reduce-only fill itself never crosses zero.
+        close_short = min(
+            max(-lots, 0),
+            sum(r.remaining_lots for r in relevant if r.side == Side.BUY and r.reduce_only),
         )
-        short = lots - sum(
-            r.remaining_lots for r in relevant if r.side == Side.SELL and not r.reduce_only
+        close_long = min(
+            max(lots, 0),
+            sum(r.remaining_lots for r in relevant if r.side == Side.SELL and r.reduce_only),
+        )
+        long = (
+            lots
+            + close_short
+            + sum(r.remaining_lots for r in relevant if r.side == Side.BUY and not r.reduce_only)
+        )
+        short = (
+            lots
+            - close_long
+            - sum(r.remaining_lots for r in relevant if r.side == Side.SELL and not r.reduce_only)
         )
         reasons: list[str] = []
+        registry = InstrumentRegistry()
+        try:
+            registry.add(spec.instrument)
+            registry.at(
+                spec.instrument.instrument_id, portfolio.available_ns, portfolio.available_ns
+            )
+        except (ValueError, LookupError):
+            reasons.append("INSTRUMENT_SPEC_UNAVAILABLE")
+        if position is not None:
+            if lots and not position.position.spec_revision:
+                reasons.append("POSITION_SPEC_UNAVAILABLE")
+            if position.position.base_quantity != spec.instrument.base_quantity(lots):
+                reasons.append("POSITION_UNIT_MISMATCH")
+        instrument_parts = spec.instrument.instrument_id.split(":")
         if (
             spec.instrument.quote_unit != "USDT"
             or spec.instrument.settlement_unit != "USDT"
-            or spec.instrument.instrument_id.split(":")[1] not in {"USDT-FUTURES", "linear"}
+            or len(instrument_parts) != 6
+            or instrument_parts[1] not in {"USDT-FUTURES", "linear"}
         ):
             reasons.append("UNSUPPORTED_LINEAR_MARGIN_PROFILE")
         if not spec.tiers or not spec.tier_revision:
@@ -125,8 +155,13 @@ class Margin:
         )
         assert portfolio.equity is not None
         with localcontext(ACCOUNTING_CONTEXT):
-            worst = spec.instrument.base_quantity(max(abs(long), abs(short))) * position.mark_price
-            current = abs(spec.instrument.base_quantity(lots)) * position.mark_price
+            # Stored base quantity is the accounting fact. Verified current
+            # instrument units apply only to the possible additional fills.
+            current_base = position.position.base_quantity
+            long_base = exact_sum(current_base, spec.instrument.base_quantity(long - lots))
+            short_base = exact_sum(current_base, spec.instrument.base_quantity(short - lots))
+            worst = max(long_base.copy_abs(), short_base.copy_abs()) * position.mark_price
+            current = current_base.copy_abs() * position.mark_price
             tier = next((tier for tier in spec.tiers if worst <= tier.notional_cap), None)
             if tier is None:
                 return MarginView(

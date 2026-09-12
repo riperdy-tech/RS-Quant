@@ -68,3 +68,66 @@ def test_random_fills_transfers_balance_dedupe_and_restart(
         view = ledger.snapshot(state)
         assert view.equity is not None and view.equity.is_finite()
         assert view.net_pnl is not None and view.net_pnl.is_finite()
+
+
+@settings(max_examples=100)
+@given(
+    st.integers(-3, 3),
+    st.lists(st.tuples(st.booleans(), st.integers(1, 3), st.booleans()), max_size=4),
+)
+def test_margin_extrema_match_all_valid_partial_fill_orderings(
+    initial_lots: int, orders: list[tuple[bool, int, bool]]
+) -> None:
+    from quantdesk.portfolio.events import ReservationChanged
+    from quantdesk.portfolio.margin import Margin, MarginSpec, MarginTier
+
+    ledger = Ledger((spec(),))
+    state = LedgerState("fixture", "DEMO", "demo")
+    if initial_lots:
+        state = ledger.apply(
+            envelope(
+                fill("initial", Side.BUY if initial_lots > 0 else Side.SELL, abs(initial_lots))
+            ),
+            state,
+        ).state
+    state = ledger.apply(envelope(MarkPrice(Decimal(100), 2, "fixture"), 2), state).state
+    pending = tuple(
+        ReservationChanged(
+            str(index),
+            INSTRUMENT,
+            Side.BUY if buy else Side.SELL,
+            lots,
+            Decimal(0),
+            Decimal(0),
+            reduce_only,
+            1,
+        )
+        for index, (buy, lots, reduce_only) in enumerate(orders)
+    )
+    # Independent oracle: explore every feasible one-lot fill and stopping point.
+    first = (initial_lots, tuple(lots for _, lots, _ in orders))
+    frontier = [first]
+    reached = {first}
+    while frontier:
+        current, remaining = frontier.pop()
+        for index, (buy, _, reduce_only) in enumerate(orders):
+            side = 1 if buy else -1
+            if not remaining[index] or (reduce_only and current * side >= 0):
+                continue
+            tail = tuple(lots - (offset == index) for offset, lots in enumerate(remaining))
+            next_state = (current + side, tail)
+            if next_state not in reached:
+                reached.add(next_state)
+                frontier.append(next_state)
+    model = MarginSpec(
+        spec(),
+        Decimal(1),
+        Decimal(0),
+        (MarginTier(Decimal(100000), Decimal("0.01"), Decimal(0)),),
+        "tier",
+        2,
+        10,
+    )
+    estimate = Margin.estimate(ledger.snapshot(state), pending, model)
+    assert estimate.worst_long_lots == max(lots for lots, _ in reached)
+    assert estimate.worst_short_lots == min(lots for lots, _ in reached)
