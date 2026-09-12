@@ -674,7 +674,7 @@ class BitgetUTAAdapter:
                     and row.get("slTriggerBy") in {"mark", "market"}
                     and row.get("reduceOnly") == "yes"
                     and spec.instrument_id == order.instrument_id
-                    and row.get("posSide") == ("long" if position > 0 else "short")
+                    and row.get("posSide") in {"long", "short"}
                 )
                 native_protection.append(
                     NativeProtection(
@@ -686,11 +686,15 @@ class BitgetUTAAdapter:
                         status,
                         safe,
                         "SL",
+                        spec.instrument_id,
+                        {"long": "LONG", "short": "SHORT"}.get(row.get("posSide")),
+                        {"yes": True, "no": False}.get(row.get("reduceOnly")),
                     )
                 )
                 if (
                     lots
                     and safe
+                    and row.get("posSide") == ("long" if position > 0 else "short")
                     and status == "pending"
                     and row.get("slTriggerBy") == expected_basis
                     and trigger == order.native_trigger_value

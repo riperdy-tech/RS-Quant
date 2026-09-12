@@ -67,7 +67,18 @@ def test_protection_shortfall_restore_budget_partial_close_and_confirmed_flat():
     )
     assert first.state.status == "RESTORING"
     assert first.actions == ("LATCH_ENTRIES", "CANCEL_ENTRY_REMAINDER", "RESTORE_STOP")
-    coverage = NativeProtection("native", "group", 5, "MARK", "90", "pending", True)
+    coverage = NativeProtection(
+        "native",
+        "group",
+        5,
+        "MARK",
+        "90",
+        "pending",
+        True,
+        instrument_id="instrument",
+        position_side="LONG",
+        reduce_only=True,
+    )
     valid = manager.evaluate(
         first.state,
         (coverage,),
@@ -125,8 +136,31 @@ def test_two_stop_legs_do_not_add_coverage_and_unverified_coexistence_blocks():
     manager = ProtectionManager()
     state = ProtectionState("group", "instrument", 5, "MARK", "90")
     legs = (
-        NativeProtection("tp", "group", 5, "MARK", "110", "pending", True, kind="TP"),
-        NativeProtection("sl", "group", 2, "MARK", "90", "pending", True),
+        NativeProtection(
+            "tp",
+            "group",
+            5,
+            "MARK",
+            "110",
+            "pending",
+            True,
+            kind="TP",
+            instrument_id="instrument",
+            position_side="LONG",
+            reduce_only=True,
+        ),
+        NativeProtection(
+            "sl",
+            "group",
+            2,
+            "MARK",
+            "90",
+            "pending",
+            True,
+            instrument_id="instrument",
+            position_side="LONG",
+            reduce_only=True,
+        ),
     )
     result = manager.evaluate(
         state, legs, owned_lots=5, observed_ns=100, verified_flat=False, capability_verified=False
@@ -246,6 +280,201 @@ def test_review_live_order_recovers_as_real_oms_open(tmp_path):
 @pytest.mark.parametrize(
     "changes",
     [
+        {"stopLoss": "80", "slTriggerBy": "market", "slOrderType": "limit"},
+        {"stopLoss": None},
+        {"slTriggerBy": None},
+        {"slOrderType": None},
+        {"slTriggerBy": "index"},
+        {"stopLoss": "garbled"},
+    ],
+)
+def test_round2_attached_stop_contract_conflict_blocks_recovery(tmp_path, changes):
+    from tests.support.bitget_case import recovery_case
+
+    result = asyncio.run(recovery_case(tmp_path, fault="live_order", order_changes=changes))
+    assert not result["converged"] and not result["cursor_committed"]
+    assert "ORDER_CONTRACT_CONFLICT" in result["reasons"]
+    assert any(row["discrepancies"] for row in result["order_evidence"])
+
+
+def test_round2_equivalent_attached_stop_decimal_converges(tmp_path):
+    from tests.support.bitget_case import recovery_case
+
+    result = asyncio.run(recovery_case(tmp_path, order_changes={"stopLoss": "90.000"}))
+    assert result["converged"]
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"stopLoss": "90"},
+        {"slTriggerBy": "mark"},
+        {"slOrderType": "market"},
+        {"stopLoss": "bad"},
+        {"slTriggerBy": "index"},
+    ],
+)
+def test_round2_unexpected_stop_on_unprotected_instruction_is_writer_conflict(tmp_path, extra):
+    from decimal import Decimal
+
+    from quantdesk.core.events import CashTransfer
+    from quantdesk.execution.intents import OrderApproved
+    from tests.support.bitget_case import RecoveryAccount
+    from tests.support.oms_case import instruction
+
+    async def run():
+        account = RecoveryAccount(tmp_path)
+        try:
+            account.send(CashTransfer("deposit", Decimal("1000"), "USDT", "IN", account.time))
+            order = instruction(
+                instrument_id=account.spec.instrument_id,
+                quantity_lots=100,
+                price_ticks=1000,
+                expires_at_ns=account.time + 10000000000,
+            )
+            account.send(OrderApproved(order, Decimal("10"), Decimal("1")))
+            row = {
+                "category": "USDT-FUTURES",
+                "symbol": "BTCUSDT",
+                "clientOid": "client",
+                "orderId": "venue-order",
+                "qty": "0.100",
+                "side": "buy",
+                "price": "100",
+                "orderType": "limit",
+                "timeInForce": "gtc",
+                "reduceOnly": "no",
+                "marginMode": "isolated",
+                "holdMode": "one_way_mode",
+                **extra,
+            }
+            # Private updates have no expected instruction at the adapter; the
+            # real writer must independently bind observed attached controls.
+            evidence = account.adapter.normalizer.order_contract(row, None)
+            account.send(evidence)
+            assert account.engine.state.get("oms", "order-contract-conflicts-v1") == b'["client"]'
+            assert any(
+                r.envelope.event_type == "OrderContractObserved"
+                for r in account.store.read_after(0)
+            )
+        finally:
+            await account.close()
+
+    asyncio.run(run())
+
+
+def test_round2_native_stop_is_validated_against_writer_not_venue_position(tmp_path):
+    from tests.support.bitget_case import recovery_case
+
+    result = asyncio.run(
+        recovery_case(
+            tmp_path, position_changes={"posSide": "short"}, stop_changes={"posSide": "short"}
+        )
+    )
+    assert not result["converged"]
+    assert result["protection"]["group"]["state"]["status"] != "PROTECTED"
+    assert "BOUNDED_REDUCE_ONLY_EXIT" in result["protection"]["group"]["actions"]
+
+
+def test_round2_native_safe_boolean_without_evidence_cannot_protect():
+    from quantdesk.execution.protection import NativeProtection, ProtectionManager, ProtectionState
+
+    result = ProtectionManager().evaluate(
+        ProtectionState("group", "instrument", 100, "MARK", "90"),
+        (NativeProtection("stop", "group", 100, "MARK", "90", "pending", True),),
+        owned_lots=100,
+        observed_ns=1,
+        verified_flat=False,
+        capability_verified=True,
+    )
+    assert result.state.status != "PROTECTED" and result.actions
+
+
+@pytest.mark.parametrize(
+    "lots,native_side,native_instrument,reducing,protected",
+    [
+        (100, "LONG", "instrument", True, True),
+        (-100, "SHORT", "instrument", True, True),
+        (100, "SHORT", "instrument", True, False),
+        (-100, "LONG", "instrument", True, False),
+        (100, "LONG", "other-instrument", True, False),
+        (100, "LONG", "instrument", False, False),
+        (100, "LONG", "instrument", None, False),
+    ],
+)
+def test_round2_manager_checks_canonical_native_evidence(
+    lots, native_side, native_instrument, reducing, protected
+):
+    from quantdesk.execution.protection import NativeProtection, ProtectionManager, ProtectionState
+
+    leg = NativeProtection(
+        "stop",
+        "group",
+        100,
+        "MARK",
+        "90",
+        "pending",
+        True,
+        instrument_id=native_instrument,
+        position_side=native_side,
+        reduce_only=reducing,
+    )
+    result = ProtectionManager().evaluate(
+        ProtectionState("group", "instrument", 100, "MARK", "90"),
+        (leg,),
+        owned_lots=lots,
+        observed_ns=1,
+        verified_flat=False,
+        capability_verified=True,
+    )
+    assert (result.state.status == "PROTECTED") is protected
+    assert bool(result.actions) is not protected
+    assert result.covered_lots == (100 if protected else 0)
+
+
+@pytest.mark.parametrize(
+    "error", [RuntimeError, asyncio.CancelledError, SystemExit, KeyboardInterrupt]
+)
+def test_round2_possibly_written_exception_irrevocably_revokes_unsent(tmp_path, error):
+    class AcceptThenRaise(BoundaryVenue):
+        def handoff(self, instruction):
+            self.accepted.append(instruction)
+            self.permit = next(iter(authority._unsent.values()))
+            raise error("boundary accepted bytes")
+
+    account = AccountCase(tmp_path)
+    account.approve()
+    venue = AcceptThenRaise()
+    router, authority, ownership, _ = gateway(account, venue)
+    row = router.outbox.pending()[0]
+
+    async def run():
+        # Catch process-style exceptions inside the coroutine so the test never
+        # interrupts the runner; the real synchronous Router path is exercised.
+        try:
+            await router.dispatch_ready()
+        except BaseException as exc:
+            assert isinstance(exc, error)
+        else:
+            pytest.fail("unexpected synchronous boundary error must propagate")
+        assert len(venue.accepted) == 1
+        assert not authority._unsent and not authority._issued
+        assert account.state.commands[0].status == "UNKNOWN"
+        assert account.portfolio.reservations[0].remaining_lots == 5
+        with pytest.raises(PermissionError):
+            authority.abort_unsent(row, "DISPATCH_INVALIDATED", venue.permit)
+        assert account.state.commands[0].status == "UNKNOWN"
+
+    try:
+        asyncio.run(run())
+    finally:
+        ownership.close()
+        account.close()
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
         {"qty": "0.200"},
         {"side": "sell"},
         {"marginMode": "cross"},
@@ -317,7 +546,10 @@ def test_review_old_canceled_group_does_not_own_later_filled_position(tmp_path):
     assert result["converged"]
 
 
-def test_review_protection_owner_changes_only_after_actual_flat_cycle_and_replays(tmp_path):
+@pytest.mark.parametrize("direction", ["BUY", "SELL"])
+def test_review_protection_owner_changes_only_after_actual_flat_cycle_and_replays(
+    tmp_path, direction
+):
     import json
     from dataclasses import replace
     from decimal import Decimal
@@ -335,11 +567,14 @@ def test_review_protection_owner_changes_only_after_actual_flat_cycle_and_replay
         account = RecoveryAccount(tmp_path)
         try:
             checkpoint = account.engine.checkpoint()
+            entry_side = Side(direction)
+            close_side = Side.SELL if entry_side == Side.BUY else Side.BUY
+            trigger = "90" if entry_side == Side.BUY else "110"
             account.send(CashTransfer("deposit", Decimal("1000"), "USDT", "IN", account.time))
             for client, side, group, reducing in (
-                ("old", Side.BUY, "old-group", False),
-                ("close", Side.SELL, None, True),
-                ("new", Side.BUY, "new-group", False),
+                ("old", entry_side, "old-group", False),
+                ("close", close_side, None, True),
+                ("new", entry_side, "new-group", False),
             ):
                 order = instruction(
                     client,
@@ -349,7 +584,7 @@ def test_review_protection_owner_changes_only_after_actual_flat_cycle_and_replay
                     side=side,
                     reduce_only=reducing,
                     native_trigger_basis="MARK" if group else None,
-                    native_trigger_value=Decimal("90") if group else None,
+                    native_trigger_value=Decimal(trigger) if group else None,
                     protection_group_id=group,
                     expires_at_ns=account.time + 10000000000,
                 )
@@ -364,13 +599,24 @@ def test_review_protection_owner_changes_only_after_actual_flat_cycle_and_replay
             # Replayed old execution is factual corroboration, not a new owner.
             account.send(
                 replace(
-                    fill("old-fill", Side.BUY, 100),
+                    fill("old-fill", entry_side, 100),
                     client_order_id="old",
                     venue_order_id="old-order",
                 )
             )
             account.send(ProtectionReview("old-group", (), account.time, False, True, False))
-            stop = NativeProtection("new-stop", "new-group", 100, "MARK", "90", "pending", True)
+            stop = NativeProtection(
+                "new-stop",
+                "new-group",
+                100,
+                "MARK",
+                trigger,
+                "pending",
+                True,
+                instrument_id=account.spec.instrument_id,
+                position_side="LONG" if entry_side == Side.BUY else "SHORT",
+                reduce_only=True,
+            )
             account.send(ProtectionReview("new-group", (stop,), account.time, False, True, False))
             old = json.loads(account.engine.state.get("protection", "old-group"))
             assert old["state"]["desired_lots"] == 0 and old["actions"] == []
@@ -400,7 +646,14 @@ def test_review_protection_owner_changes_only_after_actual_flat_cycle_and_replay
 
 
 @pytest.mark.parametrize(
-    "fault", ["semantic_quarantine", "prebyte_expiry", "prebyte_header", "prebyte_filter_revision"]
+    "fault",
+    [
+        "semantic_quarantine",
+        "decimal_quarantine",
+        "prebyte_expiry",
+        "prebyte_header",
+        "prebyte_filter_revision",
+    ],
 )
 def test_review_private_quarantine_and_prebyte_expiry_release_unsent(tmp_path, fault):
     from decimal import Decimal
@@ -427,15 +680,37 @@ def test_review_private_quarantine_and_prebyte_expiry_release_unsent(tmp_path, f
             account.send(OrderApproved(order, Decimal("10"), Decimal("1")))
             await account.adapter.connect_private()
             router, authority, ownership, policy = gateway(account, account.adapter)
-            if fault == "semantic_quarantine":
+            if fault in {"semantic_quarantine", "decimal_quarantine"}:
+                import json
+
+                row = (
+                    {}
+                    if fault == "semantic_quarantine"
+                    else {
+                        "category": "USDT-FUTURES",
+                        "symbol": "BTCUSDT",
+                        "clientOid": "client",
+                        "orderId": "venue-order",
+                        "execId": "bad-fill",
+                        "side": "buy",
+                        "execQty": "0.100",
+                        "execPrice": "not-a-decimal",
+                        "createdTime": "1789200000123",
+                        "tradeScope": "maker",
+                        "feeDetail": [{"feeCoin": "USDT", "fee": "0"}],
+                    }
+                )
                 await account.socket.queue.put(
-                    '{"arg":{"instType":"UTA","topic":"fill"},"data":[{}]}'
+                    json.dumps({"arg": {"instType": "UTA", "topic": "fill"}, "data": [row]})
                 )
                 await asyncio.wait_for(account.adapter.private.changed.wait(), 1)
                 events = account.adapter.drain_private()
                 assert events[0].event_type == "DataGap"
                 assert not account.adapter.private_healthy()
                 assert account.adapter.last_profile is None
+                for event in events:
+                    account.engine.commit(account.engine.process(event))
+                assert any(r.envelope.event_type == "DataGap" for r in account.store.read_after(0))
             else:
 
                 def jump_after_prepare():

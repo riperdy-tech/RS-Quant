@@ -6,7 +6,7 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, DecimalException
 from typing import Any
 
 from quantdesk.core.events import (
@@ -20,7 +20,11 @@ from quantdesk.core.events import (
     OrderReport,
 )
 from quantdesk.core.types import BookLevel, EventPayload, ExecutionType, Side
-from quantdesk.execution.reconciliation import OrderContractObserved, order_contract_terms
+from quantdesk.execution.reconciliation import (
+    OrderContractObserved,
+    order_contract_terms,
+    trigger_contract_value,
+)
 from quantdesk.venues.instruments import InstrumentSpec, exact
 
 
@@ -39,7 +43,12 @@ def timestamp(value: object) -> int:
 def decimal(value: object) -> Decimal:
     if not isinstance(value, str):
         raise TypeError("financial wire value must be a decimal string")
-    return exact(value)
+    try:
+        return exact(value)
+    except DecimalException as exc:
+        # Wire syntax failures must enter the same semantic quarantine as
+        # missing/nonfinite financial evidence, not escape with readiness set.
+        raise ValueError("malformed financial decimal string") from exc
 
 
 def identifier(value: object) -> str:
@@ -127,6 +136,15 @@ class Normalizer:
             except (KeyError, TypeError, ValueError):
                 return None
 
+        def attached(name: str, convert: Any) -> Any:
+            if name not in row or row[name] is None or row[name] == "":
+                return None
+            try:
+                return convert(row[name])
+            except (KeyError, TypeError, ValueError):
+                # Unknown supplied controls are not evidence of their absence.
+                return "UNKNOWN"
+
         try:
             spec = self.spec(row)
         except (KeyError, TypeError, ValueError):
@@ -146,6 +164,15 @@ class Normalizer:
             "margin_mode": field("marginMode"),
             "position_mode": {"one_way_mode": "one_way", "hedge_mode": "hedge"}.get(
                 field("holdMode")
+            ),
+            "stop_trigger_value": attached(
+                "stopLoss", lambda v: trigger_contract_value(decimal(v))
+            ),
+            "stop_trigger_basis": attached(
+                "slTriggerBy", lambda v: {"mark": "MARK", "market": "LAST"}[v]
+            ),
+            "stop_order_type": attached(
+                "slOrderType", lambda v: {"market": "MARKET", "limit": "LIMIT"}[v]
             ),
         }
         expected = order_contract_terms(instruction) if instruction else {}

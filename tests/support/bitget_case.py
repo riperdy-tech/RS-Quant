@@ -144,6 +144,7 @@ class RecoveryHTTP(ScriptedHTTP):
         self.accepted = []
         self.order_changes = {}
         self.stop_changes = {}
+        self.position_changes = {}
 
     async def prepare(self, request):
         await asyncio.sleep(0)
@@ -172,6 +173,9 @@ class RecoveryHTTP(ScriptedHTTP):
             "reduceOnly": "no",
             "marginMode": "isolated",
             "holdMode": "one_way_mode",
+            "stopLoss": "90",
+            "slTriggerBy": "mark",
+            "slOrderType": "market",
         }
         if self.fault == "stale_protection":
             order.update(orderStatus="cancelled", cumExecQty="0")
@@ -181,6 +185,7 @@ class RecoveryHTTP(ScriptedHTTP):
                 orderStatus="live" if self.fault == "live_order" else "new", cumExecQty="0"
             )
         order.update(self.order_changes)
+        order = {key: value for key, value in order.items() if value is not None}
         fill = {
             "category": "USDT-FUTURES",
             "symbol": "BTCUSDT",
@@ -294,6 +299,7 @@ class RecoveryHTTP(ScriptedHTTP):
                         "avgPrice": "100",
                         "marginMode": "isolated",
                         "holdMode": "one_way_mode",
+                        **self.position_changes,
                     }
                 ]
             }
@@ -425,6 +431,7 @@ async def recovery_case(
     stop_changes=None,
     old_canceled=False,
     private_order_changes=None,
+    position_changes=None,
 ):
     from decimal import Decimal
 
@@ -437,6 +444,7 @@ async def recovery_case(
     account = RecoveryAccount(path, fault=fault)
     account.transport.order_changes = order_changes or {}
     account.transport.stop_changes = stop_changes or {}
+    account.transport.position_changes = position_changes or {}
     servers = await start_loopback_exchange(account) if use_sockets else ()
     ownership = None
     try:
@@ -486,6 +494,9 @@ async def recovery_case(
                 "reduceOnly": "no",
                 "marginMode": "isolated",
                 "holdMode": "one_way_mode",
+                "stopLoss": "90",
+                "slTriggerBy": "mark",
+                "slOrderType": "market",
                 **private_order_changes,
             }
             await account.socket.queue.put(

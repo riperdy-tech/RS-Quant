@@ -395,10 +395,15 @@ class Router:
                     if discard is not None:
                         discard()
                     continue
-                except (TimeoutError, ConnectionError, OSError):
+                except BaseException as exc:
                     # A boundary error without an explicit no-byte guarantee
-                    # may have sent partially. It must retain OMS uncertainty.
+                    # may have sent partially, including cancellation or a
+                    # process-style exception. Irrevocably revoke unsent proof
+                    # before propagating; DispatchStarted already made the
+                    # durable command UNKNOWN with its reserves retained.
                     self.authority.handoff_started(permit)
+                    if not isinstance(exc, (TimeoutError, ConnectionError, OSError)):
+                        raise
                     result = (
                         CancelTransportResult(instruction.client_order_id, False, "TIMEOUT")
                         if isinstance(instruction, CancelRequested)

@@ -44,6 +44,9 @@ class NativeProtection:
     status: str
     safe_reduce: bool
     kind: str = "SL"
+    instrument_id: str | None = None
+    position_side: str | None = None
+    reduce_only: bool | None = None
 
     def __post_init__(self) -> None:
         if not self.native_id or type(self.quantity_lots) is not int or self.quantity_lots < 0:
@@ -361,6 +364,9 @@ class ProtectionManager:
             for o in legs
             if o.kind == "SL"
             and o.safe_reduce
+            and o.instrument_id == state.instrument_id
+            and o.position_side == ("LONG" if owned_lots > 0 else "SHORT")
+            and o.reduce_only is True
             and o.trigger_basis == state.trigger_basis
             and Decimal(o.trigger_value) == Decimal(state.trigger_value)
         )

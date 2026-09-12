@@ -90,6 +90,14 @@ class OrderContractObserved(EventPayload):
     discrepancies: tuple[str, ...]
 
 
+def trigger_contract_value(value: Decimal) -> str:
+    """Context-independent numeric equality without Decimal.normalize rounding."""
+    if not value.is_finite() or value <= 0:
+        raise ValueError("positive finite stop trigger required")
+    fixed = format(value, "f")
+    return fixed.rstrip("0").rstrip(".") if "." in fixed else fixed
+
+
 def order_contract_terms(instruction: OrderInstruction) -> dict[str, str | int | bool | None]:
     return {
         "instrument_id": instruction.instrument_id,
@@ -101,6 +109,11 @@ def order_contract_terms(instruction: OrderInstruction) -> dict[str, str | int |
         "reduce_only": instruction.reduce_only,
         "margin_mode": "isolated",
         "position_mode": "one_way",
+        "stop_trigger_value": trigger_contract_value(instruction.native_trigger_value)
+        if instruction.native_trigger_value is not None
+        else None,
+        "stop_trigger_basis": instruction.native_trigger_basis,
+        "stop_order_type": "MARKET" if instruction.native_trigger_value is not None else None,
     }
 
 
