@@ -329,7 +329,7 @@ class BitgetUTAAdapter:
             instrument_id = spec.instrument_id if spec else None
             payloads: list[EventPayload] = []
             if topic == "order":
-                payloads.append(self.normalizer.order_contract(row, None))
+                payloads.append(self.normalizer.order_contract(row, None, strict=private))
                 payloads.append(self.normalizer.order(row))
                 payloads.append(
                     VenueObservation(
@@ -637,9 +637,14 @@ class BitgetUTAAdapter:
         for page in protection_pages:
             evidence.append(page.raw_ref)
             protective_rows.extend(page.data)
-            for row in page.data:
-                native = identifier(row["orderId"])
-                group = self.protection_bindings.get(native)
+            for row_index, row in enumerate(page.data):
+                try:
+                    native = identifier(row["orderId"])
+                except (KeyError, TypeError, ValueError):
+                    native = f"unidentified:{page.receive_seq}:{row_index}"
+                    group = None  # audit label is never a native ownership identity
+                else:
+                    group = self.protection_bindings.get(native)
                 candidates = [
                     order
                     for order in original_orders
@@ -647,56 +652,84 @@ class BitgetUTAAdapter:
                 ]
                 if len(candidates) != 1:
                     reasons.add("FOREIGN_OR_UNVERIFIED_PROTECTION")
+                    observe(
+                        VenueObservation(
+                            "protection",
+                            native,
+                            json.dumps(row, sort_keys=True),
+                            "FOREIGN_OR_UNVERIFIED_PROTECTION",
+                        ),
+                        page,
+                    )
                     continue
                 order = candidates[0]
                 native_sources[order.protection_group_id or ""] = page
-                observe(
-                    VenueObservation("protection", native, json.dumps(row, sort_keys=True)),
-                    page,
-                    order.instrument_id,
-                )
                 try:
                     spec = self.normalizer.spec(row)
                     native_lots = spec.quantity_to_lots(decimal(row["qty"]))
                     trigger = decimal(row["stopLoss"])
                     status = identifier(row["status"])
-                except (KeyError, ValueError, TypeError):
-                    reasons.add("PROTECTION_UNVERIFIED")
-                    continue
-                expected_basis = {"MARK": "mark", "LAST": "market"}.get(
-                    order.native_trigger_basis or ""
-                )
-                position = position_lots.get(order.instrument_id, 0)
-                lots = abs(position)
-                safe = (
-                    bool(self.protection_capability_evidence)
-                    and row.get("slOrderType") == "market"
-                    and row.get("slTriggerBy") in {"mark", "market"}
-                    and row.get("reduceOnly") == "yes"
-                    and spec.instrument_id == order.instrument_id
-                    and row.get("posSide") in {"long", "short"}
-                )
-                native_protection.append(
-                    NativeProtection(
+                    # Validate string type before enum lookup: arbitrary JSON
+                    # arrays/objects are unsafe evidence, never hash keys.
+                    basis = {"mark": "MARK", "market": "LAST"}[identifier(row["slTriggerBy"])]
+                    native_side = {"long": "LONG", "short": "SHORT"}[identifier(row["posSide"])]
+                    reducing = {"yes": True, "no": False}[identifier(row["reduceOnly"])]
+                    stop_type = {"market": "MARKET", "limit": "LIMIT"}[
+                        identifier(row["slOrderType"])
+                    ]
+                    safe = (
+                        bool(self.protection_capability_evidence)
+                        and stop_type == "MARKET"
+                        and reducing
+                        and spec.instrument_id == order.instrument_id
+                    )
+                    leg = NativeProtection(
                         native,
                         order.protection_group_id or "",
                         native_lots,
-                        "MARK" if row.get("slTriggerBy") == "mark" else "LAST",
+                        basis,
                         str(trigger),
                         status,
                         safe,
                         "SL",
                         spec.instrument_id,
-                        {"long": "LONG", "short": "SHORT"}.get(row.get("posSide")),
-                        {"yes": True, "no": False}.get(row.get("reduceOnly")),
+                        native_side,
+                        reducing,
                     )
+                except (KeyError, ValueError, TypeError):
+                    reasons.add("PROTECTION_UNVERIFIED")
+                    observe(
+                        VenueObservation(
+                            "protection",
+                            native,
+                            json.dumps(row, sort_keys=True),
+                            "PROTECTION_UNVERIFIED",
+                        ),
+                        page,
+                        order.instrument_id,
+                    )
+                    continue
+                observe(
+                    VenueObservation(
+                        "protection",
+                        native,
+                        json.dumps(row, sort_keys=True),
+                        None if safe and status == "pending" else "PROTECTION_UNVERIFIED",
+                    ),
+                    page,
+                    order.instrument_id,
                 )
+                position = position_lots.get(order.instrument_id, 0)
+                lots = abs(position)
+                native_protection.append(leg)
+                if not safe or status != "pending":
+                    reasons.add("PROTECTION_UNVERIFIED")
                 if (
                     lots
                     and safe
-                    and row.get("posSide") == ("long" if position > 0 else "short")
+                    and native_side == ("LONG" if position > 0 else "SHORT")
                     and status == "pending"
-                    and row.get("slTriggerBy") == expected_basis
+                    and basis == order.native_trigger_basis
                     and trigger == order.native_trigger_value
                     and native_lots == lots
                 ):

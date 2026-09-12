@@ -432,6 +432,7 @@ async def recovery_case(
     old_canceled=False,
     private_order_changes=None,
     position_changes=None,
+    second_stop_changes=None,
 ):
     from decimal import Decimal
 
@@ -517,6 +518,13 @@ async def recovery_case(
             timeout_ns=4000000000,
         )
         result = await runner.run(start_ms=start)
+        first_protection = {key: json.loads(data) for key, data in account.engine.state.protection}
+        first_cursor = result.cursor_ms
+        second_seq = account.engine.state.engine_seq
+        if second_stop_changes is not None:
+            assert result.status == "CONVERGED"
+            account.transport.stop_changes = second_stop_changes
+            result = await runner.run()
         await router.dispatch_ready()
         transactions = account.portfolio.transactions
         records = account.store.read_after(0)
@@ -549,6 +557,14 @@ async def recovery_case(
                 json.loads(r.envelope.payload)
                 for r in records
                 if r.envelope.event_type == "OrderContractObserved"
+            ],
+            "first_protection": first_protection,
+            "cursor_unchanged": result.cursor_ms == first_cursor,
+            "new_protection_events": [
+                r.envelope
+                for r in records
+                if r.envelope.engine_seq > second_seq
+                and r.envelope.event_type in {"ProtectionReview", "VenueObservation"}
             ],
         }
     finally:

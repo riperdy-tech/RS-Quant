@@ -19,7 +19,7 @@ from quantdesk.core.events import (
     OrderInstruction,
     OrderReport,
 )
-from quantdesk.core.types import BookLevel, EventPayload, ExecutionType, Side
+from quantdesk.core.types import BookLevel, EventPayload, ExecutionType, Side, TimeInForce
 from quantdesk.execution.reconciliation import (
     OrderContractObserved,
     order_contract_terms,
@@ -126,7 +126,7 @@ class Normalizer:
         )
 
     def order_contract(
-        self, row: Mapping[str, Any], instruction: OrderInstruction | None
+        self, row: Mapping[str, Any], instruction: OrderInstruction | None, *, strict: bool = False
     ) -> OrderContractObserved:
         """An original client ID is not proof of an unchanged order contract."""
 
@@ -134,20 +134,26 @@ class Normalizer:
             try:
                 return convert(row[name])
             except (KeyError, TypeError, ValueError):
+                if strict:
+                    raise
                 return None
 
         def attached(name: str, convert: Any) -> Any:
-            if name not in row or row[name] is None or row[name] == "":
+            if name not in row or row[name] == "" or (row[name] is None and not strict):
                 return None
             try:
                 return convert(row[name])
             except (KeyError, TypeError, ValueError):
+                if strict:
+                    raise
                 # Unknown supplied controls are not evidence of their absence.
                 return "UNKNOWN"
 
         try:
             spec = self.spec(row)
         except (KeyError, TypeError, ValueError):
+            if strict:
+                raise
             spec = None
         observed: dict[str, str | int | bool | None] = {
             "instrument_id": spec.instrument_id if spec else None,
@@ -158,12 +164,19 @@ class Normalizer:
             if spec
             else None,
             "side": field("side", lambda v: Side(identifier(v).upper()).value),
-            "order_type": field("orderType", lambda v: identifier(v).upper()),
-            "time_in_force": field("timeInForce", lambda v: identifier(v).upper()),
-            "reduce_only": {"yes": True, "no": False}.get(field("reduceOnly")),
-            "margin_mode": field("marginMode"),
-            "position_mode": {"one_way_mode": "one_way", "hedge_mode": "hedge"}.get(
-                field("holdMode")
+            "order_type": field(
+                "orderType", lambda v: {"limit": "LIMIT", "market": "MARKET"}[identifier(v)]
+            ),
+            "time_in_force": field(
+                "timeInForce", lambda v: TimeInForce(identifier(v).upper()).value
+            ),
+            "reduce_only": field("reduceOnly", lambda v: {"yes": True, "no": False}[identifier(v)]),
+            "margin_mode": field(
+                "marginMode", lambda v: {"isolated": "isolated", "cross": "cross"}[identifier(v)]
+            ),
+            "position_mode": field(
+                "holdMode",
+                lambda v: {"one_way_mode": "one_way", "hedge_mode": "hedge"}[identifier(v)],
             ),
             "stop_trigger_value": attached(
                 "stopLoss", lambda v: trigger_contract_value(decimal(v))

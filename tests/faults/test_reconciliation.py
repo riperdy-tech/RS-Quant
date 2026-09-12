@@ -376,6 +376,161 @@ def test_round2_native_stop_is_validated_against_writer_not_venue_position(tmp_p
     assert "BOUNDED_REDUCE_ONLY_EXIT" in result["protection"]["group"]["actions"]
 
 
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"posSide": []},
+        {"reduceOnly": {}},
+        {"slTriggerBy": []},
+        {"slTriggerBy": "index"},
+        {"slOrderType": {}},
+        {"status": []},
+        {"stopLoss": []},
+        {"stopLoss": "bad"},
+        {"stopLoss": "0"},
+        {"qty": {}},
+        {"symbol": {}},
+        {"category": []},
+        {"orderId": []},
+    ],
+)
+def test_round3_invalid_native_controls_replace_stale_protection(tmp_path, changes):
+    import json
+
+    from tests.support.bitget_case import recovery_case
+
+    result = asyncio.run(recovery_case(tmp_path, second_stop_changes=changes))
+    assert result["first_protection"]["group"]["state"]["status"] == "PROTECTED"
+    assert not result["converged"] and result["cursor_unchanged"]
+    assert result["protection"]["group"]["state"]["status"] != "PROTECTED"
+    assert "BOUNDED_REDUCE_ONLY_EXIT" in result["protection"]["group"]["actions"]
+    assert any(
+        event.event_type == "ProtectionReview" and event.raw_ref
+        for event in result["new_protection_events"]
+    )
+    observations = [
+        json.loads(event.payload)
+        for event in result["new_protection_events"]
+        if event.event_type == "VenueObservation" and event.raw_ref
+    ]
+    assert any(
+        row["kind"] == "protection"
+        and all(json.loads(row["json_data"])[key] == value for key, value in changes.items())
+        for row in observations
+    )
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"qty": "bad"},
+        {"price": "bad"},
+        {"stopLoss": "bad"},
+        {"qty": None},
+        {"price": None},
+        {"stopLoss": None},
+        {"slTriggerBy": None},
+        {"slOrderType": None},
+        {"qty": []},
+        {"price": {}},
+        {"stopLoss": []},
+        {"side": []},
+        {"orderType": {}},
+        {"timeInForce": False},
+        {"marginMode": []},
+        {"holdMode": {}},
+        {"reduceOnly": []},
+        {"slTriggerBy": {}},
+        {"slOrderType": []},
+        {"side": "unknown"},
+        {"orderType": "unknown"},
+        {"timeInForce": "unknown"},
+        {"marginMode": "unknown"},
+        {"holdMode": "unknown"},
+        {"reduceOnly": "unknown"},
+        {"slTriggerBy": "index"},
+        {"slOrderType": "unknown"},
+    ],
+)
+def test_round3_malformed_private_order_quarantines_before_router(tmp_path, changes):
+    import json
+    from decimal import Decimal
+
+    from quantdesk.core.events import CashTransfer
+    from quantdesk.execution.intents import OrderApproved
+    from tests.support.bitget_case import RecoveryAccount
+    from tests.support.oms_case import instruction
+
+    async def run():
+        account = RecoveryAccount(tmp_path)
+        ownership = None
+        try:
+            account.send(CashTransfer("deposit", Decimal("1000"), "USDT", "IN", account.time))
+            order = instruction(
+                instrument_id=account.spec.instrument_id,
+                quantity_lots=100,
+                price_ticks=1000,
+                native_trigger_basis="MARK",
+                native_trigger_value=Decimal("90"),
+                protection_group_id="group",
+                expires_at_ns=account.time + 60000000000,
+            )
+            account.send(OrderApproved(order, Decimal("10"), Decimal("1")))
+            await account.adapter.connect_private()
+            router, authority, ownership, _ = gateway(account, account.adapter)
+            row = {
+                "category": "USDT-FUTURES",
+                "symbol": "BTCUSDT",
+                "clientOid": "client",
+                "orderId": "venue-order",
+                "orderStatus": "live",
+                "cumExecQty": "0",
+                "updatedTime": "1789200000123",
+                "qty": "0.100",
+                "price": "100",
+                "side": "buy",
+                "orderType": "limit",
+                "timeInForce": "gtc",
+                "marginMode": "isolated",
+                "holdMode": "one_way_mode",
+                "reduceOnly": "no",
+                "stopLoss": "90",
+                "slTriggerBy": "mark",
+                "slOrderType": "market",
+                **changes,
+            }
+            row = {
+                key: value
+                for key, value in row.items()
+                if value is not None or key not in {"qty", "price"}
+            }
+            await account.socket.queue.put(
+                json.dumps({"arg": {"instType": "UTA", "topic": "order"}, "data": [row]})
+            )
+            await asyncio.wait_for(account.adapter.private.changed.wait(), 1)
+            events = account.adapter.drain_private()
+            assert len(events) == 1 and events[0].event_type == "DataGap"
+            assert events[0].raw_ref
+            assert not account.adapter.private_healthy() and account.adapter.last_profile is None
+            for event in events:
+                account.engine.commit(account.engine.process(event))
+            assert any(
+                r.envelope.event_type == "DataGap" and r.envelope.raw_ref
+                for r in account.store.read_after(0)
+            )
+            await router.dispatch_ready()
+            assert account.transport.accepted == []
+            assert account.state.commands[0].status == "BLOCKED"
+            assert not authority._issued and not authority._unsent
+            assert account.portfolio.reservations[0].remaining_lots == 0
+        finally:
+            if ownership:
+                ownership.close()
+            await account.close()
+
+    asyncio.run(run())
+
+
 def test_round2_native_safe_boolean_without_evidence_cannot_protect():
     from quantdesk.execution.protection import NativeProtection, ProtectionManager, ProtectionState
 
