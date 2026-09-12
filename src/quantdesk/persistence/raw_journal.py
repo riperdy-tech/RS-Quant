@@ -279,7 +279,7 @@ def _validated_frame_ordinal(data: bytes) -> int:
         elif key_id is not None:
             raise JournalCorruption("public raw metadata cannot declare an encryption key")
         return ordinal
-    except (ValueError, TypeError, KeyError) as exc:
+    except (ValueError, TypeError, KeyError, RecursionError) as exc:
         raise JournalCorruption("invalid raw metadata") from exc
 
 

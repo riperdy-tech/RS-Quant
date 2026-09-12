@@ -93,6 +93,36 @@ def test_crc_valid_payload_fragment_with_incomplete_metadata_is_not_a_later_fram
         assert active.stat().st_size == first.end_offset
 
 
+@pytest.mark.parametrize("embedded", [True, False])
+def test_deeply_nested_metadata_parser_failure_has_safe_recovery_semantics(
+    tmp_path: Path, embedded: bool
+) -> None:
+    import struct
+    import zlib
+
+    metadata = b"[" * 10_000 + b"0" + b"]" * 10_000
+    fragment = struct.pack(">4sIQ", b"QDJ1", len(metadata), 1) + metadata + b"x"
+    fragment += struct.pack(">I", zlib.crc32(fragment))
+    with RawJournal(tmp_path) as journal:
+        first = journal.append(frame())
+        journal.sync()
+        if embedded:
+            journal.append(frame(b"opaque-prefix" + fragment + b"opaque-suffix"))
+        active = journal.active_path
+    if embedded:
+        active.write_bytes(active.read_bytes()[:-1])
+        with RawJournal(tmp_path) as recovered:
+            assert recovered.recovery.complete_frames == 1
+            assert recovered.read(first).payload == b'{ "price": "100.00" }'
+            assert active.stat().st_size == first.end_offset
+    else:
+        complete_history = active.read_bytes() + fragment
+        active.write_bytes(complete_history)
+        with pytest.raises(JournalCorruption, match="metadata"):
+            RawJournal(tmp_path)
+        assert active.read_bytes() == complete_history
+
+
 @pytest.mark.parametrize(
     "change",
     [
