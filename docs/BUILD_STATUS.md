@@ -20,8 +20,9 @@ Authoritative plan: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 | 01 | COMPLETE | `uv sync --frozen`; 18 tests passed; Ruff clean; mypy clean; isolated import OK; independent review clean after one fix round |
 | 02 | COMPLETE | 78 persistence/fault tests; 18 foundation regressions; Ruff/mypy clean; independent review clean after three fix rounds |
 | 03 | COMPLETE | 52 engine/replay/property tests; 96 prior regressions; Ruff/mypy clean; independent review clean after one fix round |
-| 04 | IN PROGRESS | Task brief generated; market-data/book/dataset gate next |
-| 05–18 | NOT STARTED | — |
+| 04 | COMPLETE | 59 data/book/import/export tests; 148 regressions; Ruff/mypy clean; review clean after one fix round |
+| 05 | IN PROGRESS | Accounting/ledger gate next |
+| 06–18 | NOT STARTED | — |
 
 ## Safety
 
@@ -60,3 +61,11 @@ Authoritative plan: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 - Controller rerun: `uv run pytest tests/replay/test_determinism.py tests/property/test_event_ordering.py -q` → 52 passed; Task 01/02 regressions → 96 passed; Ruff and strict mypy clean.
 - Review: four Important correctness gaps were reproduced and fixed; scoped re-review PASS, including an independent nonzero-checkpoint SQLite recovery probe.
 - Implemented: stable stage-major reducer/decision scheduling, deterministic IDs and timers, typed payload decoding, immutable candidate/commit boundary, complete causal checkpoints, fact-only recovery, forensic regeneration/verification, fresh counterfactual branches, distinct hash scopes, and hard network-dispatch prohibition.
+
+## Task 04 evidence
+
+- Commits: `b9d1f0b` (instruments/books/bars/import/catalog), `075c8ed` (exact boundaries and content-derived capability fixes).
+- TDD report: `.superpowers/sdd/IMPLEMENTATION_PLAN/task-04-report.md`.
+- Controller rerun: Task 04 gate → 59 passed; Tasks 01–03 regressions → 148 passed; Ruff and strict mypy clean.
+- Review: eight Important adversarial findings were fixed; scoped re-review PASS. Two Minor hardening observations remain explicitly ledgered for final review.
+- Implemented: point-in-time instrument revisions and exact conversions, fail-closed book state/sequence contracts, causal immutable bars, raw-to-canonical-to-Parquet traceability, bounded explicit imports, immutable content-addressed catalog, and schema/content-derived dataset capabilities.
