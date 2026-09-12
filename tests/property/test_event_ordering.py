@@ -3,13 +3,16 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 
 import pytest
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from quantdesk.core.events import canonical_bytes
 from tests.support.engine_case import incoming, make_engine
 
 
+# Real journal/SQLite durability includes variable Windows filesystem latency.
+# This property checks ordering correctness; Task 16 owns measured performance gates.
+@settings(deadline=None)
 @given(st.lists(st.integers(min_value=1, max_value=100000), min_size=1, max_size=20))
 def test_receipt_order_is_never_resorted_by_exchange_time(prices):
     from pathlib import Path
