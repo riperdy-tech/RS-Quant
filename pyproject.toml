@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quantdesk"
+version = "0.1.0"
+description = "Auditable deterministic trading research and execution framework"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "argon2-cffi>=23.1.0",
+  "cryptography>=44.0.0",
+  "fastapi>=0.115.0",
+  "httpx>=0.28.0",
+  "keyring>=25.6.0",
+  "lightgbm>=4.6.0",
+  "numpy>=2.2.0",
+  "polars>=1.22.0",
+  "prometheus-client>=0.21.0",
+  "pyarrow>=19.0.0",
+  "pydantic>=2.10.0",
+  "pydantic-settings>=2.7.0",
+  "pyyaml>=6.0.2",
+  "scikit-learn>=1.6.0",
+  "structlog>=25.1.0",
+  "uvicorn>=0.34.0",
+  "websockets>=14.2",
+  "zstandard>=0.23.0",
+]
+
+[project.scripts]
+quantdesk = "quantdesk.cli:main"
+
+[dependency-groups]
+dev = [
+  "hypothesis>=6.125.0",
+  "mypy>=1.15.0",
+  "pyinstaller>=6.11.0",
+  "pytest>=8.3.0",
+  "pytest-asyncio>=0.25.0",
+  "ruff>=0.9.0",
+  "types-pyyaml>=6.0.12.20241230",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/quantdesk"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["quantdesk"]
+mypy_path = "src"
