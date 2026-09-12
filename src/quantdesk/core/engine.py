@@ -1,8 +1,10 @@
 """Single-writer candidate/commit processing and three separate replay operations.
 
-All reducers apply each fact in (stage, id) order before decision producers run.
-Emissions are drained breadth-first in (stage, producer id, emission ordinal)
-order. One external input and its complete causal closure form one transaction.
+The shared stage schedule applies each stage's facts before its decisions.
+Emitted facts catch up through fact reducers immediately; they enter decision
+generation only at later stages. Thus exits and entry intents both exist before
+arbitration, and risk/instruction facts exist before read-model publication.
+One external input and its complete causal closure form one transaction.
 No transport is attached to this engine: committed outbox work still requires the
 separate current-risk/ownership gateway authorization implemented by the router.
 """
@@ -10,7 +12,6 @@ separate current-risk/ownership gateway authorization implemented by the router.
 from __future__ import annotations
 
 import json
-from collections import deque
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, fields, replace
 from enum import StrEnum
@@ -20,7 +21,6 @@ from threading import get_ident
 from quantdesk.core.checkpoint import Checkpoint, EngineState, HashScopes, SourceCursor
 from quantdesk.core.clock import DeterministicScheduler, ScheduledTimer
 from quantdesk.core.events import (
-    PAYLOAD_TYPES,
     Envelope,
     IncomingEvent,
     TimerFired,
@@ -29,9 +29,12 @@ from quantdesk.core.events import (
 from quantdesk.core.ids import derive_id
 from quantdesk.core.reducers import (
     DecisionProducer,
+    EventDraft,
     FactReducer,
     Reduction,
+    Stage,
     apply_engine_fact,
+    decode_payload,
     require_immutable,
 )
 from quantdesk.persistence.event_store import (
@@ -276,14 +279,7 @@ class Engine:
             raise ValueError("event availability timeline regressed")
         if event.schema_version != 1 or not isinstance(event.payload, bytes):
             raise ValueError("unsupported event schema/payload")
-        payload_type = PAYLOAD_TYPES.resolve(event.event_type)
-        payload = json.loads(event.payload)
-        if (
-            not isinstance(payload, dict)
-            or canonical_bytes(payload) != event.payload
-            or set(payload) != {field.name for field in fields(payload_type)}
-        ):
-            raise ValueError("event payload must match its canonical typed schema")
+        decode_payload(event)
         if state.account_scope is not None:
             venue, environment, account = state.account_scope
             if (event.venue, event.environment) != (venue, environment) or (
@@ -356,58 +352,188 @@ class Engine:
         del timers[timer.timer_id]
         return replace(state, timers=tuple(sorted(timers.values())))
 
-    def _reduce(
-        self, state: EngineState, record: EventRecord
-    ) -> tuple[EngineState, tuple[Reduction, ...]]:
-        state = self._begin_fact(state, record)
-        event = record.envelope
-        state = apply_engine_fact(event, state)
-        changes: list[Reduction] = []
-        for reducer in self._reducers:
-            reduction = reducer.apply(event, state)
-            require_immutable(reduction)
-            if not isinstance(reduction, Reduction) or any(
-                getattr(reduction.state, name) != getattr(state, name) for name in _RESERVED
-            ):
-                raise ValueError("fact reducer changed engine-owned causal metadata")
-            if any(
-                type(getattr(reduction, name)) is not tuple
-                for name in (
-                    "ledger_transactions",
-                    "outbox_instructions",
-                    "projection_updates",
-                    "timers",
-                    "cancel_timers",
-                )
-            ):
-                raise ValueError("reducer effects must be immutable tuples")
-            state = reduction.state
-            timers = {timer.timer_id: timer for timer in state.timers}
-            for timer_id in reduction.cancel_timers:
-                if timer_id not in timers:
-                    raise ValueError("cannot cancel an unknown timer")
-                del timers[timer_id]
-            scheduled_ordinal = state.next_scheduled_ordinal
-            for ordinal, request in enumerate(reduction.timers):
-                timer_id = derive_id(
-                    "timer", f"{state.logical_run_id}:{event.event_id}", reducer.reducer_id, ordinal
-                )
-                timers[timer_id] = ScheduledTimer(
-                    event.available_ns + request.delay_ns,
-                    scheduled_ordinal,
-                    timer_id,
-                    event.event_id,
-                    event.instrument_id,
-                    event.correlation_id,
-                )
-                scheduled_ordinal += 1
-            state = replace(
-                state,
-                timers=tuple(sorted(timers.values())),
-                next_scheduled_ordinal=scheduled_ordinal,
+    def _apply_reducer(
+        self, state: EngineState, event: Envelope, reducer: FactReducer
+    ) -> tuple[EngineState, Reduction]:
+        reduction = reducer.apply(event, state)
+        require_immutable(reduction)
+        if not isinstance(reduction, Reduction) or any(
+            getattr(reduction.state, name) != getattr(state, name) for name in _RESERVED
+        ):
+            raise ValueError("fact reducer changed engine-owned causal metadata")
+        if any(
+            type(getattr(reduction, name)) is not tuple
+            for name in (
+                "ledger_transactions",
+                "outbox_instructions",
+                "projection_updates",
+                "timers",
+                "cancel_timers",
             )
-            changes.append(reduction)
-        return state, tuple(changes)
+        ):
+            raise ValueError("reducer effects must be immutable tuples")
+        state = reduction.state
+        timers = {timer.timer_id: timer for timer in state.timers}
+        for timer_id in reduction.cancel_timers:
+            if timer_id not in timers:
+                raise ValueError("cannot cancel an unknown timer")
+            del timers[timer_id]
+        scheduled_ordinal = state.next_scheduled_ordinal
+        for ordinal, request in enumerate(reduction.timers):
+            timer_id = derive_id(
+                "timer", f"{state.logical_run_id}:{event.event_id}", reducer.reducer_id, ordinal
+            )
+            timers[timer_id] = ScheduledTimer(
+                event.available_ns + request.delay_ns,
+                scheduled_ordinal,
+                timer_id,
+                event.event_id,
+                event.instrument_id,
+                event.correlation_id,
+            )
+            scheduled_ordinal += 1
+        return replace(
+            state, timers=tuple(sorted(timers.values())), next_scheduled_ordinal=scheduled_ordinal
+        ), reduction
+
+    def _child_record(
+        self,
+        parent: Envelope,
+        producer: DecisionProducer,
+        draft: EventDraft,
+        ordinal: int,
+        sequence: int,
+    ) -> EventRecord:
+        child = replace(
+            parent,
+            event_id=derive_id(
+                "event", f"{parent.run_id}:{parent.event_id}", producer.producer_id, ordinal
+            ),
+            engine_seq=sequence,
+            event_type=draft.event_type,
+            schema_version=draft.schema_version,
+            payload=draft.payload,
+            instrument_id=draft.instrument_id or parent.instrument_id,
+            causation_id=parent.event_id,
+            source_channel=producer.producer_id,
+            source_message_id=None,
+            source_sequence=None,
+            raw_ref=None,
+            producer_version=self.code_hash,
+        )
+        return EventRecord(child, "DERIVED", parent.event_id)
+
+    def _stored_children(
+        self, history: tuple[EventRecord, ...]
+    ) -> dict[tuple[str, str], tuple[EventRecord, ...]]:
+        """Validate causal provenance/order without asking a producer for decisions."""
+        root = history[0]
+        if root.origin != "INPUT" or root.parent_id != root.envelope.causation_id:
+            raise ValueError("derived history must begin at its input boundary")
+        producers = {producer.producer_id: producer for producer in self._producers}
+        known = {root.envelope.event_id: (root.envelope, 0)}
+        children: dict[tuple[str, str], tuple[EventRecord, ...]] = {}
+        prior_order: tuple[int, str, int, int] | None = None
+        for offset, record in enumerate(history[1:], 1):
+            event = record.envelope
+            producer = producers.get(event.source_channel)
+            if (
+                record.origin != "DERIVED"
+                or record.parent_id not in known
+                or producer is None
+                or event.event_id in known
+            ):
+                raise ValueError("derived history has an unknown producer, cause, or duplicate ID")
+            parent, parent_stage = known[record.parent_id]
+            if int(producer.stage) <= parent_stage:
+                raise ValueError("derived decision cannot precede or repeat its cause's stage")
+            slot = (producer.producer_id, parent.event_id)
+            siblings = children.get(slot, ())
+            ordinal = len(siblings)
+            order = (int(producer.stage), producer.producer_id, parent.engine_seq, ordinal)
+            if prior_order is not None and order <= prior_order:
+                raise ValueError("derived history violates the producer/stage emission order")
+            expected = self._child_record(
+                parent,
+                producer,
+                EventDraft(
+                    event.event_type,
+                    event.payload,
+                    event.schema_version,
+                    event.instrument_id,
+                ),
+                ordinal,
+                root.envelope.engine_seq + offset,
+            )
+            if record != expected:
+                raise ValueError("derived identity, sequence, or causal metadata mismatch")
+            children[slot] = (*siblings, record)
+            known[event.event_id] = (event, int(producer.stage))
+            prior_order = order
+        return children
+
+    def _run_cycle(
+        self,
+        state: EngineState,
+        root: EventRecord,
+        recorded: tuple[EventRecord, ...] | None = None,
+    ) -> tuple[EngineState, tuple[EventRecord, ...], tuple[Reduction, ...]]:
+        """Identical fact-stage execution for normal processing and state recovery.
+
+        A child's earlier fact reducers catch up at creation, but earlier/same
+        decision stages never rerun. Each decision producer receives a fact once,
+        at its declared later stage. Recovery replaces those calls with recorded
+        emissions at the same slots; it does not regenerate any decision.
+        """
+        stored = self._stored_children(recorded) if recorded is not None else None
+        state = apply_engine_fact(root.envelope, self._begin_fact(state, root))
+        history = [root]
+        birth_stages = {root.envelope.event_id: 0}
+        changes: list[Reduction] = []
+        for stage in Stage:
+            eligible = tuple(r for r in history if birth_stages[r.envelope.event_id] < int(stage))
+            for reducer in self._reducers:
+                if reducer.stage == stage:
+                    for record in eligible:
+                        state, change = self._apply_reducer(state, record.envelope, reducer)
+                        changes.append(change)
+            for producer in self._producers:
+                if producer.stage != stage:
+                    continue
+                for record in eligible:
+                    if stored is None:
+                        drafts = producer.decide(record.envelope, state)
+                        require_immutable(drafts)
+                        if type(drafts) is not tuple:
+                            raise ValueError("decision producer must return immutable drafts")
+                    else:
+                        drafts = tuple(
+                            EventDraft(
+                                r.envelope.event_type,
+                                r.envelope.payload,
+                                r.envelope.schema_version,
+                                r.envelope.instrument_id,
+                            )
+                            for r in stored.get(
+                                (producer.producer_id, record.envelope.event_id), ()
+                            )
+                        )
+                    for ordinal, draft in enumerate(drafts):
+                        if len(history) >= self._max_events:
+                            raise ValueError("derived event closure exceeded configured bound")
+                        child = self._child_record(
+                            record.envelope, producer, draft, ordinal, state.engine_seq + 1
+                        )
+                        state = apply_engine_fact(child.envelope, self._begin_fact(state, child))
+                        history.append(child)
+                        birth_stages[child.envelope.event_id] = int(stage)
+                        for reducer in self._reducers:
+                            if reducer.stage <= stage:
+                                state, change = self._apply_reducer(state, child.envelope, reducer)
+                                changes.append(change)
+        if recorded is not None and tuple(history) != recorded:
+            raise ValueError("derived history does not match the declared stage structure")
+        return state, tuple(history), tuple(changes)
 
     def process(self, input_event: IncomingEvent) -> Transition:
         self._assert_owner()
@@ -430,47 +556,9 @@ class Engine:
         if self._pending is not None:
             raise RuntimeError("a pending candidate must be committed or discarded")
         root = self._input_envelope(input_event)
-        state = self.state
-        queue = deque((EventRecord(root, "INPUT", root.causation_id),))
-        events: list[EventRecord] = []
-        changes: list[Reduction] = []
-        while queue:
-            if len(events) >= self._max_events:
-                raise ValueError("derived event closure exceeded configured bound")
-            record = queue.popleft()
-            # Queued drafts do not receive a sequence until selected by the writer.
-            event = replace(record.envelope, engine_seq=state.engine_seq + 1)
-            record = replace(record, envelope=event)
-            state, reductions = self._reduce(state, record)
-            events.append(record)
-            changes.extend(reductions)
-            for producer in self._producers:
-                drafts = producer.decide(event, state)
-                require_immutable(drafts)
-                if type(drafts) is not tuple:
-                    raise ValueError("decision producer must return immutable drafts")
-                for ordinal, draft in enumerate(drafts):
-                    child_id = derive_id(
-                        "event",
-                        f"{state.logical_run_id}:{event.event_id}",
-                        producer.producer_id,
-                        ordinal,
-                    )
-                    child = replace(
-                        event,
-                        event_id=child_id,
-                        event_type=draft.event_type,
-                        schema_version=draft.schema_version,
-                        payload=draft.payload,
-                        instrument_id=draft.instrument_id or event.instrument_id,
-                        causation_id=event.event_id,
-                        source_channel=producer.producer_id,
-                        source_message_id=None,
-                        source_sequence=None,
-                        raw_ref=None,
-                        producer_version=self.code_hash,
-                    )
-                    queue.append(EventRecord(child, "DERIVED", event.event_id))
+        state, events, changes = self._run_cycle(
+            self.state, EventRecord(root, "INPUT", root.causation_id)
+        )
         candidate = Transition(
             root.event_id,
             self.state.state_version,
@@ -598,6 +686,9 @@ class Engine:
             )
         if self._pending is not None:
             raise RuntimeError("cannot restore with a pending candidate")
+        # A failed new attempt must not retain an earlier recovery's resume grant.
+        self._restored = False
+        self._ready = False
         checkpoint.verify(self.code_hash, self.schema_hash)
         if checkpoint.state.logical_run_id != self.state.logical_run_id:
             raise ValueError("checkpoint belongs to another logical run")
@@ -614,7 +705,7 @@ class Engine:
             if persisted is None or bytes(persisted[0]) != checkpoint.to_bytes():
                 raise ValueError("checkpoint is not verified in this event store")
         state = checkpoint.state
-        parents: set[str] = set()
+        cycle: list[EventRecord] = []
         watermark = self._raw_watermark()
         _require_watermark(watermark, checkpoint.raw_watermark)
         persisted_watermark = self.store.raw_watermark() if self.store is not None else None
@@ -622,16 +713,17 @@ class Engine:
             _require_watermark(watermark, persisted_watermark)
         for record in records:
             if record.origin == "INPUT":
-                parents.clear()
-            elif (
-                record.parent_id not in parents or record.envelope.causation_id != record.parent_id
-            ):
+                if cycle:
+                    state, _, _ = self._run_cycle(state, cycle[0], tuple(cycle))
+                cycle = []
+            elif not cycle:
                 raise ValueError("recovery derived fact has missing cause")
             ref = record.envelope.raw_ref
             if ref is not None and not watermark.covers(RawRef.parse(ref)):
                 raise ValueError("recovery raw reference exceeds durable watermark")
-            state, _ = self._reduce(state, record)
-            parents.add(record.envelope.event_id)
+            cycle.append(record)
+        if cycle:
+            state, _, _ = self._run_cycle(state, cycle[0], tuple(cycle))
         if self.store is not None and self.store.state_watermark() != (
             state.state_version,
             state.engine_seq,
@@ -783,5 +875,10 @@ class Replay:
             while engine.state.timers and engine.state.timers[0].due_ns < event.available_ns:
                 engine.commit(engine.process(engine.next_timer_input()))
             engine.commit(engine.process(replace(event, run_id=logical_run_id, causation_id=None)))
-        # Future timers are retained at dataset end; no invented future market data.
+        # Complete the final equal-time market batch before its timer decisions.
+        if selected:
+            horizon = selected[-1].available_ns
+            while engine.state.timers and engine.state.timers[0].due_ns <= horizon:
+                engine.commit(engine.process(engine.next_timer_input()))
+        # Only timers beyond the observed horizon remain; no future data is invented.
         return self._report(engine, "COUNTERFACTUAL")

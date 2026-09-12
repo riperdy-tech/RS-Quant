@@ -214,3 +214,93 @@ def deterministic_replay_case(**overrides):
         finally:
             db.close()
             journal.close()
+
+
+def staged_program(*, fail_decisions=False):
+    """Concrete stage dependencies for both normal execution and fact recovery."""
+    from decimal import Decimal
+
+    from quantdesk.core.events import RiskDecision, StrategyIntent
+    from quantdesk.core.reducers import DecisionProducer, EventDraft, FactReducer, Reduction, Stage
+    from quantdesk.core.types import IntentAction, Side
+
+    def features(event, state):
+        if event.event_type == "Trade":
+            state = state.put("features", "ready", b"true")
+        return Reduction(state)
+
+    def collect(event, state):
+        if event.event_type == "StrategyIntent":
+            payload = json.loads(event.payload)
+            candidates = json.loads(state.get("strategies", "candidates", b"[]"))
+            candidates.append([payload["action"], payload["intent_id"]])
+            state = state.put("strategies", "candidates", canonical_bytes(candidates))
+        return Reduction(state)
+
+    def risk(event, state):
+        if event.event_type == "RiskDecision":
+            state = state.put("risk_latches", "selected", event.payload)
+        return Reduction(state)
+
+    def read_model(event, state):
+        if event.event_type == "Trade":
+            state = state.put("oms", "read_risk", state.get("risk_latches", "selected"))
+        return Reduction(state)
+
+    def propose(action):
+        def decide(event, state):
+            if fail_decisions:
+                raise AssertionError("recovery regenerated a staged decision")
+            if event.event_type != "Trade":
+                return ()
+            assert state.get("features", "ready") == b"true"
+            payload = StrategyIntent(
+                event.event_id + "-" + action.value,
+                "s",
+                "BTCUSDT",
+                state.engine_seq,
+                "features-1",
+                state.config_hash,
+                None,
+                action,
+                Side.BUY,
+                Decimal("1"),
+                None,
+                "LIMIT",
+                2000,
+                "FIXTURE",
+                "stage dependency fixture",
+            )
+            return (EventDraft("StrategyIntent", canonical_bytes(payload)),)
+
+        return decide
+
+    def arbitrate(event, state):
+        if fail_decisions:
+            raise AssertionError("recovery regenerated arbitration")
+        if event.event_type != "Trade":
+            return ()
+        candidates = dict(json.loads(state.get("strategies", "candidates", b"[]")))
+        assert set(candidates) == {"EXIT", "ENTER"}, "arbitration ran before all intents"
+        return (
+            EventDraft(
+                "RiskDecision",
+                canonical_bytes(
+                    RiskDecision(candidates["EXIT"], True, "EXIT_PRECEDENCE", 1, "risk-1")
+                ),
+            ),
+        )
+
+    return (
+        (
+            FactReducer("features", Stage.FEATURES, features),
+            FactReducer("collect", Stage.BOOK_ACCOUNT_OMS, collect),
+            FactReducer("risk", Stage.RISK, risk),
+            FactReducer("read", Stage.READ_MODELS, read_model),
+        ),
+        (
+            DecisionProducer("exit", Stage.EXITS, propose(IntentAction.EXIT)),
+            DecisionProducer("entry", Stage.STRATEGIES, propose(IntentAction.ENTER)),
+            DecisionProducer("arbitration", Stage.ARBITRATION, arbitrate),
+        ),
+    )

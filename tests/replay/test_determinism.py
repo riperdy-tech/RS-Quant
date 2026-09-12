@@ -579,3 +579,416 @@ def test_recovery_requires_checkpoint_raw_journal_even_without_raw_references(tm
     finally:
         db.close()
         journal.close()
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"price_ticks": -1.5, "size_lots": -2, "aggressor_side": "INVALID"},
+        {"price_ticks": 1.5},
+        {"price_ticks": -1},
+        {"size_lots": -2},
+        {"size_lots": True},
+        {"aggressor_side": "INVALID"},
+        {"native_trade_id": 12},
+        {"venue_extensions": [["name"]]},
+    ],
+)
+def test_registered_trade_payload_values_are_validated_before_commit(tmp_path, changes):
+    engine, db, journal = make_engine(tmp_path)
+    try:
+        event = incoming(1)
+        bad = replace(event, payload=canonical_bytes({**json.loads(event.payload), **changes}))
+        with pytest.raises((ValueError, TypeError), match="payload"):
+            engine.commit(engine.process(bad))
+        assert engine.state.engine_seq == 0
+        assert engine.store.read_after(0) == ()
+    finally:
+        db.close()
+        journal.close()
+
+
+@pytest.mark.parametrize(
+    "kind,payload",
+    [
+        (
+            "BookSnapshot",
+            {
+                "bids": [{"price_ticks": 100, "size_lots": -1}],
+                "asks": [],
+                "native_sequence": None,
+                "checksum": None,
+                "venue_extensions": [],
+            },
+        ),
+        (
+            "BookSnapshot",
+            {
+                "bids": [{"price_ticks": 100.5, "size_lots": 1}],
+                "asks": [],
+                "native_sequence": None,
+                "checksum": None,
+                "venue_extensions": [],
+            },
+        ),
+        ("MarkPrice", {"price": 100.1, "event_ns": 100, "source": "fixture"}),
+        ("MarkPrice", {"price": "Infinity", "event_ns": 100, "source": "fixture"}),
+        ("MarkPrice", {"price": "-1", "event_ns": 100, "source": "fixture"}),
+        (
+            "AccountSnapshotObserved",
+            {
+                "observation_id": "s",
+                "wallet_balances": [["USDT", "NaN"]],
+                "positions": [["BTCUSDT", 1]],
+                "observed_ns": 100,
+            },
+        ),
+    ],
+)
+def test_nested_payload_constructors_and_exact_decimal_types_are_validated(tmp_path, kind, payload):
+    engine, db, journal = make_engine(tmp_path)
+    try:
+        with pytest.raises((ValueError, TypeError), match="payload"):
+            engine.commit(
+                engine.process(
+                    replace(incoming(1), event_type=kind, payload=canonical_bytes(payload))
+                )
+            )
+        assert engine.store.read_after(0) == ()
+    finally:
+        db.close()
+        journal.close()
+
+
+def test_stage_schedule_arbitrates_exit_before_entry_and_updates_read_models_last(tmp_path):
+    from quantdesk.core.engine import Engine, EngineMode, Replay
+    from tests.support.engine_case import staged_program
+
+    original, db, journal = make_engine(tmp_path)
+    try:
+        reducers, producers = staged_program()
+        engine = Engine(
+            "deterministic-run",
+            original.store,
+            raw_watermark=lambda: journal.durable_watermark,
+            reducers=reversed(reducers),
+            producers=reversed(producers),
+            code_hash="fixture-code-v1",
+            schema_hash="fixture-schema-v1",
+        )
+        checkpoint = engine.checkpoint()
+        engine.commit(engine.process(incoming(1)))
+        history = engine.store.read_after(0)
+        assert [r.envelope.event_type for r in history] == [
+            "Trade",
+            "StrategyIntent",
+            "StrategyIntent",
+            "RiskDecision",
+        ]
+        assert [json.loads(r.envelope.payload)["action"] for r in history[1:3]] == ["EXIT", "ENTER"]
+        risk = json.loads(engine.state.get("oms", "read_risk"))
+        assert risk["intent_id"].endswith("-EXIT")
+        assert risk["reason_code"] == "EXIT_PRECEDENCE"
+        assert Replay(*staged_program()).verify(engine.replay_manifest(checkpoint)).matched
+        recovery = Engine(
+            "deterministic-run",
+            engine.store,
+            raw_watermark=lambda: journal.durable_watermark,
+            reducers=staged_program(fail_decisions=True)[0],
+            producers=staged_program(fail_decisions=True)[1],
+            mode=EngineMode.RECOVERY,
+            code_hash="fixture-code-v1",
+            schema_hash="fixture-schema-v1",
+        )
+        recovery.restore(checkpoint, history)
+        assert recovery.state == engine.state
+    finally:
+        db.close()
+        journal.close()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "child_id",
+        "unknown_producer",
+        "sibling_order",
+        "skipped_ordinal",
+        "child_time",
+        "child_source",
+    ],
+)
+def test_recovery_rejects_malformed_derived_identity_in_actual_stored_history(tmp_path, mutation):
+    from quantdesk.core.engine import Engine, EngineMode
+    from quantdesk.core.ids import derive_id
+    from quantdesk.persistence.event_store import PersistenceTransition
+
+    engine, db, journal = make_engine(tmp_path)
+    try:
+        checkpoint = engine.checkpoint()
+        candidate = engine.process(incoming(1))
+        history = list(candidate.events)
+        child = history[1].envelope
+        if mutation == "child_id":
+            child = replace(child, event_id="arbitrary-child-id")
+        elif mutation == "unknown_producer":
+            child = replace(child, source_channel="unregistered")
+        elif mutation == "skipped_ordinal":
+            child = replace(
+                child,
+                event_id=derive_id(
+                    "event", f"deterministic-run:{history[0].envelope.event_id}", "a", 1
+                ),
+            )
+        elif mutation == "child_time":
+            child = replace(child, available_ns=101)
+            history[2] = replace(
+                history[2], envelope=replace(history[2].envelope, available_ns=101)
+            )
+        elif mutation == "child_source":
+            child = replace(child, source_sequence="invented-source-sequence")
+        history[1] = replace(history[1], envelope=child)
+        if mutation == "sibling_order":
+            history[1], history[2] = (
+                replace(history[2], envelope=replace(history[2].envelope, engine_seq=2)),
+                replace(history[1], envelope=replace(history[1].envelope, engine_seq=3)),
+            )
+        engine.discard(candidate)
+        engine.store.commit(
+            PersistenceTransition(candidate.input_event_id, 0, tuple(history)),
+            journal.durable_watermark,
+        )
+        recovery = Engine(
+            "deterministic-run",
+            engine.store,
+            raw_watermark=lambda: journal.durable_watermark,
+            reducers=program(fail_decisions=True)[0],
+            producers=program(fail_decisions=True)[1],
+            mode=EngineMode.RECOVERY,
+            code_hash="fixture-code-v1",
+            schema_hash="fixture-schema-v1",
+        )
+        with pytest.raises(ValueError, match="derived"):
+            recovery.restore(checkpoint, engine.store.read_after(0))
+        assert recovery.state.engine_seq == 0
+        with pytest.raises(RuntimeError):
+            recovery.resume_offline()
+    finally:
+        db.close()
+        journal.close()
+
+
+def test_counterfactual_final_equal_time_batch_fires_due_timers_after_all_market_facts(tmp_path):
+    from quantdesk.core.engine import Engine, Replay
+
+    engine, db, journal = make_engine(tmp_path)
+    try:
+        checkpoint = engine.checkpoint()
+        branch = Replay(*program()).branch(
+            engine.replay_manifest(checkpoint),
+            logical_run_id="horizon-branch",
+            inputs=(
+                incoming(1, available_ns=100),
+                incoming(2, price=200, available_ns=150),
+                incoming(3, price=300, available_ns=150),
+            ),
+        )
+        facts = [r.envelope for r in branch.events if r.origin == "INPUT"]
+        assert [event.event_type for event in facts] == ["Trade", "Trade", "Trade", "TimerFired"]
+        assert [event.available_ns for event in facts] == [100, 150, 150, 150]
+        timer_decisions = [
+            json.loads(r.envelope.payload)["message"]
+            for r in branch.events
+            if r.parent_id == facts[-1].event_id
+        ]
+        assert timer_decisions == ["600", "600"]
+        expected = Engine(
+            "horizon-branch",
+            None,
+            raw_watermark=lambda: journal.durable_watermark,
+            reducers=program()[0],
+            producers=program()[1],
+            code_hash="fixture-code-v1",
+            schema_hash="fixture-schema-v1",
+        )
+        for ordinal, price in enumerate((100, 200, 300), 1):
+            expected.commit(
+                expected.process(
+                    replace(
+                        incoming(ordinal, price=price, available_ns=100 if ordinal == 1 else 150),
+                        run_id="horizon-branch",
+                    )
+                )
+            )
+        expected.commit(expected.process(expected.next_timer_input()))
+        assert [timer.due_ns for timer in expected.state.timers] == [200, 200]
+        assert branch.deterministic_state_hash == expected.hashes().deterministic_state_hash
+    finally:
+        db.close()
+        journal.close()
+
+
+def test_registered_payload_decoder_preserves_valid_nested_types_and_large_integers(tmp_path):
+    from decimal import Decimal
+
+    from quantdesk.core.events import AccountSnapshotObserved, BookSnapshot, MarkPrice
+    from quantdesk.core.reducers import decode_payload
+    from quantdesk.core.types import BookLevel
+
+    engine, db, journal = make_engine(tmp_path)
+    payloads = (
+        BookSnapshot(
+            (BookLevel(100, 0),),
+            (BookLevel(101, 2),),
+            None,
+            None,
+            (("flag", True), ("count", 1), ("feature", 0.25), ("label", "a"), ("missing", None)),
+        ),
+        MarkPrice(Decimal("100.000000000000000000001"), 1_789_200_000_000_000_001, "fixture"),
+        AccountSnapshotObserved(
+            "snapshot",
+            (("USDT", Decimal("123.4500")),),
+            (("BTCUSDT", -1),),
+            1_789_200_000_000_000_001,
+        ),
+    )
+    try:
+        for ordinal, payload in enumerate(payloads, 1):
+            candidate = engine.process(
+                replace(
+                    incoming(ordinal),
+                    event_type=type(payload).__name__,
+                    payload=canonical_bytes(payload),
+                )
+            )
+            assert decode_payload(candidate.events[0].envelope) == payload
+            engine.commit(candidate)
+        assert len(engine.store.read_after(0)) == 3
+    finally:
+        db.close()
+        journal.close()
+
+
+def test_stage_children_have_stable_sibling_ordinals_and_recover_without_decisions(tmp_path):
+    from quantdesk.core.engine import Engine, EngineMode, Replay
+    from quantdesk.core.events import IntentRejected
+    from quantdesk.core.ids import derive_id
+    from quantdesk.core.reducers import DecisionProducer, EventDraft, FactReducer, Reduction, Stage
+
+    original, db, journal = make_engine(tmp_path)
+
+    def collect(event, state):
+        seen = json.loads(state.get("strategies", "seen", b"[]"))
+        return Reduction(state.put("strategies", "seen", canonical_bytes([*seen, event.event_id])))
+
+    def children(event, state):
+        if event.event_type != "Trade":
+            return ()
+        return tuple(
+            EventDraft(
+                "IntentRejected",
+                canonical_bytes(IntentRejected(event.event_id, "CHILD", str(ordinal))),
+            )
+            for ordinal in range(2)
+        )
+
+    def grandchildren(event, state):
+        if (
+            event.event_type != "IntentRejected"
+            or json.loads(event.payload)["reason_code"] != "CHILD"
+        ):
+            return ()
+        return (
+            EventDraft(
+                "IntentRejected",
+                canonical_bytes(IntentRejected(event.event_id, "GRANDCHILD", "recorded")),
+            ),
+        )
+
+    def forbidden(event, state):
+        raise AssertionError("recovery regenerated a decision")
+
+    reducers = (FactReducer("collect", Stage.BOOK_ACCOUNT_OMS, collect),)
+    producers = (
+        DecisionProducer("parent", Stage.STRATEGIES, children),
+        DecisionProducer("child", Stage.RISK, grandchildren),
+    )
+    try:
+        engine = Engine(
+            "deterministic-run",
+            original.store,
+            raw_watermark=lambda: journal.durable_watermark,
+            reducers=reducers,
+            producers=producers,
+            code_hash="fixture-code-v1",
+            schema_hash="fixture-schema-v1",
+        )
+        checkpoint = engine.checkpoint()
+        engine.commit(engine.process(incoming(1)))
+        history = engine.store.read_after(0)
+        root, first, second, first_child, second_child = history
+        for ordinal, record in enumerate((first, second)):
+            assert record.envelope.event_id == derive_id(
+                "event", f"deterministic-run:{root.envelope.event_id}", "parent", ordinal
+            )
+        assert first_child.parent_id == first.envelope.event_id
+        assert second_child.parent_id == second.envelope.event_id
+        assert json.loads(engine.state.get("strategies", "seen")) == [
+            r.envelope.event_id for r in history
+        ]
+        assert Replay(reducers, producers).verify(engine.replay_manifest(checkpoint)).matched
+        recovery = Engine(
+            "deterministic-run",
+            engine.store,
+            raw_watermark=lambda: journal.durable_watermark,
+            reducers=reducers,
+            producers=tuple(replace(producer, decide=forbidden) for producer in producers),
+            mode=EngineMode.RECOVERY,
+            code_hash="fixture-code-v1",
+            schema_hash="fixture-schema-v1",
+        )
+        recovery.restore(checkpoint, history)
+        assert recovery.state == engine.state
+    finally:
+        db.close()
+        journal.close()
+
+
+def test_failed_second_restore_revokes_previous_offline_resume_readiness(tmp_path):
+    from quantdesk.core.engine import Engine, EngineMode
+    from quantdesk.persistence.event_store import PersistenceTransition
+
+    engine, db, journal = make_engine(tmp_path)
+    try:
+        checkpoint = engine.checkpoint()
+        recovery = Engine(
+            "deterministic-run",
+            engine.store,
+            raw_watermark=lambda: journal.durable_watermark,
+            reducers=program(fail_decisions=True)[0],
+            producers=program(fail_decisions=True)[1],
+            mode=EngineMode.RECOVERY,
+            code_hash="fixture-code-v1",
+            schema_hash="fixture-schema-v1",
+        )
+        recovery.restore(checkpoint, ())
+        candidate = engine.process(incoming(1))
+        root, first, second = candidate.events
+        malformed = (
+            root,
+            replace(first, envelope=replace(first.envelope, event_id="arbitrary")),
+            second,
+        )
+        engine.discard(candidate)
+        engine.store.commit(
+            PersistenceTransition(candidate.input_event_id, 0, malformed), journal.durable_watermark
+        )
+        with pytest.raises(ValueError, match="derived"):
+            recovery.restore(checkpoint, engine.store.read_after(0))
+        with pytest.raises(RuntimeError, match="completed state recovery"):
+            recovery.resume_offline()
+        assert recovery.mode == EngineMode.RECOVERY
+        assert not recovery.network_order_dispatch_allowed
+    finally:
+        db.close()
+        journal.close()
