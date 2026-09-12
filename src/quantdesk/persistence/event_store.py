@@ -50,6 +50,13 @@ class LedgerTransaction:
 
 
 @dataclass(frozen=True, slots=True)
+class EconomicAliasUpdate:
+    event_id: str
+    transaction_id: str
+    identity: EconomicIdentity
+
+
+@dataclass(frozen=True, slots=True)
 class OutboxInstruction:
     instruction_id: str
     client_order_id: str
@@ -82,6 +89,7 @@ class PersistenceTransition:
     ledger_transactions: tuple[LedgerTransaction, ...] = ()
     outbox_instructions: tuple[OutboxInstruction, ...] = ()
     projection_updates: tuple[ProjectionUpdate, ...] = ()
+    economic_aliases: tuple[EconomicAliasUpdate, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -314,6 +322,42 @@ class EventStore:
                         )
                         for ordinal, posting in enumerate(transaction.postings)
                     ],
+                )
+            for update in transition.economic_aliases:
+                if update.event_id not in events:
+                    raise ValueError("economic alias requires a current observation event")
+                identity = update.identity
+                envelope = events[update.event_id].envelope
+                if any(not value for value in _identity_values(identity)) or (
+                    identity.venue,
+                    identity.environment,
+                    identity.account,
+                ) != (envelope.venue, envelope.environment, envelope.account_id):
+                    raise ValueError("economic alias changes account scope")
+                scopes = connection.execute(
+                    "SELECT venue, environment, account, instrument, component_type "
+                    "FROM economic_identities WHERE transaction_id=?",
+                    (update.transaction_id,),
+                ).fetchall()
+                key = _economic_key(identity)
+                if not scopes or any(tuple(row) != (*key[:4], key[5]) for row in scopes):
+                    raise ValueError("economic alias changes financial scope")
+                source_row = connection.execute(
+                    "SELECT e.envelope_json FROM ledger_transactions t "
+                    "JOIN events e ON e.event_id=t.event_id WHERE t.transaction_id=?",
+                    (update.transaction_id,),
+                ).fetchone()
+                source_event = _decode_envelope(source_row[0])
+                instrument = (
+                    "cash"
+                    if identity.component_type == "transfer"
+                    else source_event.instrument_id or "cash"
+                )
+                if identity.instrument != instrument:
+                    raise ValueError("economic alias changes original instrument scope")
+                connection.execute(
+                    "INSERT INTO economic_identities VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (*key, update.transaction_id),
                 )
             for instruction in transition.outbox_instructions:
                 if not all(

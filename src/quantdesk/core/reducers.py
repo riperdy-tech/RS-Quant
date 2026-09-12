@@ -24,7 +24,12 @@ from quantdesk.core.checkpoint import EngineState
 from quantdesk.core.clock import TimerRequest
 from quantdesk.core.events import PAYLOAD_TYPES, Envelope, canonical_bytes
 from quantdesk.core.types import EventPayload
-from quantdesk.persistence.event_store import LedgerTransaction, OutboxInstruction, ProjectionUpdate
+from quantdesk.persistence.event_store import (
+    EconomicAliasUpdate,
+    LedgerTransaction,
+    OutboxInstruction,
+    ProjectionUpdate,
+)
 
 
 def require_immutable(value: object) -> None:
@@ -159,6 +164,7 @@ class Reduction:
     projection_updates: tuple[ProjectionUpdate, ...] = ()
     timers: tuple[TimerRequest, ...] = ()
     cancel_timers: tuple[str, ...] = ()
+    economic_aliases: tuple[EconomicAliasUpdate, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

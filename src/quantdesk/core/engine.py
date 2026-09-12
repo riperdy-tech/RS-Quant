@@ -39,6 +39,7 @@ from quantdesk.core.reducers import (
 )
 from quantdesk.persistence.event_store import (
     CommitReceipt,
+    EconomicAliasUpdate,
     EventRecord,
     EventStore,
     LedgerTransaction,
@@ -139,6 +140,7 @@ class Transition:
     outbox_instructions: tuple[OutboxInstruction, ...]
     projection_updates: tuple[ProjectionUpdate, ...]
     candidate_state: EngineState
+    economic_aliases: tuple[EconomicAliasUpdate, ...] = ()
 
     def persistence(self) -> PersistenceTransition:
         return PersistenceTransition(
@@ -148,6 +150,7 @@ class Transition:
             self.ledger_change,
             self.outbox_instructions,
             self.projection_updates,
+            self.economic_aliases,
         )
 
 
@@ -369,6 +372,7 @@ class Engine:
                 "projection_updates",
                 "timers",
                 "cancel_timers",
+                "economic_aliases",
             )
         ):
             raise ValueError("reducer effects must be immutable tuples")
@@ -573,6 +577,7 @@ class Engine:
             tuple(i for change in changes for i in change.outbox_instructions),
             tuple(p for change in changes for p in change.projection_updates),
             state,
+            tuple(alias for change in changes for alias in change.economic_aliases),
         )
         self._pending = candidate
         return candidate

@@ -214,6 +214,23 @@ PAYLOAD_CONTRACTS = {
     "SimulatedLiquidationTriggered": {"instrument_id", "position_lots", "mark_price", "reason"},
     "CheckpointWritten": {"checkpoint_id", "engine_seq", "deterministic_state_hash"},
     "RunBoundary": {"run_id", "boundary", "available_ns"},
+    "FinancialEventObserved": {
+        "financial_payload",
+        "aliases",
+        "source_observation_ids",
+        "trading_adjustment",
+    },
+    "ReservationChanged": {
+        "reservation_id",
+        "instrument_id",
+        "side",
+        "remaining_lots",
+        "cash_amount",
+        "fee_buffer",
+        "reduce_only",
+        "revision",
+    },
+    "ConversionRateObserved": {"base_asset", "quote_asset", "rate", "event_ns", "source"},
 }
 
 
