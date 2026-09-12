@@ -134,6 +134,33 @@ def _secret_name(name: str) -> bool:
     return re.sub(r"[^a-z0-9]", "", name.lower()) in _SECRET_NAMES
 
 
+@dataclass(frozen=True, slots=True)
+class _JSONNumber:
+    """Original JSON number lexeme; capture never rounds or quotes it."""
+
+    token: str
+
+
+def _redacted_json(value: object) -> str:
+    # This is a transport serializer, not canonical core serialization: numeric
+    # JSON tokens (including exponent spelling and large IDs) retain their type
+    # and exact representation before the normalizer sees them.
+    if isinstance(value, _JSONNumber):
+        return value.token
+    if isinstance(value, dict):
+        return (
+            "{"
+            + ",".join(
+                json.dumps(key, ensure_ascii=False) + ":" + _redacted_json(child)
+                for key, child in value.items()
+            )
+            + "}"
+        )
+    if isinstance(value, list):
+        return "[" + ",".join(_redacted_json(child) for child in value) + "]"
+    return json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+
+
 def _strip_secrets(value: object) -> tuple[object, bool]:
     if isinstance(value, dict):
         cleaned: dict[str, object] = {}
@@ -164,7 +191,7 @@ def sanitize_capture(frame: RawFrame) -> RawFrame:
         raise ValueError("invalid raw receipt metadata")
     payload = frame.payload
     try:
-        parsed = json.loads(payload)
+        parsed = json.loads(payload, parse_int=_JSONNumber, parse_float=_JSONNumber)
     except (ValueError, UnicodeDecodeError):
         # Plain form authentication bodies must not evade JSON redaction.
         if re.search(
@@ -179,7 +206,7 @@ def sanitize_capture(frame: RawFrame) -> RawFrame:
             raise CaptureRejected("authentication frames are excluded from journals")
         safe, changed = _strip_secrets(parsed)
         if changed:
-            payload = canonical_bytes(safe)
+            payload = _redacted_json(safe).encode("utf-8")
     url = frame.url
     if url is not None:
         split = urlsplit(url)
@@ -201,6 +228,34 @@ class _StoredFrame:
     payload: bytes
 
 
+def _has_later_complete_frame(data: bytes, start: int, minimum_ordinal: int) -> bool:
+    """Recognize framing evidence, never a magic string inside a payload alone."""
+    candidate = data.find(_MAGIC, start)
+    while candidate >= 0:
+        if len(data) - candidate >= _HEADER.size:
+            _, metadata_length, payload_length = _HEADER.unpack_from(data, candidate)
+            end = candidate + _HEADER.size + metadata_length + payload_length + _CRC.size
+            if (
+                metadata_length <= _MAX_METADATA
+                and payload_length <= _MAX_PAYLOAD
+                and end <= len(data)
+                and zlib.crc32(data[candidate : end - _CRC.size])
+                == _CRC.unpack_from(data, end - _CRC.size)[0]
+            ):
+                metadata_start = candidate + _HEADER.size
+                try:
+                    metadata = json.loads(data[metadata_start : metadata_start + metadata_length])
+                    if (
+                        isinstance(metadata, dict)
+                        and int(metadata["frame_ordinal"]) >= minimum_ordinal
+                    ):
+                        return True
+                except (ValueError, TypeError, KeyError):
+                    pass
+        candidate = data.find(_MAGIC, candidate + len(_MAGIC))
+    return False
+
+
 def _scan(
     data: bytes, journal_id: str, chunk: int, first_ordinal: int, *, allow_tail: bool
 ) -> tuple[list[_StoredFrame], int]:
@@ -217,7 +272,9 @@ def _scan(
             raise JournalCorruption("invalid journal frame header")
         end = offset + _HEADER.size + metadata_length + payload_length + _CRC.size
         if end > len(data):
-            if not allow_tail or _MAGIC in data[offset + _HEADER.size :]:
+            if not allow_tail or _has_later_complete_frame(
+                data, offset + _HEADER.size, first_ordinal + len(frames) + 1
+            ):
                 raise JournalCorruption("incomplete interior or sealed journal frame")
             break
         if zlib.crc32(data[offset : end - _CRC.size]) != _CRC.unpack_from(data, end - _CRC.size)[0]:
@@ -287,23 +344,23 @@ class RawJournal:
 
     def _initialize(self) -> None:
         identity_path = self.directory / "journal.json"
+        watermark_path = self.directory / "watermark.json"
         if not identity_path.exists():
-            if any(self.directory.glob("chunk-*")):
+            if any(self.directory.glob("chunk-*")) or watermark_path.exists():
                 raise JournalCorruption("missing journal identity")
-            atomic_write(
-                identity_path, canonical_bytes({"journal_id": uuid.uuid4().hex, "version": 1})
-            )
+            journal_id = uuid.uuid4().hex
+            atomic_write(identity_path, canonical_bytes({"journal_id": journal_id, "version": 1}))
+            # Establish durability metadata before any active file can accept
+            # writes. Missing metadata thereafter is never a zero-watermark hint.
+            atomic_write(watermark_path, DurableWatermark(journal_id, 0, 0, 0).to_bytes())
+        elif not watermark_path.is_file():
+            raise JournalCorruption("established journal is missing its durable watermark")
         try:
             identity = json.loads(identity_path.read_bytes())
             self.journal_id = str(identity["journal_id"])
             if identity["version"] != 1:
                 raise JournalCorruption("unsupported raw journal version")
-            watermark_path = self.directory / "watermark.json"
-            self.durable_watermark = (
-                DurableWatermark.from_bytes(watermark_path.read_bytes())
-                if watermark_path.exists()
-                else DurableWatermark(self.journal_id, 0, 0, 0)
-            )
+            self.durable_watermark = DurableWatermark.from_bytes(watermark_path.read_bytes())
         except (ValueError, KeyError, TypeError) as exc:
             raise JournalCorruption("invalid journal identity/watermark") from exc
         if self.durable_watermark.journal_id != self.journal_id:

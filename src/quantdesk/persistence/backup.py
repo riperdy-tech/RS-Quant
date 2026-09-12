@@ -23,16 +23,52 @@ from quantdesk.persistence.manifests import DurableWatermark, RawRef, atomic_wri
 from quantdesk.persistence.raw_journal import JournalCipher, RawJournal
 
 _BACKUP_AAD = b"QuantDesk SQLite backup v1"
-_PRIVATE_TYPES = (
-    "OrderReport",
-    "ExecutionReport",
-    "FundingSettlement",
-    "FeeAdjustment",
-    "CashTransfer",
-    "AccountSnapshotObserved",
-    "LedgerAdjustmentApproved",
-    "ReconciliationObservation",
+_PUBLIC_EVENT_TYPES = frozenset(
+    {
+        "BookSnapshot",
+        "BookDelta",
+        "Trade",
+        "Quote",
+        "BarClosed",
+        "MarkPrice",
+        "FundingRateAnnounced",
+        "InstrumentSpecUpdated",
+    }
 )
+_PUBLIC_INFRASTRUCTURE_TABLES = frozenset({"events", "projection_watermarks", "store_metadata"})
+
+
+def _database_requires_encryption(connection: sqlite3.Connection) -> bool:
+    """Allow plaintext only for accountless public market facts and bookkeepers.
+
+    Everything else is confidential by default: private/control/decision events,
+    unknown future event types, all populated account projections, ledger/outbox,
+    command results and opaque checkpoints. New schema tables fail closed until
+    explicitly reviewed; DEMO does not waive this data-confidentiality policy.
+    """
+    for event_type, envelope_bytes in connection.execute("SELECT type, envelope_json FROM events"):
+        if event_type not in _PUBLIC_EVENT_TYPES:
+            return True
+        try:
+            envelope = json.loads(envelope_bytes)
+        except (ValueError, TypeError):
+            return True
+        if not isinstance(envelope, dict) or envelope.get("account_id", "unknown") is not None:
+            return True
+    if connection.execute(
+        "SELECT 1 FROM store_metadata WHERE name <> 'raw_watermark' LIMIT 1"
+    ).fetchone():
+        return True
+    if connection.execute(
+        "SELECT 1 FROM projection_watermarks WHERE name <> 'engine' LIMIT 1"
+    ).fetchone():
+        return True
+    for (table,) in connection.execute("SELECT name FROM sqlite_schema WHERE type='table'"):
+        if table not in _PUBLIC_INFRASTRUCTURE_TABLES:
+            quoted_table = '"' + table.replace('"', '""') + '"'
+            if connection.execute(f"SELECT 1 FROM {quoted_table} LIMIT 1").fetchone():
+                return True
+    return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +142,8 @@ def validate_backup(path: Path, *, cipher: JournalCipher | None = None) -> Backu
             connection.close()
             raise
     try:
+        if manifest.encryption_key_id is None and _database_requires_encryption(connection):
+            raise ValueError("private account backup requires encryption")
         if connection.execute("PRAGMA integrity_check").fetchone() != ("ok",):
             raise ValueError("backup SQLite integrity check failed")
         if connection.execute("PRAGMA foreign_key_check").fetchall():
@@ -163,6 +201,8 @@ def validate_backup(path: Path, *, cipher: JournalCipher | None = None) -> Backu
     finally:
         connection.close()
     with RawJournal(path / "raw") as journal:
+        if manifest.encryption_key_id is None and journal.has_private_frames:
+            raise ValueError("private raw backup requires encryption")
         if journal.durable_watermark != manifest.raw_watermark:
             raise ValueError("backup raw manifest watermark mismatch")
         known = set(journal.references())
@@ -184,11 +224,9 @@ def create_backup(
         raise ValueError("backup requires a committed transition boundary")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", name):
         raise ValueError("invalid backup name")
-    private_events = database.connection.execute(
-        f"SELECT 1 FROM events WHERE type IN ({','.join('?' for _ in _PRIVATE_TYPES)}) LIMIT 1",
-        _PRIVATE_TYPES,
-    ).fetchone()
-    if cipher is None and (journal.has_private_frames or private_events):
+    if cipher is None and (
+        journal.has_private_frames or _database_requires_encryption(database.connection)
+    ):
         raise ValueError("private account backup requires an injected encryption boundary")
     backup_directory = backup_directory.resolve()
     if backup_directory == journal.directory or backup_directory.is_relative_to(journal.directory):

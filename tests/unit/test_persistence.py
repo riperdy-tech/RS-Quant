@@ -8,7 +8,16 @@ from pathlib import Path
 
 import pytest
 
-from quantdesk.core.events import Envelope, canonical_bytes
+from quantdesk.core.events import (
+    Envelope,
+    OperatorCommand,
+    OrderInstruction,
+    PositionDiscrepancy,
+    ProtectionReport,
+    Quote,
+    canonical_bytes,
+)
+from quantdesk.core.types import OrderType, Side, TimeInForce
 from quantdesk.persistence.backup import create_backup, restore_backup
 from quantdesk.persistence.db import Database, WriterOwnershipError
 from quantdesk.persistence.event_store import (
@@ -154,6 +163,33 @@ def test_safe_private_payload_bytes_are_preserved_after_decryption(tmp_path: Pat
         ref = journal.append(frame(private=True))
         journal.sync()
         assert journal.read(ref).payload == b'{ "price": "100.00" }'
+
+
+@pytest.mark.parametrize("private", [False, True])
+def test_redaction_preserves_nested_numeric_tokens_and_json_types(
+    tmp_path: Path, private: bool
+) -> None:
+    payload = (
+        b'{"price":0.123456789012345678901,"timestamp":1789200000000000001,'
+        b'"apiKey":"secret","nested":[{"fee":-1.2300e-12,"signature":"hidden",'
+        b'"id":999999999999999999999999999999,"ratio":4.500E+03,"zero":-0.0}],'
+        b'"quoted":"1789200000000000001"}'
+    )
+    expected = (
+        b'{"price":0.123456789012345678901,"timestamp":1789200000000000001,'
+        b'"nested":[{"fee":-1.2300e-12,"id":999999999999999999999999999999,'
+        b'"ratio":4.500E+03,"zero":-0.0}],"quoted":"1789200000000000001"}'
+    )
+    with RawJournal(tmp_path, cipher=AESGCMCipher("test-key", b"k" * 32)) as journal:
+        ref = journal.append(frame(payload, private=private))
+        journal.sync()
+        assert journal.read(ref).payload == expected
+    with RawJournal(tmp_path, cipher=AESGCMCipher("test-key", b"k" * 32)) as reopened:
+        decoded = json.loads(reopened.read(ref).payload, parse_float=Decimal)
+        assert decoded["price"] == Decimal("0.123456789012345678901")
+        assert isinstance(decoded["timestamp"], int)
+        assert decoded["nested"][0]["id"] == 999999999999999999999999999999
+        assert isinstance(decoded["quoted"], str)
 
 
 @pytest.mark.parametrize(
@@ -353,6 +389,7 @@ def test_migrate_old_database_preserves_history_and_adds_constraints(tmp_path: P
 
 
 def test_backup_copies_wal_and_raw_watermarks_and_restores_isolated(tmp_path: Path) -> None:
+    cipher = AESGCMCipher("backup-key", b"b" * 32)
     with RawJournal(tmp_path / "raw") as journal, Database(tmp_path / "engine.sqlite") as db:
         ref = journal.append(frame())
         store = EventStore(db)
@@ -360,12 +397,12 @@ def test_backup_copies_wal_and_raw_watermarks_and_restores_isolated(tmp_path: Pa
         checkpoint = store.save_checkpoint(
             "checkpoint-1", b'{"state_version":1}', journal.durable_watermark
         )
-        bundle = create_backup(db, journal, tmp_path / "backups", "backup-1")
+        bundle = create_backup(db, journal, tmp_path / "backups", "backup-1", cipher=cipher)
         assert bundle.manifest.engine_seq == 1
         assert bundle.manifest.state_version == 1
         assert bundle.manifest.checkpoint_id == checkpoint.checkpoint_id
         store.commit(PersistenceTransition("event-2", 1, (event("event-2", 2),)), journal.sync())
-        restored = restore_backup(bundle.path, tmp_path / "restored")
+        restored = restore_backup(bundle.path, tmp_path / "restored", cipher=cipher)
         with (
             Database(restored / "engine.sqlite") as copy_db,
             RawJournal(restored / "raw") as copy_raw,
@@ -381,13 +418,14 @@ def test_backup_copies_wal_and_raw_watermarks_and_restores_isolated(tmp_path: Pa
 
 
 def test_backup_rejects_corruption_without_publishing_restore(tmp_path: Path) -> None:
+    cipher = AESGCMCipher("backup-key", b"b" * 32)
     with RawJournal(tmp_path / "raw") as journal, Database(tmp_path / "engine.sqlite") as db:
         EventStore(db).commit(transition(), journal.sync())
-        bundle = create_backup(db, journal, tmp_path / "backups", "backup-1")
-    with (bundle.path / "engine.sqlite").open("ab") as stream:
+        bundle = create_backup(db, journal, tmp_path / "backups", "backup-1", cipher=cipher)
+    with (bundle.path / "engine.sqlite.enc").open("ab") as stream:
         stream.write(b"corrupted")
     with pytest.raises(ValueError, match="hash"):
-        restore_backup(bundle.path, tmp_path / "restore")
+        restore_backup(bundle.path, tmp_path / "restore", cipher=cipher)
     assert not (tmp_path / "restore").exists()
 
 
@@ -515,6 +553,7 @@ def test_private_append_forces_prompt_durability(tmp_path: Path) -> None:
 
 
 def test_backup_preserves_checkpoint_and_committed_tail(tmp_path: Path) -> None:
+    cipher = AESGCMCipher("backup-key", b"b" * 32)
     with RawJournal(tmp_path / "raw") as journal, Database(tmp_path / "engine.sqlite") as db:
         store = EventStore(db)
         first = journal.append(frame())
@@ -524,8 +563,8 @@ def test_backup_preserves_checkpoint_and_committed_tail(tmp_path: Path) -> None:
         store.commit(
             PersistenceTransition("event-2", 1, (event("event-2", 2, str(second)),)), journal.sync()
         )
-        bundle = create_backup(db, journal, tmp_path / "backups", "with-tail")
-    restored = restore_backup(bundle.path, tmp_path / "restored")
+        bundle = create_backup(db, journal, tmp_path / "backups", "with-tail", cipher=cipher)
+    restored = restore_backup(bundle.path, tmp_path / "restored", cipher=cipher)
     with Database(restored / "engine.sqlite") as db, RawJournal(restored / "raw") as journal:
         store = EventStore(db)
         checkpoint = store.latest_checkpoint()
@@ -638,5 +677,120 @@ def test_backup_refuses_a_different_journal_even_without_raw_event_references(
     ):
         EventStore(db).commit(transition(), journal.sync())
         with pytest.raises(ValueError, match="watermark"):
-            create_backup(db, other, tmp_path / "backups", "wrong-raw")
+            create_backup(
+                db,
+                other,
+                tmp_path / "backups",
+                "wrong-raw",
+                cipher=AESGCMCipher("backup-key", b"b" * 32),
+            )
         assert not (tmp_path / "backups" / "wrong-raw").exists()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        ProtectionReport("PRIVATE-PROTECTION-ID", "ACTIVE", 2, 1000, None),
+        PositionDiscrepancy("PRIVATE-INSTRUMENT", 2, 3, "observed account position"),
+        OperatorCommand("PRIVATE-COMMAND-ID", "PAUSE", (("account_id", "demo"),), "body-hash"),
+        OrderInstruction(
+            "PRIVATE-INSTRUCTION-ID",
+            "PRIVATE-CLIENT-ID",
+            "intent-1",
+            "demo",
+            "DEMO",
+            "BTCUSDT",
+            Side.BUY,
+            1,
+            100,
+            OrderType.LIMIT,
+            TimeInForce.GTC,
+            False,
+            None,
+            None,
+            "strategy-1",
+            None,
+            2000,
+            "risk-1",
+            "fence-1",
+        ),
+    ],
+)
+def test_canonical_only_private_facts_require_encrypted_backup(tmp_path: Path, payload) -> None:
+    with RawJournal(tmp_path / "raw") as journal, Database(tmp_path / "engine.sqlite") as db:
+        private_event = replace(
+            event("event-1", 1),
+            envelope=replace(
+                event("event-1", 1).envelope,
+                event_type=type(payload).__name__,
+                payload=canonical_bytes(payload),
+            ),
+        )
+        EventStore(db).commit(PersistenceTransition("event-1", 0, (private_event,)), journal.sync())
+        with pytest.raises(ValueError, match="encrypt"):
+            create_backup(db, journal, tmp_path / "backups", "plaintext")
+        assert not (tmp_path / "backups" / "plaintext").exists()
+        cipher = AESGCMCipher("backup-key", b"b" * 32)
+        bundle = create_backup(db, journal, tmp_path / "backups", "encrypted", cipher=cipher)
+        persisted = b"".join(file.read_bytes() for file in bundle.path.rglob("*") if file.is_file())
+        assert b"PRIVATE-" not in persisted
+
+
+@pytest.mark.parametrize("source", ["positions", "checkpoint", "unknown_type", "unknown_table"])
+def test_backup_confidentiality_fails_closed_for_account_state_and_unknown_data(
+    tmp_path: Path, source: str
+) -> None:
+    with RawJournal(tmp_path / "raw") as journal, Database(tmp_path / "engine.sqlite") as db:
+        public_event = replace(
+            event("event-1", 1),
+            envelope=replace(
+                event("event-1", 1).envelope,
+                account_id=None,
+                event_type="Quote",
+                payload=canonical_bytes(Quote(100, 1, 101, 1, None, ())),
+            ),
+        )
+        updates = (
+            (ProjectionUpdate("positions", "BTCUSDT", b'"PRIVATE-POSITION"'),)
+            if source == "positions"
+            else ()
+        )
+        if source == "unknown_type":
+            public_event = replace(
+                public_event,
+                envelope=replace(public_event.envelope, event_type="FutureAccountFact"),
+            )
+        store = EventStore(db)
+        store.commit(
+            PersistenceTransition("event-1", 0, (public_event,), projection_updates=updates),
+            journal.sync(),
+        )
+        if source == "checkpoint":
+            store.save_checkpoint("checkpoint-1", b'"PRIVATE-STATE"', journal.durable_watermark)
+        if source == "unknown_table":
+            db.connection.execute("CREATE TABLE future_account_state(value BLOB)")
+            db.connection.execute(
+                "INSERT INTO future_account_state VALUES (?)", (b"PRIVATE-FUTURE",)
+            )
+        with pytest.raises(ValueError, match="encrypt"):
+            create_backup(db, journal, tmp_path / "backups", "plaintext")
+        assert not (tmp_path / "backups" / "plaintext").exists()
+
+
+def test_accountless_market_only_history_can_be_backed_up_without_a_cipher(tmp_path: Path) -> None:
+    with RawJournal(tmp_path / "raw") as journal, Database(tmp_path / "engine.sqlite") as db:
+        public_event = replace(
+            event("event-1", 1),
+            envelope=replace(
+                event("event-1", 1).envelope,
+                account_id=None,
+                event_type="Quote",
+                payload=canonical_bytes(Quote(100, 1, 101, 1, None, ())),
+            ),
+        )
+        EventStore(db).commit(PersistenceTransition("event-1", 0, (public_event,)), journal.sync())
+        bundle = create_backup(db, journal, tmp_path / "backups", "public")
+        assert (bundle.path / "engine.sqlite").is_file()
+        restored = restore_backup(bundle.path, tmp_path / "restored")
+        with Database(restored / "engine.sqlite") as restored_db:
+            assert EventStore(restored_db).read_after(0)[0] == public_event

@@ -7,16 +7,26 @@ import pytest
 from quantdesk.persistence.db import Database
 from quantdesk.persistence.event_store import EventStore
 from quantdesk.persistence.outbox import Outbox
-from quantdesk.persistence.raw_journal import JournalCorruption, RawJournal
+from quantdesk.persistence.raw_journal import AESGCMCipher, JournalCorruption, RawJournal
 from tests.unit.test_persistence import frame, transition
 
 
-def test_every_torn_tail_boundary_recovers_only_complete_uncommitted_frames(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b'{"price":"101"}',
+        b'{"symbol":"QDJ1"}',
+        b"\x00QDJ1\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x01{}x\x00\x00\x00\x00binary",
+    ],
+)
+def test_every_torn_tail_boundary_recovers_only_complete_uncommitted_frames(
+    tmp_path: Path, payload: bytes
+) -> None:
     baseline = tmp_path / "baseline"
     with RawJournal(baseline) as journal:
         first = journal.append(frame())
         journal.sync()
-        journal.append(frame(b'{"price":"101"}'))
+        journal.append(frame(payload))
         full = journal.active_path.read_bytes()
         active_name = journal.active_path.name
     import shutil
@@ -43,6 +53,25 @@ def test_corrupt_complete_active_frame_fails_closed(tmp_path: Path) -> None:
         RawJournal(tmp_path)
 
 
+def test_damaged_interior_length_followed_by_valid_frame_is_not_a_torn_tail(tmp_path: Path) -> None:
+    import struct
+
+    with RawJournal(tmp_path) as journal:
+        journal.append(frame())
+        journal.sync()
+        second = journal.append(frame(b'{"symbol":"QDJ1"}'))
+        journal.append(frame(b'{"price":"102"}'))
+        active = journal.active_path
+    damaged = bytearray(active.read_bytes())
+    # Corrupt only the second frame's payload length, so it appears torn while
+    # the following third frame has a complete valid header/metadata/CRC.
+    struct.pack_into(">Q", damaged, second.start_offset + 8, len(damaged) * 2)
+    active.write_bytes(damaged)
+    with pytest.raises(JournalCorruption, match="interior"):
+        RawJournal(tmp_path)
+    assert active.read_bytes() == damaged
+
+
 def test_truncated_durable_frame_is_corruption_not_recoverable_tail(tmp_path: Path) -> None:
     with RawJournal(tmp_path) as journal:
         ref = journal.append(frame())
@@ -51,6 +80,37 @@ def test_truncated_durable_frame_is_corruption_not_recoverable_tail(tmp_path: Pa
     path.write_bytes(path.read_bytes()[: ref.end_offset - 1])
     with pytest.raises(JournalCorruption):
         RawJournal(tmp_path)
+
+
+@pytest.mark.parametrize("damaged", [False, True])
+def test_missing_watermark_preserves_acknowledged_history_bytes(
+    tmp_path: Path, damaged: bool
+) -> None:
+    with RawJournal(tmp_path) as journal:
+        journal.append(frame())
+        journal.sync()
+        active = journal.active_path
+    (tmp_path / "watermark.json").unlink()
+    if damaged:
+        active.write_bytes(active.read_bytes()[:-1])
+    preserved = active.read_bytes()
+    with pytest.raises(JournalCorruption, match="watermark"):
+        RawJournal(tmp_path)
+    assert active.read_bytes() == preserved
+    assert not (tmp_path / "watermark.json").exists()
+
+
+def test_initial_zero_watermark_exists_before_unsynced_writes(tmp_path: Path) -> None:
+    from quantdesk.persistence.manifests import DurableWatermark
+
+    with RawJournal(tmp_path) as journal:
+        marker = tmp_path / "watermark.json"
+        assert marker.is_file()
+        initial = DurableWatermark.from_bytes(marker.read_bytes())
+        assert initial.frame_ordinal == 0
+        assert initial.end_offset == 0
+        journal.append(frame())
+        assert DurableWatermark.from_bytes(marker.read_bytes()) == initial
 
 
 def test_corrupted_sealed_chunk_is_never_accepted_as_tail(tmp_path: Path) -> None:
@@ -161,6 +221,12 @@ def test_backup_publish_failure_leaves_no_usable_partial_bundle(
         EventStore(db).commit(transition(), journal.sync())
         monkeypatch.setattr(os, "rename", failed_publish)
         with pytest.raises(OSError):
-            create_backup(db, journal, tmp_path / "backups", "broken")
+            create_backup(
+                db,
+                journal,
+                tmp_path / "backups",
+                "broken",
+                cipher=AESGCMCipher("backup-key", b"b" * 32),
+            )
         assert list((tmp_path / "backups").iterdir()) == []
         assert len(EventStore(db).read_after(0)) == 1
