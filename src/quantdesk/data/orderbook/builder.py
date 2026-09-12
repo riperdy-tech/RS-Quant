@@ -51,9 +51,10 @@ class BookBuilder:
         self._bids: dict[int, int] = {}
         self._asks: dict[int, int] = {}
         self._epoch: str | None = None
-        self._scope: tuple[str | None, str] | None = None
+        self._scope: tuple[str | None, str, str | None, str] | None = None
         self._sequence: str | None = None
         self._fingerprint: str | None = None
+        self._receipt: tuple[str | None, int, int, int, str | None] | None = None
         self._available = 0
         self._validity_epoch = 0
 
@@ -69,6 +70,7 @@ class BookBuilder:
             self._sequence = None
         self._epoch = connection_epoch
         self._fingerprint = None
+        self._receipt = None
         self._bids, self._asks = {}, {}
         self._validity_epoch += 1
         self.state, self.view = "SYNCING", None
@@ -80,7 +82,7 @@ class BookBuilder:
         return BookUpdate(self.state, "", self.view)
 
     def apply(self, event: IncomingEvent) -> BookUpdate:
-        scope = (event.instrument_id, event.source_channel)
+        scope = (event.venue, event.environment, event.instrument_id, event.source_channel)
         if self._scope is None:
             self._scope = scope
         elif scope != self._scope:
@@ -106,10 +108,22 @@ class BookBuilder:
             if sequence is not None and not isinstance(sequence, str):
                 raise ValueError("INVALID_NATIVE_SEQUENCE")
             fingerprint = sha256(event.payload).hexdigest()
-            if fingerprint == self._fingerprint and sequence == self._sequence:
+            receipt = (
+                event.raw_ref,
+                event.receive_wall_ns,
+                event.receive_monotonic_ns,
+                event.available_ns,
+                event.source_message_id,
+            )
+            identical = fingerprint == self._fingerprint and sequence == self._sequence
+            if identical and (receipt == self._receipt or not snapshot):
                 return BookUpdate(self.state, "DUPLICATE", self.view, duplicate=True)
-            reason = self.validator.validate(
-                self._sequence, sequence, payload.get("prior_sequence"), snapshot
+            reason = (
+                None
+                if identical and snapshot
+                else self.validator.validate(
+                    self._sequence, sequence, payload.get("prior_sequence"), snapshot
+                )
             )
             if reason:
                 raise ValueError(reason)
@@ -129,6 +143,7 @@ class BookBuilder:
             return self.invalidate(str(exc))
         self._bids, self._asks = next_bids, next_asks
         self._sequence, self._fingerprint = sequence, fingerprint
+        self._receipt = receipt
         self._available = event.available_ns
         self.state = "VALID"
         self.view = BookView(

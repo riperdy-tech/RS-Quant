@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import base64
 import csv
 import hashlib
 import io
 import json
-from dataclasses import dataclass, fields
+import re
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -15,6 +15,7 @@ import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
 from quantdesk.core.events import BarClosed, IncomingEvent, canonical_bytes
 from quantdesk.data.bars import ClosedBar
+from quantdesk.data.canonical import canonical_int, decode_market_event, json_object
 from quantdesk.data.catalog import (
     Catalog,
     DatasetId,
@@ -24,7 +25,6 @@ from quantdesk.data.catalog import (
     publish_bytes,
 )
 from quantdesk.data.normalizer import Normalizer
-from quantdesk.data.orderbook.validator import levels
 from quantdesk.persistence.manifests import RawRef
 from quantdesk.persistence.raw_journal import RawJournal
 from quantdesk.venues.instruments import InstrumentSpec, aligned
@@ -98,7 +98,15 @@ def timestamp_ns(value: object, mapping: ImportMapping) -> int:
         return aligned(value, Decimal(1) / Decimal(factor))
     if not isinstance(value, str):
         raise ValueError("ISO timestamp must be text")
-    time = datetime.fromisoformat(value)
+    parsed = re.fullmatch(
+        r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})(?:[.,]([0-9]{1,9}))?"
+        r"(Z|[+-]\d{2}:\d{2})?",
+        value,
+    )
+    if parsed is None:
+        raise ValueError("ISO timestamp requires whole seconds and at most 9 fractional digits")
+    fraction_ns = int((parsed[2] or "0").ljust(9, "0"))
+    time = datetime.fromisoformat(parsed[1] + (parsed[3] or ""))
     if time.tzinfo is None:
         zone = ZoneInfo(mapping.timezone)
         one, two = time.replace(tzinfo=zone, fold=0), time.replace(tzinfo=zone, fold=1)
@@ -106,7 +114,7 @@ def timestamp_ns(value: object, mapping: ImportMapping) -> int:
             raise ValueError("ambiguous or nonexistent local timestamp; explicit offset required")
         time = one
     delta = time.astimezone(UTC) - datetime(1970, 1, 1, tzinfo=UTC)
-    return ((delta.days * 86400 + delta.seconds) * 1_000_000 + delta.microseconds) * 1000
+    return (delta.days * 86400 + delta.seconds) * 1_000_000_000 + fraction_ns
 
 
 class Importer:
@@ -253,6 +261,13 @@ class Importer:
     def _canonical(
         self, upload: bytes | Path | RawJournal, mapping: CanonicalImportMapping
     ) -> ImportReport:
+        if (
+            not isinstance(mapping.source, str)
+            or not mapping.source.strip()
+            or not isinstance(mapping.run_id, str)
+            or not mapping.run_id.strip()
+        ):
+            return ImportReport((), (RowError(0, "INVALID_MAPPING", "source and run ID required"),))
         events: list[IncomingEvent] = []
         errors: list[RowError] = []
         capabilities: set[str] = set()
@@ -261,20 +276,28 @@ class Importer:
                 references = upload.references()
                 if len(references) > self.max_rows:
                     raise ValueError("raw import exceeds row limit")
+                if sum(ref.end_offset - ref.start_offset for ref in references) > self.max_bytes:
+                    raise ValueError("raw import exceeds cumulative byte limit")
+                decoded_bytes = 0
                 for ref in references:
                     if not upload.durable_watermark.covers(ref):
                         raise ValueError("raw import crosses durable watermark")
                     frame = upload.read(ref)
-                    events.append(
-                        Normalizer(mapping.spec).trade(
-                            frame,
-                            ref,
-                            run_id=mapping.run_id,
-                            available_ns=max(
-                                frame.receive_wall_ns, events[-1].available_ns if events else 0
-                            ),
-                        )
+                    decoded_bytes += len(frame.payload)
+                    if decoded_bytes > self.max_decoded_bytes:
+                        raise ValueError("raw import exceeds decoded byte limit")
+                    event = Normalizer(mapping.spec).trade(
+                        frame,
+                        ref,
+                        run_id=mapping.run_id,
+                        available_ns=max(
+                            frame.receive_wall_ns, events[-1].available_ns if events else 0
+                        ),
                     )
+                    decoded_bytes += len(canonical_bytes(event))
+                    if decoded_bytes > self.max_decoded_bytes:
+                        raise ValueError("raw import exceeds normalized decoded byte limit")
+                    events.append(event)
                 capabilities.update(("TRADES", "RECEIVE_TIMESTAMPS"))
             else:
                 _, rows = self._read(upload)
@@ -282,47 +305,22 @@ class Importer:
                 for index, row in enumerate(rows, 2):
                     try:
                         raw = row.get("envelope_json", row.get("incoming_json"))
-                        if not isinstance(raw, (bytes, str)):
-                            raise ValueError("canonical envelope bytes required")
-                        obj = json.loads(raw)
-                        sequence_value = obj.get("engine_seq", row.get("source_ordinal"))
-                        if type(sequence_value) is not int and not (
-                            isinstance(sequence_value, str) and sequence_value.isdecimal()
-                        ):
-                            raise ValueError("integer source sequence required")
-                        sequence = int(sequence_value)
+                        obj = json_object(raw)
+                        sequence = canonical_int(
+                            obj.get("engine_seq", row.get("source_ordinal")), minimum=1
+                        )
                         if sequence <= previous_seq:
                             raise ValueError("canonical sequence order regression")
                         previous_seq = sequence
-                        obj["payload"] = base64.b64decode(obj["payload"]["$bytes"], validate=True)
-                        for key in (
-                            "schema_version",
-                            "receive_wall_ns",
-                            "receive_monotonic_ns",
-                            "available_ns",
-                            "exchange_event_ns",
-                            "exchange_transaction_ns",
-                        ):
-                            obj[key] = int(obj[key]) if obj[key] is not None else None
-                        event = IncomingEvent(
-                            **{f.name: obj[f.name] for f in fields(IncomingEvent)}
-                        )
+                        event = decode_market_event(raw, envelope="envelope_json" in row)
                         if (
                             event.account_id is not None
                             or event.instrument_id != mapping.spec.instrument_id
                         ):
                             raise ValueError("private or incompatible instrument event")
-                        payload = json.loads(event.payload)
                         if event.event_type == "Trade":
-                            for name in ("price_ticks", "size_lots"):
-                                value = payload[name]
-                                if type(value) is not int or value <= 0:
-                                    raise ValueError("positive integer ticks/lots required")
                             capabilities.add("TRADES")
                         elif event.event_type in {"BookSnapshot", "BookDelta"}:
-                            snapshot = event.event_type == "BookSnapshot"
-                            levels(payload["bids" if snapshot else "bid_updates"])
-                            levels(payload["asks" if snapshot else "ask_updates"])
                             capabilities.add("L2")
                         else:
                             raise ValueError("normalized import supports trades/L2 only")

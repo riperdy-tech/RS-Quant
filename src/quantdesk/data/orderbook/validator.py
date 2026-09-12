@@ -2,20 +2,16 @@ from quantdesk.core.types import BookLevel
 
 
 def levels(value: object) -> tuple[BookLevel, ...]:
+    from quantdesk.data.canonical import canonical_int
+
     if not isinstance(value, list):
         raise ValueError("levels must be an array")
     result = []
     for item in value:
-        if not isinstance(item, dict):
+        if not isinstance(item, dict) or set(item) != {"price_ticks", "size_lots"}:
             raise ValueError("malformed level")
-        price, size = item.get("price_ticks"), item.get("size_lots")
-        # Canonical JSON uses strings for integers outside the JS exact range.
-        if isinstance(price, str) and price.isdecimal():
-            price = int(price)
-        if isinstance(size, str) and size.isdecimal():
-            size = int(size)
-        if type(price) is not int or type(size) is not int:
-            raise ValueError("integer ticks/lots required")
+        price = canonical_int(item["price_ticks"], minimum=1)
+        size = canonical_int(item["size_lots"], minimum=0)
         result.append(BookLevel(price, size))
     if len({level.price_ticks for level in result}) != len(result):
         raise ValueError("duplicate price level")

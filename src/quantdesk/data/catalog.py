@@ -7,11 +7,17 @@ import re
 import tempfile
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import NewType
+from typing import NewType, cast
 
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
-from quantdesk.core.events import canonical_bytes
+from quantdesk.core.events import BarClosed, canonical_bytes
+from quantdesk.data.canonical import (
+    canonical_int,
+    decode_market_event,
+    json_object,
+    validate_payload,
+)
 from quantdesk.persistence.manifests import sync_directory
 from quantdesk.venues.capabilities import Capability
 
@@ -112,6 +118,94 @@ def identified(manifest: DatasetManifest) -> DatasetManifest:
     return replace(manifest, dataset_id=DatasetId(digest))
 
 
+def _content_capabilities(path: Path, manifest: DatasetManifest) -> frozenset[str]:
+    """Capability evidence is the validated row schema/content, never self-declared metadata."""
+    schemas = {
+        "ohlcv-v1": {"bar_json", "start_ns", "end_ns", "available_ns"},
+        "incoming-v1": {"source_ordinal", "incoming_json"},
+        "canonical-v1": {
+            "engine_seq",
+            "event_id",
+            "event_type",
+            "raw_ref",
+            "exchange_event_ns",
+            "receive_wall_ns",
+            "available_ns",
+            "envelope_json",
+            "payload",
+        },
+    }
+    file = pq.ParquetFile(path)
+    names = file.schema_arrow.names
+    if (
+        manifest.schema_revision not in schemas
+        or len(names) != len(set(names))
+        or set(names) != schemas[manifest.schema_revision]
+    ):
+        raise ValueError("unsupported artifact capability schema")
+    capabilities: set[str] = set()
+    event_capability = {
+        "Trade": "TRADES",
+        "BookSnapshot": "L2",
+        "BookDelta": "L2",
+        "Quote": "BBO",
+        "BarClosed": "OHLCV",
+        "MarkPrice": "MARK",
+        "FundingRateAnnounced": "FUNDING",
+    }
+    previous_sequence, previous_available = 0, -1
+    for batch in file.iter_batches(batch_size=1024):
+        for row in cast(list[dict[str, object]], batch.to_pylist()):
+            available = (
+                canonical_int(row["available_ns"], minimum=0) if "available_ns" in row else 0
+            )
+            if manifest.schema_revision == "ohlcv-v1":
+                bar = validate_payload("BarClosed", row["bar_json"])
+                assert isinstance(bar, BarClosed)
+                if (
+                    canonical_int(row["start_ns"], minimum=0) != bar.start_ns
+                    or canonical_int(row["end_ns"], minimum=0) != bar.end_ns
+                    or available < bar.end_ns
+                ):
+                    raise ValueError("OHLCV artifact row disagrees with bar payload")
+                capabilities.add("OHLCV")
+            else:
+                envelope = manifest.schema_revision == "canonical-v1"
+                raw = row["envelope_json" if envelope else "incoming_json"]
+                event = decode_market_event(raw, envelope=envelope)
+                sequence = canonical_int(
+                    row["engine_seq" if envelope else "source_ordinal"], minimum=1
+                )
+                if sequence <= previous_sequence or event.instrument_id != manifest.instrument_id:
+                    raise ValueError("artifact source order or instrument mismatch")
+                previous_sequence = sequence
+                if envelope:
+                    obj = json_object(raw)
+                    exchange_ns = row["exchange_event_ns"]
+                    if (
+                        canonical_int(obj["engine_seq"], minimum=1) != sequence
+                        or row["event_id"] != obj["event_id"]
+                        or row["event_type"] != event.event_type
+                        or row["raw_ref"] != event.raw_ref
+                        or row["payload"] != event.payload
+                        or (
+                            canonical_int(exchange_ns, minimum=0)
+                            if exchange_ns is not None
+                            else None
+                        )
+                        != event.exchange_event_ns
+                        or canonical_int(row["receive_wall_ns"], minimum=0) != event.receive_wall_ns
+                        or available != event.available_ns
+                    ):
+                        raise ValueError("artifact row disagrees with canonical envelope")
+                available = event.available_ns
+                capabilities.update((event_capability[event.event_type], "RECEIVE_TIMESTAMPS"))
+            if available < previous_available:
+                raise ValueError("artifact availability regression")
+            previous_available = available
+    return frozenset(capabilities)
+
+
 class Catalog:
     def __init__(self, root: Path) -> None:
         self.root = root.resolve()
@@ -123,6 +217,11 @@ class Catalog:
             raise ValueError("manifest identity mismatch")
         if not manifest.capabilities <= {cap.value for cap in Capability}:
             raise ValueError("unknown dataset capability")
+        self._validate_artifact(manifest)
+        publish_bytes(self.root / "manifests" / f"{manifest.dataset_id}.json", manifest.to_bytes())
+        return manifest.dataset_id
+
+    def _validate_artifact(self, manifest: DatasetManifest) -> Path:
         path = confined(self.root, manifest.artifact_path)
         if hashlib.sha256(path.read_bytes()).hexdigest() != manifest.sha256:
             raise ValueError("artifact hash mismatch")
@@ -134,8 +233,9 @@ class Catalog:
             manifest.capabilities
         ):
             raise ValueError("artifact capability metadata mismatch")
-        publish_bytes(self.root / "manifests" / f"{manifest.dataset_id}.json", manifest.to_bytes())
-        return manifest.dataset_id
+        if _content_capabilities(path, manifest) != manifest.capabilities:
+            raise ValueError("manifest capabilities contradict validated artifact content")
+        return path
 
     def get(self, dataset_id: str) -> DatasetManifest:
         if re.fullmatch(r"[a-f0-9]{64}", dataset_id) is None:
@@ -145,14 +245,12 @@ class Catalog:
         )
         if identified(manifest).dataset_id != dataset_id:
             raise ValueError("catalog manifest corruption")
+        self._validate_artifact(manifest)
         return manifest
 
     def artifact(self, dataset_id: str) -> Path:
         manifest = self.get(dataset_id)
-        path = confined(self.root, manifest.artifact_path)
-        if hashlib.sha256(path.read_bytes()).hexdigest() != manifest.sha256:
-            raise ValueError("dataset artifact corruption")
-        return path
+        return confined(self.root, manifest.artifact_path)
 
     def require(self, dataset_id: str, required: frozenset[str]) -> DatasetManifest:
         manifest = self.get(dataset_id)
@@ -160,7 +258,6 @@ class Catalog:
             raise ValueError(
                 f"missing dataset capabilities: {sorted(required - manifest.capabilities)}"
             )
-        self.artifact(dataset_id)
         return manifest
 
     def list(self) -> tuple[DatasetManifest, ...]:

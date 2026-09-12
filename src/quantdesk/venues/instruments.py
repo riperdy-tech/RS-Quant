@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal, localcontext
+from decimal import MAX_EMAX, MIN_EMIN, Decimal, Inexact, localcontext
 from fractions import Fraction
 from hashlib import sha256
 
@@ -22,6 +22,18 @@ def aligned(value: object, step: Decimal) -> int:
     if ratio.denominator != 1:
         raise ValueError("value is not aligned to instrument step")
     return ratio.numerator
+
+
+def exact_product(*values: Decimal) -> Decimal:
+    """Coefficient digit counts bound every intermediate product's exact precision."""
+    with localcontext() as ctx:
+        ctx.prec = max(50, sum(len(value.as_tuple().digits) for value in values))
+        ctx.Emax, ctx.Emin = MAX_EMAX, MIN_EMIN
+        ctx.traps[Inexact] = True
+        result = Decimal(1)
+        for value in values:
+            result *= value
+        return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,16 +104,12 @@ class InstrumentSpec(InstrumentSpecUpdated):
     def base_quantity(self, signed_lots: int) -> Decimal:
         if type(signed_lots) is not int:
             raise TypeError("lots must be integer")
-        with localcontext() as ctx:
-            ctx.prec = 50
-            return Decimal(signed_lots) * self.quantity_step * self.contract_multiplier
+        return exact_product(Decimal(signed_lots), self.quantity_step, self.contract_multiplier)
 
     def price(self, ticks: int) -> Decimal:
         if type(ticks) is not int or ticks <= 0:
             raise ValueError("positive integer ticks required")
-        with localcontext() as ctx:
-            ctx.prec = 50
-            return Decimal(ticks) * self.tick_size
+        return exact_product(Decimal(ticks), self.tick_size)
 
 
 class InstrumentRegistry:

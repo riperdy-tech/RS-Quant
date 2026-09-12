@@ -74,3 +74,47 @@ def test_invalid_book_requires_rebuild(case):
     assert r["entry_decisions_while_invalid"] == 0
     assert r["final_bid_lots"] == 7
     assert r["parquet_rows"] == r["published_manifest_rows"]
+
+
+@pytest.mark.parametrize("operation", ["publish", "require", "get", "list"])
+def test_catalog_derives_capabilities_from_content_at_publish_and_require(tmp_path, operation):
+    import hashlib
+
+    import pyarrow.parquet as pq
+
+    from quantdesk.data.catalog import Catalog, identified
+    from quantdesk.data.importer import Importer
+    from tests.unit.test_imports import mapping
+
+    catalog = Catalog(tmp_path)
+    importer = Importer()
+    manifest = importer.publish(
+        importer.validate(b"time,open,high,low,close,volume\n0,10,12,9,11,1", mapping()),
+        mapping(),
+        catalog,
+    )
+    table = pq.read_table(catalog.artifact(manifest.dataset_id)).replace_schema_metadata(
+        {b"quantdesk.capabilities": b'["L2"]'}
+    )
+    forged_path = tmp_path / "forged.parquet"
+    pq.write_table(table, forged_path)
+    forged = identified(
+        replace(
+            manifest,
+            capabilities=frozenset({"L2"}),
+            artifact_path="forged.parquet",
+            sha256=hashlib.sha256(forged_path.read_bytes()).hexdigest(),
+        )
+    )
+    if operation != "publish":
+        # On-disk manifest tampering must not bypass any catalog reader.
+        (tmp_path / "manifests" / f"{forged.dataset_id}.json").write_bytes(forged.to_bytes())
+    with pytest.raises(ValueError, match="capabilit"):
+        if operation == "publish":
+            catalog.publish(forged)
+        elif operation == "require":
+            catalog.require(forged.dataset_id, frozenset({"L2"}))
+        elif operation == "get":
+            catalog.get(forged.dataset_id)
+        else:
+            catalog.list()

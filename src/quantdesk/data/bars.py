@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 
 from quantdesk.core.events import BarClosed, IncomingEvent
+from quantdesk.data.canonical import canonical_int
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,9 +61,8 @@ class BarBuilder:
         if self._count >= self.max_open_trades:
             raise ValueError("BAR_BUFFER_OVERFLOW")
         payload = json.loads(event.payload)
-        price, size = payload["price_ticks"], payload["size_lots"]
-        if type(price) is not int or type(size) is not int or min(price, size) <= 0:
-            raise ValueError("positive integer trade ticks/lots required")
+        price = canonical_int(payload["price_ticks"], minimum=1)
+        size = canonical_int(payload["size_lots"], minimum=1)
         self._ordinal += 1
         self._count += 1
         self._trades.setdefault(start, []).append(

@@ -205,3 +205,66 @@ def test_out_of_order_event_times_before_first_timer_are_still_known_bars():
         bars.apply(replace(incoming(2, price=100, available_ns=101), exchange_event_ns=0)) is None
     )
     assert [row.bar.close_ticks for row in bars.finalize(200)] == [100, 102]
+
+
+@pytest.mark.parametrize("changes", [{"environment": "LIVE"}, {"venue": "another-venue"}])
+def test_book_rejects_cross_environment_or_venue_deltas(changes):
+    from quantdesk.data.orderbook.builder import BookBuilder
+
+    book = BookBuilder("contiguous_fixture")
+    book.apply(book_event())
+    update = book.apply(replace(book_event(2, snapshot=False), **changes))
+    assert update.state == "INVALID" and update.view is None
+    assert update.reason == "STREAM_SCOPE_MISMATCH"
+
+
+def test_identical_fresh_snapshot_updates_receipt_without_replaying_same_receipt():
+    from quantdesk.data.orderbook.builder import BookBuilder
+
+    book = BookBuilder("recorded_snapshot", max_age_ns=100)
+    first = replace(book_event(), raw_ref="first")
+    book.apply(first)
+    second = replace(
+        first, receive_wall_ns=180, receive_monotonic_ns=80, available_ns=180, raw_ref="second"
+    )
+    updated = book.apply(second)
+    assert not updated.duplicate
+    assert updated.view.available_ns == 180 and updated.view.raw_ref == "second"
+    assert book.check_freshness(250).state == "VALID"
+    assert book.apply(second).duplicate
+
+
+def test_bars_preserve_canonical_large_integer_ticks_and_lots():
+    import json
+
+    from quantdesk.data.bars import BarBuilder
+
+    large = 2**53 + 1
+    event = replace(incoming(1, price=large, available_ns=1), exchange_event_ns=0)
+    payload = json.loads(event.payload)
+    payload["size_lots"] = str(large)
+    bars = BarBuilder(interval_ns=100)
+    bars.apply(replace(event, payload=canonical_bytes(payload)))
+    closed = bars.finalize(100)[0].bar
+    assert closed.close_ticks == large and closed.volume_lots == large
+
+
+@pytest.mark.parametrize("digits", [51, 80, 130])
+def test_instrument_conversions_round_trip_arbitrary_accepted_precision(digits):
+    from fractions import Fraction
+
+    from quantdesk.venues.instruments import InstrumentSpec
+
+    spec = InstrumentSpec.create(
+        instrument_id="fixture:perp:BTC:USDT:USDT:BTCUSDT",
+        tick_size=Decimal("0.12345678901234567890123456789"),
+        quantity_step=Decimal("0.000000001234567890123456789"),
+        contract_multiplier=Decimal("1.234567890123456789"),
+    )
+    count = 10**digits + 12345
+    price = spec.price(count)
+    assert spec.price_to_ticks(price) == count
+    assert Fraction(price) == count * Fraction(spec.tick_size)
+    assert Fraction(spec.base_quantity(-count)) == (
+        -count * Fraction(spec.quantity_step) * Fraction(spec.contract_multiplier)
+    )
