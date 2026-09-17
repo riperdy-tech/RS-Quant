@@ -60,6 +60,28 @@ export const api = {
   getReadiness: () => request<{ items: Array<{ id: string; name: string; status: string }>; all_passed: boolean }>('/api/v1/readiness'),
   getSystemStatus: () => request<SystemStatus>('/api/v1/system'),
 
+  // Settings & Credentials (§15.4)
+  getCredentialsStatus: () =>
+    request<{ has_credentials: boolean; key_fingerprint: string | null }>(
+      '/api/v1/settings/credentials/status'
+    ),
+  saveCredentials: (creds: { api_key: string; secret_key: string; passphrase: string }) =>
+    request<{ status: string; key_fingerprint: string; message: string }>(
+      '/api/v1/settings/credentials',
+      {
+        method: 'POST',
+        body: JSON.stringify(creds),
+      }
+    ),
+  testConnection: (creds?: { api_key: string; secret_key: string; passphrase: string } | null) =>
+    request<{ success: boolean; message: string; account_level?: string; data?: any }>(
+      '/api/v1/settings/test-connection',
+      {
+        method: 'POST',
+        body: JSON.stringify(creds || { api_key: '', secret_key: '', passphrase: '' }),
+      }
+    ),
+
   // Auth
   bootstrap: (req: BootstrapRequest) => request<{ status: string; username: string; role: string; csrf_token: string }>('/api/v1/auth/bootstrap', {
     method: 'POST',

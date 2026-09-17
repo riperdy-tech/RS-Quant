@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   ShieldCheck,
 } from 'lucide-react';
+import { api } from '../services/apiClient';
 import { SystemStatus } from '../types/api';
 
 export interface SettingsPageProps {
@@ -42,8 +43,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [storageBackupPath, setStorageBackupPath] = useState('backups/quantdesk_backup.sqlite');
 
   React.useEffect(() => {
-    fetch('/api/v1/settings/credentials/status')
-      .then((res) => res.json())
+    api.getCredentialsStatus()
       .then((data) => {
         if (data.has_credentials) {
           setKeyFingerprint(data.key_fingerprint);
@@ -61,29 +61,20 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/v1/settings/credentials', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          api_key: apiKey.trim(),
-          secret_key: secretKey.trim(),
-          passphrase: passphrase.trim(),
-        }),
+      const data = await api.saveCredentials({
+        api_key: apiKey.trim(),
+        secret_key: secretKey.trim(),
+        passphrase: passphrase.trim(),
       });
-      const data = await res.json();
       setSaving(false);
-      if (res.ok) {
-        setSaveSuccess(data.message || 'Credentials securely stored in OS Keyring.');
-        setKeyFingerprint(data.key_fingerprint);
-        setApiKey('');
-        setSecretKey('');
-        setPassphrase('');
-      } else {
-        setErrorMessage(data.detail || 'Failed to save credentials.');
-      }
+      setSaveSuccess(data.message || 'Credentials securely stored in OS Keyring.');
+      setKeyFingerprint(data.key_fingerprint);
+      setApiKey('');
+      setSecretKey('');
+      setPassphrase('');
     } catch (err: any) {
       setSaving(false);
-      setErrorMessage(err.message || 'Network error saving credentials.');
+      setErrorMessage(err.message || 'Failed to save credentials.');
     }
   };
 
@@ -93,15 +84,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     setTestSuccess(null);
     setErrorMessage(null);
     try {
-      const body = apiKey.trim()
+      const payload = apiKey.trim()
         ? { api_key: apiKey.trim(), secret_key: secretKey.trim(), passphrase: passphrase.trim() }
         : null;
-      const res = await fetch('/api/v1/settings/test-connection', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: body ? JSON.stringify(body) : JSON.stringify({ api_key: '', secret_key: '', passphrase: '' }),
-      });
-      const data = await res.json();
+      const data = await api.testConnection(payload);
       setTesting(false);
       if (data.success) {
         setTestSuccess(`${data.message} Account Level: ${data.account_level || 'UTA'}.`);
