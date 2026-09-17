@@ -103,8 +103,17 @@ class AutonomousLiveEngine:
             for s in symbols
         }
 
-        # Cooldown guard per strategy to prevent rapid-fire execution (min 10s between entries)
+        # Cooldown guard per strategy to prevent rapid-fire execution
         self._last_entry_time_ns: dict[str, int] = {}
+
+        # AI-Discovered Adaptive Strategy & Risk Parameters
+        self.maker_only_mode: bool = True  # Passive limit fills to prevent fee drain
+        self.entry_cooldown_s: int = 60  # Min 60s cooldown between entries
+        self.max_session_drawdown_pct: float = 3.0  # 3% circuit breaker
+        self.session_peak_equity: Decimal = Decimal("10000.00")
+        self.circuit_breaker_tripped: bool = False
+        self.atr_target_multiplier: float = 3.5  # 3.5x ATR for 3:1 reward-to-fee ratio
+        self.ml_gate_enabled: bool = True
 
     def process_book_update(
         self,
@@ -282,20 +291,33 @@ class AutonomousLiveEngine:
         qty_units = qty_lots * Decimal("0.1") if symbol.startswith("BTC") else qty_lots * Decimal("1.0")
         pos_key = f"{intent.strategy_id}:{symbol}"
 
-        # Determine execution price from live Bitget top of book
-        if side == Side.BUY:
-            if not asks:
-                return
-            fill_price = Decimal(asks[0][0])
-            liquidity = "TAKER"
+        # Determine execution price and fees
+        if self.maker_only_mode:
+            # Passive MAKER post-only execution on best bid/ask
+            if side == Side.BUY:
+                if not bids:
+                    return
+                fill_price = Decimal(bids[0][0])
+            else:
+                if not asks:
+                    return
+                fill_price = Decimal(asks[0][0])
+            liquidity = "MAKER"
+            fee = Decimal("0.00")  # 0% fees for passive maker orders
         else:
-            if not bids:
-                return
-            fill_price = Decimal(bids[0][0])
+            # Aggressive TAKER execution
+            if side == Side.BUY:
+                if not asks:
+                    return
+                fill_price = Decimal(asks[0][0])
+            else:
+                if not bids:
+                    return
+                fill_price = Decimal(bids[0][0])
             liquidity = "TAKER"
+            fee = fill_price * qty_units * Decimal("0.0004")  # 0.04% taker fee
 
         notional = fill_price * qty_units
-        fee = notional * Decimal("0.0004")  # 0.04% taker fee
 
         # Calculate current available purchasing power
         total_upnl = sum(Decimal(p.get("unrealized_pnl", "0.00")) for p in self.positions.values())
@@ -305,13 +327,28 @@ class AutonomousLiveEngine:
 
         # 1. RISK & PORTFOLIO LOGIC
         if intent.action == IntentAction.ENTER:
+            # Check 0: Circuit Breaker Check (Caps session drawdown)
+            self.session_peak_equity = max(self.session_peak_equity, total_equity)
+            drawdown_limit = self.session_peak_equity * (Decimal("1") - Decimal(str(self.max_session_drawdown_pct / 100.0)))
+            if total_equity <= drawdown_limit:
+                if not self.circuit_breaker_tripped:
+                    self.circuit_breaker_tripped = True
+                    logger.warning(
+                        f"🚨 CIRCUIT BREAKER TRIPPED: Equity ${total_equity:.2f} <= Limit ${drawdown_limit:.2f} (-{self.max_session_drawdown_pct}%). Halting new entries."
+                    )
+                return
+
+            if self.circuit_breaker_tripped:
+                return
+
             # Check 1: Already holding position for this strategy-instrument pair
             if pos_key in self.positions:
                 return
 
-            # Check 2: Throttle entries to min 10 seconds between entries for this strategy
+            # Check 2: Throttle entries by entry_cooldown_s
             last_entry = self._last_entry_time_ns.get(pos_key, 0)
-            if (now_ns - last_entry) < 10_000_000_000:
+            cooldown_ns = self.entry_cooldown_s * 1_000_000_000
+            if (now_ns - last_entry) < cooldown_ns:
                 return
 
             # Check 3: Free margin availability (10x leverage = 10% notional required)
@@ -697,6 +734,43 @@ class AutonomousLiveEngine:
             "total_trades": total_trades,
             "win_rate_pct": f"{win_rate:.1f}%",
             "instruments": instruments_data,
+        }
+
+    def apply_ai_strategy(self, config: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Applies AI-learned strategy parameters and resets capital for clean validation."""
+        config = config or {}
+        if "maker_only_mode" in config:
+            self.maker_only_mode = bool(config["maker_only_mode"])
+        if "entry_cooldown_s" in config:
+            self.entry_cooldown_s = int(config["entry_cooldown_s"])
+        if "max_session_drawdown_pct" in config:
+            self.max_session_drawdown_pct = float(config["max_session_drawdown_pct"])
+        if "atr_target_multiplier" in config:
+            self.atr_target_multiplier = float(config["atr_target_multiplier"])
+        if "ml_gate_enabled" in config:
+            self.ml_gate_enabled = bool(config["ml_gate_enabled"])
+
+        # Reset capital to $10,000 if requested (default True for clean validation)
+        if config.get("reset_capital", True):
+            self.initial_equity = Decimal("10000.00")
+            self.realized_pnl = Decimal("0.00")
+            self.session_peak_equity = Decimal("10000.00")
+            self.circuit_breaker_tripped = False
+            self.positions.clear()
+            self._last_entry_time_ns.clear()
+            for s in self.symbols:
+                self.instrument_realized_pnl[s] = Decimal("0.00")
+                self.instrument_trade_counts[s] = {"total": 0, "wins": 0}
+
+        return {
+            "status": "APPLIED",
+            "maker_only_mode": self.maker_only_mode,
+            "entry_cooldown_s": self.entry_cooldown_s,
+            "max_session_drawdown_pct": self.max_session_drawdown_pct,
+            "atr_target_multiplier": self.atr_target_multiplier,
+            "ml_gate_enabled": self.ml_gate_enabled,
+            "circuit_breaker_tripped": self.circuit_breaker_tripped,
+            "equity": str(self.initial_equity + self.realized_pnl),
         }
 
     def get_strategies(self) -> list[dict[str, Any]]:

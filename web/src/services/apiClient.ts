@@ -263,8 +263,82 @@ export const api = {
     body: JSON.stringify(req),
   }),
   getJobs: (jobType?: string) => request<any[]>(`/api/v1/jobs${jobType ? `?job_type=${encodeURIComponent(jobType)}` : ''}`),
-  getJob: (jobId: string) => request<any>(`/api/v1/jobs/${encodeURIComponent(jobId)}`),
   cancelJob: (jobId: string) => request<{ job_id: string; status: string }>(`/api/v1/jobs/${encodeURIComponent(jobId)}/cancel`, {
     method: 'POST',
   }),
+
+  // AI Fault Review & Strategy Discovery
+  runAIFaultReview: () =>
+    request<{
+      session_duration_approx: string;
+      total_actions: number;
+      total_round_trips: number;
+      gross_market_pnl_usd: number;
+      total_fees_paid_usd: number;
+      net_session_pnl_usd: number;
+      fee_drag_ratio_pct: number;
+      primary_root_cause: string;
+      strategy_breakdown: Array<{
+        strategy_id: string;
+        instrument_id: string;
+        total_actions: number;
+        round_trips: number;
+        gross_pnl_usd: number;
+        fees_paid_usd: number;
+        net_pnl_usd: number;
+        win_rate_pct: number;
+        avg_fee_per_trade: number;
+        avg_net_pnl_per_trade: number;
+        fee_drag_pct: number;
+      }>;
+      learned_rules: Array<{
+        rule_id: string;
+        title: string;
+        category: string;
+        diagnosis: string;
+        solution: string;
+        recommended_parameters: Record<string, any>;
+        projected_impact: string;
+      }>;
+      timestamp_ns: number;
+      ai_summary: string;
+    }>('/api/v1/research/ai-fault-review', { method: 'POST' }),
+
+  getLatestAIFaultReview: () =>
+    request<{
+      session_duration_approx: string;
+      total_actions: number;
+      total_round_trips: number;
+      gross_market_pnl_usd: number;
+      total_fees_paid_usd: number;
+      net_session_pnl_usd: number;
+      fee_drag_ratio_pct: number;
+      primary_root_cause: string;
+      strategy_breakdown: Array<any>;
+      learned_rules: Array<any>;
+      timestamp_ns: number;
+      ai_summary: string;
+    }>('/api/v1/research/ai-fault-review/latest'),
+
+  applyAIStrategy: (config?: {
+    maker_only_mode?: boolean;
+    entry_cooldown_s?: number;
+    max_session_drawdown_pct?: number;
+    atr_target_multiplier?: number;
+    ml_gate_enabled?: boolean;
+    reset_capital?: boolean;
+  }) =>
+    request<{
+      status: string;
+      maker_only_mode: boolean;
+      entry_cooldown_s: number;
+      max_session_drawdown_pct: number;
+      atr_target_multiplier: number;
+      ml_gate_enabled: boolean;
+      circuit_breaker_tripped: boolean;
+      equity: string;
+    }>('/api/v1/research/apply-ai-strategy', {
+      method: 'POST',
+      body: JSON.stringify(config || {}),
+    }),
 };

@@ -184,3 +184,57 @@ def download_artifact(
     if not safe_path.exists() or not safe_path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Artifact file not found")
     return FileResponse(safe_path)
+
+
+class ApplyAIStrategyRequest(BaseModel):
+    maker_only_mode: bool = True
+    entry_cooldown_s: int = 60
+    max_session_drawdown_pct: float = 3.0
+    atr_target_multiplier: float = 3.5
+    ml_gate_enabled: bool = True
+    reset_capital: bool = True
+
+
+@router.post("/research/ai-fault-review")
+def run_ai_fault_review(
+    session: Session = Depends(require_operator),
+) -> dict[str, Any]:
+    """Executes AI fault review across recent trading session data and returns learned strategy rules."""
+    from dataclasses import asdict
+    from quantdesk.research.ai_fault_reviewer import ai_fault_reviewer
+
+    report = ai_fault_reviewer.run_review()
+    return asdict(report)
+
+
+@router.get("/research/ai-fault-review/latest")
+def get_latest_ai_fault_review(
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Returns the latest AI fault review report or runs a fresh analysis if not cached."""
+    import json
+    from dataclasses import asdict
+    from quantdesk.research.ai_fault_reviewer import ai_fault_reviewer
+
+    cached_file = ARTIFACTS_DIR / "ai_fault_review_latest.json"
+    if cached_file.exists():
+        try:
+            with open(cached_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+
+    report = ai_fault_reviewer.run_review()
+    return asdict(report)
+
+
+@router.post("/research/apply-ai-strategy")
+def apply_ai_strategy(
+    req: ApplyAIStrategyRequest,
+    session: Session = Depends(require_operator),
+) -> dict[str, Any]:
+    """Dynamically applies AI-discovered strategy parameters to the autonomous live trading engine."""
+    from quantdesk.strategies.live_runner import autonomous_live_engine
+
+    result = autonomous_live_engine.apply_ai_strategy(req.model_dump())
+    return result
