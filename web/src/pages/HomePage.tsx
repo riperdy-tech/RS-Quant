@@ -14,6 +14,7 @@ import {
   Server,
   Shield,
   ShieldAlert,
+  ShieldCheck,
   TrendingUp,
   XCircle,
   Zap,
@@ -344,13 +345,17 @@ export const HomePage: React.FC<HomePageProps> = ({
                       {item.description || 'Verified via control engine inspection.'}
                     </td>
                     <td className="py-3.5 px-5 text-right">
-                      {item.status === 'PASSED' ? (
+                      {item.status === 'PASSED' || item.status === 'CONFIGURED' ? (
                         <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
                           <CheckCircle2 className="w-4 h-4" /> Passed
                         </span>
+                      ) : item.status === 'ARMED_DEMO' || item.status === 'FAIL_CLOSED' ? (
+                        <span className="inline-flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-semibold">
+                          <ShieldCheck className="w-4 h-4" /> Protected (Demo)
+                        </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-semibold">
-                          <AlertTriangle className="w-4 h-4" /> Failed Closed
+                          <AlertTriangle className="w-4 h-4" /> {item.status}
                         </span>
                       )}
                     </td>
