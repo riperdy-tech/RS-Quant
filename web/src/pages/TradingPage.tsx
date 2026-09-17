@@ -28,11 +28,38 @@ export interface TradingPageProps {
   isViewer?: boolean;
 }
 
+/**
+ * Universal Currency Formatter:
+ * Correctly handles negative signs (-$1,234.56), positive signs (+$1,234.56), and neutral ($0.00).
+ * Prevents double signs like '+$+0.17' or '$-1200'.
+ */
+export function formatUsd(val: string | number | undefined | null, showPlus: boolean = false): string {
+  if (val === undefined || val === null || val === '') return '$0.00';
+  const clean = String(val).replace(/[+$,]/g, '').trim();
+  const num = parseFloat(clean);
+  if (isNaN(num)) return '$0.00';
+
+  const isNegative = num < 0;
+  const absFormatted = Math.abs(num).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  if (isNegative) {
+    return `-$${absFormatted}`;
+  }
+  if (showPlus && num > 0) {
+    return `+$${absFormatted}`;
+  }
+  return `$${absFormatted}`;
+}
+
 export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewer = false }) => {
   const [positions, setPositions] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [fills, setFills] = useState<any[]>([]);
   const [balances, setBalances] = useState<any[]>([]);
+  const [performance, setPerformance] = useState<any>(null);
   const [strategies, setStrategies] = useState<any[]>([]);
   const [telemetry, setTelemetry] = useState<any>(null);
   const [decisions, setDecisions] = useState<any[]>([]);
@@ -55,11 +82,12 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
 
   const fetchTradingData = async () => {
     try {
-      const [pos, ords, fls, bals, strats, decs] = await Promise.all([
+      const [pos, ords, fls, bals, perf, strats, decs] = await Promise.all([
         api.getPositions().catch(() => []),
         api.getOrders().catch(() => []),
         api.getFills().catch(() => []),
         api.getBalances().catch(() => []),
+        api.getPerformance().catch(() => null),
         api.getStrategies().catch(() => []),
         api.getStrategyDecisions().catch(() => []),
       ]);
@@ -67,6 +95,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
       setOrders(ords);
       setFills(fls);
       setBalances(bals);
+      setPerformance(perf);
       setStrategies(strats);
       setDecisions(decs);
     } catch {
@@ -126,7 +155,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
     setDiagnosticRunning(true);
     try {
       await api.triggerDiagnosticSignal(strategyId, selectedSymbol, side);
-      setActionNotice(`Autonomous Alpha Signal simulated for ${strategyId} (${side}). Order filled vs Bitget L2.`);
+      setActionNotice(`Autonomous Alpha Signal simulated for ${strategyId} (${side}). Executed vs live Bitget L2.`);
       await fetchTradingData();
       await fetchLiveMarketData();
     } catch (err: any) {
@@ -145,6 +174,21 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
   const microPrice = telemetry?.microprice || midPrice;
   const microSkew = microPrice - midPrice;
 
+  // Balance & Profit Metrics
+  const bal = balances[0] || {};
+  const totalEquity = bal.total || '10000.00';
+  const availableCash = bal.available || '10000.00';
+  const lockedMargin = bal.locked_margin || '0.00';
+  const unrealizedPnl = bal.unrealized_pnl || '0.00';
+  const realizedPnl = bal.realized_pnl || '0.00';
+  const totalProfit = bal.total_profit || '0.00';
+  const btcProfit = bal.btc_profit || '0.00';
+  const ethProfit = bal.eth_profit || '0.00';
+
+  const numTotalProfit = parseFloat(totalProfit);
+  const numUnrealized = parseFloat(unrealizedPnl);
+  const numRealized = parseFloat(realizedPnl);
+
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Page Header */}
@@ -161,7 +205,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Algorithms autonomously ingest real-time L2 order book depth & public trades, evaluate microstructural signals, and simulate execution against exchange liquidity.
+            Algorithms autonomously ingest real-time L2 order book depth & trades, evaluate microstructural signals, and execute simulated paper fills against live exchange liquidity.
           </p>
         </div>
 
@@ -188,6 +232,143 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
           <button onClick={() => setActionNotice(null)} className="text-slate-400 hover:text-slate-600">✕</button>
         </div>
       )}
+
+      {/* TOTAL PROFIT & PERFORMANCE BREAKDOWN (Answers User Question 4) */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-5 border border-indigo-900/50 shadow-md">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-indigo-800/50 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-emerald-400" />
+              <h2 className="text-sm uppercase tracking-wider font-bold text-indigo-200">
+                Live Autonomous Performance & Total Profit
+              </h2>
+            </div>
+            <p className="text-xs text-indigo-300/80 mt-0.5">
+              Accumulated profit & loss across all BTC and ETH demo trades executed by AI algorithms against live Bitget feeds.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <span className="text-[10px] uppercase text-indigo-300 block font-semibold">Total Net Profit</span>
+              <span className={`text-2xl font-extrabold font-mono ${numTotalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {formatUsd(totalProfit, true)}
+              </span>
+            </div>
+            <div className={`px-2.5 py-1 rounded-lg text-xs font-bold font-mono ${numTotalProfit >= 0 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'}`}>
+              {performance?.total_return_pct || '0.00%'}
+            </div>
+          </div>
+        </div>
+
+        {/* Breakdown by Instrument & PnL Type */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 text-xs font-mono">
+          {/* BTC Breakdown */}
+          <div className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-1.5">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-amber-400">BTCUSDT Profit</span>
+              <span className={`font-bold ${parseFloat(btcProfit) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {formatUsd(btcProfit, true)}
+              </span>
+            </div>
+            <div className="flex justify-between text-[11px] text-slate-300">
+              <span>Closed Trades:</span>
+              <span className="font-semibold text-white">{performance?.instruments?.BTCUSDT?.trades_count || 0}</span>
+            </div>
+            <div className="flex justify-between text-[11px] text-slate-300">
+              <span>Win Rate:</span>
+              <span className="text-emerald-400 font-semibold">{performance?.instruments?.BTCUSDT?.win_rate_pct || '0.0%'}</span>
+            </div>
+          </div>
+
+          {/* ETH Breakdown */}
+          <div className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-1.5">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-indigo-300">ETHUSDT Profit</span>
+              <span className={`font-bold ${parseFloat(ethProfit) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {formatUsd(ethProfit, true)}
+              </span>
+            </div>
+            <div className="flex justify-between text-[11px] text-slate-300">
+              <span>Closed Trades:</span>
+              <span className="font-semibold text-white">{performance?.instruments?.ETHUSDT?.trades_count || 0}</span>
+            </div>
+            <div className="flex justify-between text-[11px] text-slate-300">
+              <span>Win Rate:</span>
+              <span className="text-emerald-400 font-semibold">{performance?.instruments?.ETHUSDT?.win_rate_pct || '0.0%'}</span>
+            </div>
+          </div>
+
+          {/* Realized PnL */}
+          <div className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-1.5">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-slate-300">Closed Realized PnL</span>
+              <span className={`font-bold ${numRealized >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {formatUsd(realizedPnl, true)}
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-400 block">Locked in from settled trade exits</span>
+          </div>
+
+          {/* Unrealized PnL */}
+          <div className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-1.5">
+            <div className="flex justify-between items-center">
+              <span className="font-bold text-slate-300">Floating Unrealized PnL</span>
+              <span className={`font-bold ${numUnrealized >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {formatUsd(unrealizedPnl, true)}
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-400 block">Mark-to-market on active positions</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Account Balances & Margin Cards (Answers User Questions 1, 2, 3) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Equity */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1.5">
+          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Total Equity</span>
+          <div className="text-2xl font-bold font-mono text-slate-900 dark:text-slate-100">
+            {formatUsd(totalEquity)}
+          </div>
+          <span className="text-[11px] text-slate-400 block">
+            Initial Demo Capital ({formatUsd(10000)}) + Total Net Profit
+          </span>
+        </div>
+
+        {/* Available Cash */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1.5">
+          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Available Cash</span>
+          <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+            {formatUsd(availableCash)}
+          </div>
+          <span className="text-[11px] text-slate-400 block">
+            Unencumbered purchasing power (Total Equity - Locked Margin)
+          </span>
+        </div>
+
+        {/* Locked Margin */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1.5">
+          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Locked Margin</span>
+          <div className="text-2xl font-bold font-mono text-indigo-600 dark:text-indigo-400">
+            {formatUsd(lockedMargin)}
+          </div>
+          <span className="text-[11px] text-slate-400 block">
+            Collateral reserved to back open 10x leveraged positions
+          </span>
+        </div>
+
+        {/* Unrealized PnL */}
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1.5">
+          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider block">Unrealized PnL</span>
+          <div className={`text-2xl font-bold font-mono ${numUnrealized >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+            {formatUsd(unrealizedPnl, true)}
+          </div>
+          <span className="text-[11px] text-slate-400 block">
+            Mark-to-market live valuation against Bitget mark price
+          </span>
+        </div>
+      </div>
 
       {/* Symbol Selector & Live Ticker Header Bar */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 flex flex-wrap items-center justify-between gap-4">
@@ -309,7 +490,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
                   disabled={diagnosticRunning}
                   onClick={() => handleTriggerDiagnostic(`imbalance-${selectedSymbol.slice(0, 3).toLowerCase()}`, 'BUY')}
                   className="px-2.5 py-1 text-xs font-bold rounded bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1 shadow-sm"
-                  title="Force an autonomous signal pass against live Bitget depth to inspect execution"
+                  title="Simulate autonomous alpha trade against live Bitget depth"
                 >
                   <Zap className="w-3 h-3" />
                   {diagnosticRunning ? 'Executing...' : 'Trigger Alpha'}
@@ -412,9 +593,9 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
               <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg space-y-1">
                 <span className="text-[10px] text-slate-400 uppercase font-semibold block">Microprice Skew</span>
                 <span className={`font-mono font-bold text-sm ${microSkew >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {microSkew >= 0 ? '+' : ''}${microSkew.toFixed(2)}
+                  {formatUsd(microSkew, true)}
                 </span>
-                <span className="text-[10px] text-slate-400 block font-mono">Micro: ${microPrice.toFixed(2)}</span>
+                <span className="text-[10px] text-slate-400 block font-mono">Micro: {formatUsd(microPrice)}</span>
               </div>
 
               <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg space-y-1">
@@ -507,44 +688,6 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
         </div>
       </div>
 
-      {/* Account Balances and Margin Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Equity</span>
-          <div className="text-2xl font-bold font-mono text-slate-900 dark:text-slate-100">
-            ${balances[0]?.total || '10,000.00'}
-          </div>
-          <span className="text-xs text-slate-400">USDT Isolated Collateral</span>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Available Cash</span>
-          <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
-            ${balances[0]?.available || '9,238.90'}
-          </div>
-          <span className="text-xs text-slate-400">Unencumbered purchasing power</span>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Locked Margin</span>
-          <div className="text-2xl font-bold font-mono text-indigo-600 dark:text-indigo-400">
-            ${balances[0]?.locked_margin || '761.10'}
-          </div>
-          <span className="text-xs text-slate-400">Initial reservation on positions</span>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1">
-          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Unrealized PnL</span>
-          <div className={`text-2xl font-bold font-mono ${
-            Number(balances[0]?.unrealized_pnl || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'
-          }`}>
-            {Number(balances[0]?.unrealized_pnl || 0) >= 0 ? '+' : ''}
-            ${balances[0]?.unrealized_pnl || '0.95'}
-          </div>
-          <span className="text-xs text-slate-400">Mark-to-market live valuation</span>
-        </div>
-      </div>
-
       {/* Open Positions Table */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -562,26 +705,30 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
           <table data-testid="positions-table" className="w-full text-left text-xs whitespace-nowrap">
             <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 font-semibold border-b border-slate-100 dark:border-slate-800">
               <tr>
+                <th className="py-3 px-4">Strategy</th>
                 <th className="py-3 px-4">Instrument</th>
                 <th className="py-3 px-4">Side</th>
-                <th className="py-3 px-4">Lots / Size</th>
+                <th className="py-3 px-4">Size</th>
                 <th className="py-3 px-4">Entry Price</th>
                 <th className="py-3 px-4">Live Mark Price</th>
                 <th className="py-3 px-4">Unrealized PnL</th>
-                <th className="py-3 px-4">Margin Equity</th>
+                <th className="py-3 px-4">Margin Collateral</th>
                 <th className="py-3 px-4 text-right">Autonomous Risk Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {positions.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-6 text-center text-slate-400">
+                  <td colSpan={9} className="py-6 text-center text-slate-400">
                     No open positions held. Algorithms in cash / scanning mode.
                   </td>
                 </tr>
               ) : (
                 positions.map((pos, idx) => (
                   <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                    <td className="py-3 px-4 font-semibold text-indigo-600 dark:text-indigo-400">
+                      {pos.strategy_id}
+                    </td>
                     <td className="py-3 px-4 font-bold font-mono text-slate-900 dark:text-slate-100">
                       {pos.instrument_id}
                     </td>
@@ -594,18 +741,18 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
                         {pos.side}
                       </span>
                     </td>
-                    <td className="py-3 px-4 font-mono font-medium">{pos.lots} ({pos.lots * 0.1} BTC)</td>
-                    <td className="py-3 px-4 font-mono">${pos.entry_price}</td>
+                    <td className="py-3 px-4 font-mono font-medium">{pos.units || pos.lots}</td>
+                    <td className="py-3 px-4 font-mono">{formatUsd(pos.entry_price)}</td>
                     <td className="py-3 px-4 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                      ${ticker?.mark_price ? Number(ticker.mark_price).toFixed(2) : pos.mark_price}
+                      {formatUsd(ticker?.mark_price || pos.mark_price)}
                     </td>
                     <td className={`py-3 px-4 font-mono font-bold ${
-                      Number(pos.unrealized_pnl) >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                      parseFloat(pos.unrealized_pnl || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'
                     }`}>
-                      {Number(pos.unrealized_pnl) >= 0 ? '+' : ''}${pos.unrealized_pnl}
+                      {formatUsd(pos.unrealized_pnl, true)}
                     </td>
                     <td className="py-3 px-4 font-mono text-slate-600 dark:text-slate-400">
-                      ${pos.margin_equity}
+                      {formatUsd(pos.margin_equity)}
                     </td>
                     <td className="py-3 px-4 text-right">
                       {!isViewer && (
@@ -666,7 +813,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
                       </span>
                     </td>
                     <td className="py-3 px-4 font-mono">{ord.qty}</td>
-                    <td className="py-3 px-4 font-mono">${ord.limit_price}</td>
+                    <td className="py-3 px-4 font-mono">{formatUsd(ord.limit_price)}</td>
                     <td className="py-3 px-4">
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
                         {ord.status}
@@ -725,7 +872,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
                       </span>
                     </td>
                     <td className="py-3 px-4 font-mono">{fl.qty}</td>
-                    <td className="py-3 px-4 font-mono font-bold">${fl.price}</td>
+                    <td className="py-3 px-4 font-mono font-bold">{formatUsd(fl.price)}</td>
                     <td className="py-3 px-4 font-mono text-slate-500">{fl.fee} {fl.fee_currency}</td>
                     <td className="py-3 px-4">
                       <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 font-mono">

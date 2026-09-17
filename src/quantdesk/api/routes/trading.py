@@ -46,6 +46,14 @@ def get_balances(
     return autonomous_live_engine.get_balances()
 
 
+@router.get("/performance")
+def get_performance(
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Total profit, win rate, and per-instrument performance breakdown (§15.2)."""
+    return autonomous_live_engine.get_performance()
+
+
 @router.get("/risk")
 def get_risk_status(
     session: Session = Depends(require_viewer),

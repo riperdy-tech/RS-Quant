@@ -99,6 +99,29 @@ export const api = {
   getOrders: () => request<any[]>('/api/v1/orders'),
   getFills: () => request<any[]>('/api/v1/fills'),
   getBalances: () => request<any[]>('/api/v1/balances'),
+  getPerformance: () =>
+    request<{
+      total_equity: string;
+      initial_equity: string;
+      available_cash: string;
+      locked_margin: string;
+      total_profit: string;
+      total_return_pct: string;
+      realized_pnl: string;
+      unrealized_pnl: string;
+      total_trades: number;
+      win_rate_pct: string;
+      instruments: Record<
+        string,
+        {
+          realized_pnl: string;
+          unrealized_pnl: string;
+          total_profit: string;
+          trades_count: number;
+          win_rate_pct: string;
+        }
+      >;
+    }>('/api/v1/performance'),
   getRiskStatus: () => request<{
     max_position_lots: number;
     current_position_lots: number;
