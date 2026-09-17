@@ -170,7 +170,10 @@ async def test_bitget_connection(
 
             if resp.status_code == 200 and str(data.get("code")) == "00000":
                 account_info = data.get("data", {})
-                account_level = account_info.get("accountLevel", "unknown")
+                perm_type = account_info.get("permType", "readonly")
+                permissions = account_info.get("permissions", [])
+                perms_str = f" [{', '.join(permissions)}]" if permissions else ""
+                account_level = f"UTA ({perm_type}){perms_str}"
                 return {
                     "success": True,
                     "message": "Bitget UTA V3 read-only connection verified. No orders placed.",
