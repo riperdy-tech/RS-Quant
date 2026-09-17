@@ -105,8 +105,8 @@ class BitgetLiveFeedService:
                             try:
                                 data = json.loads(raw_msg)
                                 self._handle_message(data)
-                            except Exception as parse_err:
-                                logger.debug(f"JSON parse error: {parse_err}")
+                            except Exception as handle_err:
+                                logger.error(f"Error handling WS message: {handle_err}", exc_info=True)
                     finally:
                         ping_task.cancel()
             except (ConnectionClosed, OSError, TimeoutError, Exception) as exc:
@@ -143,6 +143,7 @@ class BitgetLiveFeedService:
             return
 
         now_ns = time.time_ns()
+        from quantdesk.strategies.live_runner import autonomous_live_engine
 
         if channel == "ticker":
             row = payload_data[0]
@@ -166,6 +167,10 @@ class BitgetLiveFeedService:
                 "updated_at_ns": now_ns,
             }
             self.tickers[inst_id] = ticker_info
+            if ticker_info.get("mark_price") and ticker_info.get("last_price"):
+                autonomous_live_engine.process_ticker_update(
+                    inst_id, ticker_info["mark_price"], ticker_info["last_price"]
+                )
             self._throttle_publish(
                 f"ticker:{inst_id}",
                 topic="market_delta",
@@ -189,6 +194,9 @@ class BitgetLiveFeedService:
                 "ts_ms": row.get("ts"),
                 "updated_at_ns": now_ns,
             }
+            autonomous_live_engine.process_book_update(
+                inst_id, book_snap["bids"], book_snap["asks"], row.get("ts")
+            )
             self._throttle_publish(
                 f"books:{inst_id}",
                 topic="market_delta",
@@ -210,6 +218,13 @@ class BitgetLiveFeedService:
                 }
                 self.recent_trades[inst_id].appendleft(trade_record)
                 trades_list.append(trade_record)
+                autonomous_live_engine.process_trade_update(
+                    inst_id,
+                    trade_record["price"],
+                    trade_record["size"],
+                    trade_record["side"],
+                    trade_record.get("ts_ms"),
+                )
 
             self._throttle_publish(
                 f"trade:{inst_id}",

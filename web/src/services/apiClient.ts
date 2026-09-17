@@ -119,6 +119,47 @@ export const api = {
     signal: string;
     active_model_id: string | null;
   }>>('/api/v1/strategies'),
+  getStrategyTelemetry: (symbol: string = 'BTCUSDT') =>
+    request<{
+      symbol: string;
+      depth5_imbalance: number | null;
+      depth20_imbalance: number | null;
+      microprice: number | null;
+      mid: number | null;
+      spread_bps: number | null;
+      l1_ofi: number | null;
+      volume_1s_signed: number | null;
+      cvd: number | null;
+      atr14: number | null;
+      timestamp_ns: number;
+    }>(`/api/v1/strategies/telemetry?symbol=${encodeURIComponent(symbol)}`),
+  getStrategyDecisions: () =>
+    request<
+      Array<{
+        decision_id: string;
+        timestamp_ns: number;
+        strategy_id: string;
+        instrument_id: string;
+        action: string;
+        reason: string;
+        status: string;
+      }>
+    >('/api/v1/strategies/decisions'),
+  toggleStrategy: (strategyId: string, running: boolean) =>
+    request<{ strategy_id: string; status: string }>(
+      `/api/v1/strategies/${encodeURIComponent(strategyId)}/toggle?running=${running}`,
+      { method: 'POST' }
+    ),
+  flattenPosition: (symbol: string = 'BTCUSDT') =>
+    request<{ symbol: string; status: string }>(
+      `/api/v1/trading/flatten?symbol=${encodeURIComponent(symbol)}`,
+      { method: 'POST' }
+    ),
+  triggerDiagnosticSignal: (strategyId: string = 'imbalance-btc', symbol: string = 'BTCUSDT', side: string = 'BUY') =>
+    request<{ status: string; strategy_id: string; symbol: string; side: string }>(
+      `/api/v1/strategies/trigger-diagnostic?strategy_id=${encodeURIComponent(strategyId)}&symbol=${encodeURIComponent(symbol)}&side=${encodeURIComponent(side)}`,
+      { method: 'POST' }
+    ),
   getOrderTrace: (orderId: string) => request<{
     order_id: string;
     trace_timeline: Array<{
