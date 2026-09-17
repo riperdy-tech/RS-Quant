@@ -106,7 +106,17 @@ export interface ReflexEvent {
   action: string;
 }
 
+export interface InstrumentReflexParams {
+  maker_only_mode: boolean;
+  entry_cooldown_s: number;
+  atr_target_multiplier: number;
+  depth5_imbalance_threshold: number;
+  spread_shock_active: boolean;
+  ml_gate_enabled: boolean;
+}
+
 export interface ReflexStatus {
+  symbol?: string;
   auto_tuner_enabled: boolean;
   maker_only_mode: boolean;
   current_atr_multiplier: number;
@@ -116,6 +126,7 @@ export interface ReflexStatus {
   circuit_breaker_tripped: boolean;
   total_reflex_actions: number;
   spread_shock_active: boolean;
+  instruments?: Record<string, InstrumentReflexParams>;
   recent_events: ReflexEvent[];
 }
 

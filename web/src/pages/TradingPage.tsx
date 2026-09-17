@@ -105,7 +105,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
 
   const fetchReflexStatus = async () => {
     try {
-      const data = await api.getReflexStatus();
+      const data = await api.getReflexStatus(selectedSymbol);
       if (data) setReflexStatus(data);
     } catch {
       // transient
@@ -117,9 +117,9 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
     setReflexLoading(true);
     try {
       const nextState = !reflexStatus.auto_tuner_enabled;
-      const updated = await api.toggleReflexTuner(nextState);
+      const updated = await api.toggleReflexTuner(nextState, selectedSymbol);
       setReflexStatus(updated);
-      setActionNotice(`Event-Driven Auto-Tuner is now ${nextState ? 'ACTIVE' : 'PAUSED'}.`);
+      setActionNotice(`Event-Driven Auto-Tuner is now ${nextState ? 'ACTIVE' : 'PAUSED'} for ${selectedSymbol}.`);
       setTimeout(() => setActionNotice(null), 5000);
     } catch (e: any) {
       alert(`Failed to toggle Auto-Tuner: ${e.message}`);
@@ -131,9 +131,9 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
   const handleTriggerReflexAudit = async () => {
     setReflexLoading(true);
     try {
-      const updated = await api.triggerReflexAudit('MICRO_AUDIT');
+      const updated = await api.triggerReflexAudit('MICRO_AUDIT', selectedSymbol);
       setReflexStatus(updated);
-      setActionNotice('Instant Micro-Audit executed across live order book depth.');
+      setActionNotice(`Instant Micro-Audit executed across live ${selectedSymbol} order book depth.`);
       setTimeout(() => setActionNotice(null), 5000);
     } catch (e: any) {
       alert(`Micro-Audit failed: ${e.message}`);
@@ -146,17 +146,19 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
     setAiApplyLoading(true);
     try {
       const res = await api.applyAIStrategy({
+        symbol: selectedSymbol,
         maker_only_mode: true,
-        entry_cooldown_s: 60,
+        entry_cooldown_s: selectedSymbol === 'ETHUSDT' ? 90 : 60,
         max_session_drawdown_pct: 3.0,
-        atr_target_multiplier: 3.5,
+        atr_target_multiplier: selectedSymbol === 'ETHUSDT' ? 4.0 : 3.5,
+        depth5_imbalance_threshold: selectedSymbol === 'ETHUSDT' ? 0.40 : 0.35,
         ml_gate_enabled: true,
         reset_capital: true,
       });
-      const updatedReflex = await api.triggerReflexAudit('RESET_BASELINE');
+      const updatedReflex = await api.triggerReflexAudit('RESET_BASELINE', selectedSymbol);
       setReflexStatus(updatedReflex);
       setAiApplySuccess(
-        `Institutional Baseline Applied: Maker 0% fee mode, 3.50x ATR target, 60s cooldown, capital reset to ${formatUsd(res.equity)}.`
+        `Institutional Baseline Applied for ${selectedSymbol}: Maker 0% fee mode, ${selectedSymbol === 'ETHUSDT' ? '4.00x ATR / 90s cooldown / 0.40 OBI' : '3.50x ATR / 60s cooldown / 0.35 OBI'}, capital reset to ${formatUsd(res.equity)}.`
       );
       fetchTradingData();
       setTimeout(() => setAiApplySuccess(null), 8000);
@@ -230,7 +232,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
         api.getPerformance().catch(() => null),
         api.getStrategies().catch(() => []),
         api.getStrategyDecisions().catch(() => []),
-        api.getReflexStatus().catch(() => null),
+        api.getReflexStatus(selectedSymbol).catch(() => null),
       ]);
       setPositions(pos);
       setOrders(ords);
@@ -453,6 +455,9 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
               <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
                 Event-Driven AI Reflex & Adaptive Strategy Center
               </h2>
+              <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300">
+                Leg: {selectedSymbol}
+              </span>
               {reflexStatus?.auto_tuner_enabled ? (
                 <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -475,7 +480,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
               )}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Autonomous microsecond-scale adaptation. Instead of rigid clock timers, reflexes fire dynamically upon trade exits (evaluating fee drag vs. gross alpha) and order book spread/volatility shocks.
+              Autonomous microsecond-scale adaptation. BTC and ETH operate on completely separate legs—reflexes tune thresholds and cooldowns independently based on each coin's unique tick and liquidity dynamics.
             </p>
           </div>
 
@@ -507,7 +512,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 transition-colors disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${reflexLoading ? 'animate-spin' : ''}`} />
-              {reflexLoading ? 'Auditing...' : 'Run Micro-Audit'}
+              {reflexLoading ? 'Auditing...' : `Audit ${selectedSymbol}`}
             </button>
             <button
               onClick={handleApplyCleanBaseline}
@@ -515,7 +520,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-colors disabled:opacity-50"
             >
               <Zap className={`w-3.5 h-3.5 ${aiApplyLoading ? 'animate-spin' : ''}`} />
-              {aiApplyLoading ? 'Calibrating...' : 'Apply Clean Baseline ($10k)'}
+              {aiApplyLoading ? 'Calibrating...' : `Apply ${selectedSymbol} Baseline`}
             </button>
           </div>
         </div>

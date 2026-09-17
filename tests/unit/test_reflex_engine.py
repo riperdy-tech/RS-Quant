@@ -67,7 +67,7 @@ def test_reflex_volatility_chop_guard():
         now_ns=now_ns,
     )
 
-    status = autonomous_live_engine.get_reflex_status()
+    status = autonomous_live_engine.get_reflex_status("ETHUSDT")
     assert status["entry_cooldown_s"] > initial_cooldown
     assert status["depth5_threshold"] > initial_threshold
     assert status["recent_events"][0]["type"] == "VOLATILITY_CHOP_GUARD"
@@ -116,3 +116,43 @@ def test_reflex_api_routes():
     # Route POST /trading/reflex-trigger
     audit_res = trigger_reflex_audit(action_type="MICRO_AUDIT", session=dummy_session)
     assert audit_res["recent_events"][0]["type"] == "INSTANT_MICRO_AUDIT"
+
+
+def test_reflex_independent_per_instrument_legs():
+    # Reset all baseline
+    autonomous_live_engine.manual_trigger_reflex("RESET_BASELINE", "all")
+
+    btc_status_before = autonomous_live_engine.get_reflex_status("BTCUSDT")
+    eth_status_before = autonomous_live_engine.get_reflex_status("ETHUSDT")
+
+    # Verify initial baselines are already tuned specifically for each instrument:
+    # BTC: 60s cooldown, 3.5x ATR, 0.35 OBI
+    # ETH: 90s cooldown, 4.0x ATR, 0.40 OBI
+    assert btc_status_before["entry_cooldown_s"] == 60
+    assert eth_status_before["entry_cooldown_s"] == 90
+    assert btc_status_before["current_atr_multiplier"] == 3.5
+    assert eth_status_before["current_atr_multiplier"] == 4.0
+
+    # Trigger a rapid stop-out reflex ONLY on ETH
+    now_ns = time.time_ns()
+    autonomous_live_engine._trigger_post_trade_reflex(
+        symbol="ETHUSDT",
+        net_trade_pnl=Decimal("-30.00"),
+        gross_pnl=Decimal("-30.00"),
+        fee=Decimal("0.00"),
+        hold_time_s=15,
+        now_ns=now_ns,
+    )
+
+    btc_status_after = autonomous_live_engine.get_reflex_status("BTCUSDT")
+    eth_status_after = autonomous_live_engine.get_reflex_status("ETHUSDT")
+
+    # ETH cooldown and threshold MUST have increased
+    assert eth_status_after["entry_cooldown_s"] == 105  # 90 + 15
+    assert eth_status_after["depth5_threshold"] == 0.45  # 0.40 + 0.05
+
+    # BTC MUST remain completely untouched!
+    assert btc_status_after["entry_cooldown_s"] == 60
+    assert btc_status_after["depth5_threshold"] == 0.35
+    assert btc_status_after["current_atr_multiplier"] == 3.5
+

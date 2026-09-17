@@ -335,10 +335,12 @@ export const api = {
     }>('/api/v1/research/ai-fault-review/latest'),
 
   applyAIStrategy: (config?: {
+    symbol?: string;
     maker_only_mode?: boolean;
     entry_cooldown_s?: number;
     max_session_drawdown_pct?: number;
     atr_target_multiplier?: number;
+    depth5_imbalance_threshold?: number;
     ml_gate_enabled?: boolean;
     reset_capital?: boolean;
   }) =>
@@ -351,21 +353,29 @@ export const api = {
       ml_gate_enabled: boolean;
       circuit_breaker_tripped: boolean;
       equity: string;
+      instruments?: Record<string, any>;
     }>('/api/v1/research/apply-ai-strategy', {
       method: 'POST',
       body: JSON.stringify(config || {}),
     }),
 
   // Event-Driven AI Reflex Engine (§15.2)
-  getReflexStatus: () => request<ReflexStatus>('/api/v1/trading/reflex-status'),
-  toggleReflexTuner: (enabled: boolean) =>
-    request<ReflexStatus>(`/api/v1/trading/reflex-toggle?enabled=${enabled}`, {
-      method: 'POST',
-    }),
-  triggerReflexAudit: (actionType: string = 'MICRO_AUDIT') =>
-    request<ReflexStatus>(`/api/v1/trading/reflex-trigger?action_type=${encodeURIComponent(actionType)}`, {
-      method: 'POST',
-    }),
+  getReflexStatus: (symbol: string = 'BTCUSDT') =>
+    request<ReflexStatus>(`/api/v1/trading/reflex-status?symbol=${encodeURIComponent(symbol)}`),
+  toggleReflexTuner: (enabled: boolean, symbol: string = 'all') =>
+    request<ReflexStatus>(
+      `/api/v1/trading/reflex-toggle?enabled=${enabled}&symbol=${encodeURIComponent(symbol)}`,
+      {
+        method: 'POST',
+      }
+    ),
+  triggerReflexAudit: (actionType: string = 'MICRO_AUDIT', symbol: string = 'all') =>
+    request<ReflexStatus>(
+      `/api/v1/trading/reflex-trigger?action_type=${encodeURIComponent(actionType)}&symbol=${encodeURIComponent(symbol)}`,
+      {
+        method: 'POST',
+      }
+    ),
 };
 
 export type { ReflexEvent, ReflexStatus };

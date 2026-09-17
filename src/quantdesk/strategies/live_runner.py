@@ -106,21 +106,34 @@ class AutonomousLiveEngine:
         # Cooldown guard per strategy to prevent rapid-fire execution
         self._last_entry_time_ns: dict[str, int] = {}
 
-        # AI-Discovered Adaptive Strategy & Risk Parameters
-        self.maker_only_mode: bool = True  # Passive limit fills to prevent fee drain
-        self.entry_cooldown_s: int = 60  # Min 60s cooldown between entries
+        # Institutional Portfolio Circuit Breakers (§11 & §15)
         self.max_session_drawdown_pct: float = 3.0  # 3% circuit breaker
         self.session_peak_equity: Decimal = Decimal("10000.00")
         self.circuit_breaker_tripped: bool = False
-        self.atr_target_multiplier: float = 3.5  # 3.5x ATR for 3:1 reward-to-fee ratio
-        self.ml_gate_enabled: bool = True
-
-        # Event-Driven Reflex Engine State (Real-Time Microstructure Adaptation)
         self.event_auto_tuner_enabled: bool = True
-        self.depth5_imbalance_threshold: float = 0.35
-        self.reflex_events: deque[dict[str, Any]] = deque(maxlen=50)
         self.total_reflex_actions: int = 2
-        self._spread_shock_active: bool = False
+        self.reflex_events: deque[dict[str, Any]] = deque(maxlen=100)
+
+        # Independent per-instrument state for parallel trading legs (§12 & §15.2)
+        # BTC and ETH operate on separate liquidity, volatility, and tick microstructures.
+        self.instrument_params: dict[str, dict[str, Any]] = {
+            "BTCUSDT": {
+                "maker_only_mode": True,
+                "entry_cooldown_s": 60,
+                "atr_target_multiplier": 3.5,
+                "depth5_imbalance_threshold": 0.35,
+                "spread_shock_active": False,
+                "ml_gate_enabled": True,
+            },
+            "ETHUSDT": {
+                "maker_only_mode": True,
+                "entry_cooldown_s": 90,  # ETH has thinner L2 liquidity; requires wider cooldown
+                "atr_target_multiplier": 4.0,  # Higher ATR target to beat ETH volatility noise
+                "depth5_imbalance_threshold": 0.40,  # Higher conviction required for ETH
+                "spread_shock_active": False,
+                "ml_gate_enabled": True,
+            },
+        }
 
         # Seed initial baseline reflex events for immediate visibility
         now_init_ns = time.time_ns()
@@ -128,16 +141,67 @@ class AutonomousLiveEngine:
             "timestamp_ns": now_init_ns - 120_000_000_000,
             "type": "INITIAL_CALIBRATION",
             "instrument_id": "BTCUSDT",
-            "detail": "Event-Driven Auto-Tuner initialized. Target friction multiplier calibrated to 3.50x ATR.",
+            "detail": "Event-Driven Auto-Tuner initialized for BTC leg. Target calibrated to 3.50x ATR, 60s cooldown, 0.35 OBI threshold.",
             "action": "BASELINE_ARMED",
         })
         self.reflex_events.appendleft({
             "timestamp_ns": now_init_ns - 60_000_000_000,
-            "type": "MAKER_POLICY_ARMED",
+            "type": "INITIAL_CALIBRATION",
             "instrument_id": "ETHUSDT",
-            "detail": "Passive Maker limit routing active (0.00% fee schedule). Post-trade reflex listening for fills.",
+            "detail": "Event-Driven Auto-Tuner initialized for ETH leg. Anti-chop calibrated to 4.00x ATR, 90s cooldown, 0.40 OBI threshold.",
             "action": "ZERO_FEE_PROTECT",
         })
+
+    @property
+    def maker_only_mode(self) -> bool:
+        return self.instrument_params.get("BTCUSDT", {}).get("maker_only_mode", True)
+
+    @maker_only_mode.setter
+    def maker_only_mode(self, val: bool) -> None:
+        for p in self.instrument_params.values():
+            p["maker_only_mode"] = val
+
+    @property
+    def entry_cooldown_s(self) -> int:
+        return self.instrument_params.get("BTCUSDT", {}).get("entry_cooldown_s", 60)
+
+    @entry_cooldown_s.setter
+    def entry_cooldown_s(self, val: int) -> None:
+        self.instrument_params.setdefault("BTCUSDT", {})["entry_cooldown_s"] = val
+
+    @property
+    def atr_target_multiplier(self) -> float:
+        return self.instrument_params.get("BTCUSDT", {}).get("atr_target_multiplier", 3.5)
+
+    @atr_target_multiplier.setter
+    def atr_target_multiplier(self, val: float) -> None:
+        self.instrument_params.setdefault("BTCUSDT", {})["atr_target_multiplier"] = val
+
+    @property
+    def depth5_imbalance_threshold(self) -> float:
+        return self.instrument_params.get("BTCUSDT", {}).get("depth5_imbalance_threshold", 0.35)
+
+    @depth5_imbalance_threshold.setter
+    def depth5_imbalance_threshold(self, val: float) -> None:
+        self.instrument_params.setdefault("BTCUSDT", {})["depth5_imbalance_threshold"] = val
+
+    @property
+    def ml_gate_enabled(self) -> bool:
+        return self.instrument_params.get("BTCUSDT", {}).get("ml_gate_enabled", True)
+
+    @ml_gate_enabled.setter
+    def ml_gate_enabled(self, val: bool) -> None:
+        for p in self.instrument_params.values():
+            p["ml_gate_enabled"] = val
+
+    @property
+    def _spread_shock_active(self) -> bool:
+        return any(p.get("spread_shock_active", False) for p in self.instrument_params.values())
+
+    @_spread_shock_active.setter
+    def _spread_shock_active(self, val: bool) -> None:
+        for p in self.instrument_params.values():
+            p["spread_shock_active"] = val
 
     def process_book_update(
         self,
@@ -182,34 +246,42 @@ class AutonomousLiveEngine:
         if not strat:
             return
 
-        # Synchronize live adaptive strategy parameters
-        strat.threshold = self.depth5_imbalance_threshold
-        strat.atr_target_multiplier = self.atr_target_multiplier
+        # Synchronize live adaptive strategy parameters for THIS specific symbol
+        params = self.instrument_params.setdefault(symbol, {
+            "maker_only_mode": True,
+            "entry_cooldown_s": 60,
+            "atr_target_multiplier": 3.5,
+            "depth5_imbalance_threshold": 0.35,
+            "spread_shock_active": False,
+            "ml_gate_enabled": True,
+        })
+        strat.threshold = params["depth5_imbalance_threshold"]
+        strat.atr_target_multiplier = params["atr_target_multiplier"]
 
         # Microstructure Spread Shock Reflex (§15.2 Event-Driven Architecture)
         spread_bps = features.get("spread_bps")
         if spread_bps is not None and self.event_auto_tuner_enabled:
             if spread_bps > 2.5:
-                if not self._spread_shock_active:
-                    self._spread_shock_active = True
+                if not params["spread_shock_active"]:
+                    params["spread_shock_active"] = True
                     self.total_reflex_actions += 1
-                    strat.threshold = min(0.60, self.depth5_imbalance_threshold + 0.10)
+                    strat.threshold = min(0.65, params["depth5_imbalance_threshold"] + 0.10)
                     self.reflex_events.appendleft({
                         "timestamp_ns": now_ns,
                         "type": "SPREAD_SHOCK_PROTECTION",
                         "instrument_id": symbol,
-                        "detail": f"Spread widened to {spread_bps:.2f} bps (> 2.50 bps). Temporarily elevated OBI conviction threshold to {strat.threshold:.2f} to guard against adverse selection.",
+                        "detail": f"{symbol} spread widened to {spread_bps:.2f} bps (> 2.50 bps). Elevated conviction threshold to {strat.threshold:.2f} to prevent adverse selection.",
                         "action": "ADVERSE_SELECTION_GUARD",
                     })
-            elif spread_bps <= 1.5 and self._spread_shock_active:
-                self._spread_shock_active = False
+            elif spread_bps <= 1.5 and params["spread_shock_active"]:
+                params["spread_shock_active"] = False
                 self.total_reflex_actions += 1
-                strat.threshold = self.depth5_imbalance_threshold
+                strat.threshold = params["depth5_imbalance_threshold"]
                 self.reflex_events.appendleft({
                     "timestamp_ns": now_ns,
                     "type": "SPREAD_NORMALIZED",
                     "instrument_id": symbol,
-                    "detail": f"Spread normalized to {spread_bps:.2f} bps. Returned OBI entry threshold to standard calibrated {strat.threshold:.2f}.",
+                    "detail": f"{symbol} spread normalized to {spread_bps:.2f} bps. Restored OBI entry threshold to calibrated {strat.threshold:.2f}.",
                     "action": "RESUME_STANDARD_DISCIPLINE",
                 })
 
@@ -346,8 +418,10 @@ class AutonomousLiveEngine:
         qty_units = qty_lots * Decimal("0.1") if symbol.startswith("BTC") else qty_lots * Decimal("1.0")
         pos_key = f"{intent.strategy_id}:{symbol}"
 
-        # Determine execution price and fees
-        if self.maker_only_mode:
+        # Determine execution price and fees based on symbol's independent pricing mode
+        params = self.instrument_params.get(symbol, {})
+        maker_mode = params.get("maker_only_mode", True)
+        if maker_mode:
             # Passive MAKER post-only execution on best bid/ask
             if side == Side.BUY:
                 if not bids:
@@ -400,9 +474,10 @@ class AutonomousLiveEngine:
             if pos_key in self.positions:
                 return
 
-            # Check 2: Throttle entries by entry_cooldown_s
+            # Check 2: Throttle entries by symbol's independent entry_cooldown_s
             last_entry = self._last_entry_time_ns.get(pos_key, 0)
-            cooldown_ns = self.entry_cooldown_s * 1_000_000_000
+            cooldown_s = params.get("entry_cooldown_s", 60)
+            cooldown_ns = cooldown_s * 1_000_000_000
             if (now_ns - last_entry) < cooldown_ns:
                 return
 
@@ -606,65 +681,76 @@ class AutonomousLiveEngine:
 
         self.total_reflex_actions += 1
 
+        params = self.instrument_params.setdefault(symbol, {
+            "maker_only_mode": True,
+            "entry_cooldown_s": 60,
+            "atr_target_multiplier": 3.5,
+            "depth5_imbalance_threshold": 0.35,
+            "spread_shock_active": False,
+            "ml_gate_enabled": True,
+        })
+        strat = self.imbalance_scalpers.get(symbol)
+
         # Case 1: Taker Fee Friction detected (gross alpha was positive, but fees turned trade negative)
         if gross_pnl > Decimal("0") and net_trade_pnl < Decimal("0"):
-            self.atr_target_multiplier = min(5.0, round(self.atr_target_multiplier + 0.25, 2))
-            if not self.maker_only_mode:
-                self.maker_only_mode = True
+            params["atr_target_multiplier"] = min(5.0, round(params["atr_target_multiplier"] + 0.25, 2))
+            if not params["maker_only_mode"]:
+                params["maker_only_mode"] = True
             self.reflex_events.appendleft({
                 "timestamp_ns": now_ns,
                 "type": "ADAPTIVE_FRICTION_WIDEN",
                 "instrument_id": symbol,
                 "detail": (
-                    f"Friction drag detected: gross alpha was +${gross_pnl:.2f}, but fee was -${fee:.2f} (net ${net_trade_pnl:.2f}). "
-                    f"Widened ATR profit target multiplier to {self.atr_target_multiplier:.2f}x to guarantee reward exceeds venue friction."
+                    f"Friction drag on {symbol}: gross alpha was +${gross_pnl:.2f}, but fee was -${fee:.2f} (net ${net_trade_pnl:.2f}). "
+                    f"Widened ATR profit target multiplier to {params['atr_target_multiplier']:.2f}x to guarantee reward exceeds venue friction."
                 ),
                 "action": "AUTO_WIDEN_PROFIT_TARGET",
             })
             logger.info(
-                f"Reflex [ADAPTIVE_FRICTION_WIDEN]: ATR target set to {self.atr_target_multiplier}x"
+                f"Reflex [ADAPTIVE_FRICTION_WIDEN] for {symbol}: ATR target set to {params['atr_target_multiplier']}x"
             )
 
         # Case 2: Volatility Chop / Rapid Stop-Out (stopped out in < 45s with negative net PnL)
         elif net_trade_pnl < Decimal("0") and hold_time_s < 45:
-            self.entry_cooldown_s = min(180, self.entry_cooldown_s + 15)
-            self.depth5_imbalance_threshold = min(0.55, round(self.depth5_imbalance_threshold + 0.05, 2))
+            params["entry_cooldown_s"] = min(180, params["entry_cooldown_s"] + 15)
+            params["depth5_imbalance_threshold"] = min(0.60, round(params["depth5_imbalance_threshold"] + 0.05, 2))
             self.reflex_events.appendleft({
                 "timestamp_ns": now_ns,
                 "type": "VOLATILITY_CHOP_GUARD",
                 "instrument_id": symbol,
                 "detail": (
-                    f"Rapid stop-out ({hold_time_s}s hold, loss ${net_trade_pnl:.2f}). "
-                    f"Throttled entry cooldown to {self.entry_cooldown_s}s and elevated OBI threshold to {self.depth5_imbalance_threshold:.2f} to filter whipsaws."
+                    f"Rapid stop-out on {symbol} ({hold_time_s}s hold, loss ${net_trade_pnl:.2f}). "
+                    f"Throttled entry cooldown to {params['entry_cooldown_s']}s and elevated OBI threshold to {params['depth5_imbalance_threshold']:.2f} to filter whipsaws."
                 ),
                 "action": "THROTTLE_CHOP_EXPOSURE",
             })
             logger.info(
-                f"Reflex [VOLATILITY_CHOP_GUARD]: Cooldown {self.entry_cooldown_s}s, Threshold {self.depth5_imbalance_threshold}"
+                f"Reflex [VOLATILITY_CHOP_GUARD] for {symbol}: Cooldown {params['entry_cooldown_s']}s, Threshold {params['depth5_imbalance_threshold']}"
             )
 
         # Case 3: Profitable trade confirmation
         elif net_trade_pnl > Decimal("0"):
-            if self.entry_cooldown_s > 60:
-                self.entry_cooldown_s = max(60, self.entry_cooldown_s - 10)
+            min_cooldown = 90 if symbol == "ETHUSDT" else 60
+            if params["entry_cooldown_s"] > min_cooldown:
+                params["entry_cooldown_s"] = max(min_cooldown, params["entry_cooldown_s"] - 10)
             self.reflex_events.appendleft({
                 "timestamp_ns": now_ns,
                 "type": "PROFIT_CONFIRMATION",
                 "instrument_id": symbol,
                 "detail": (
-                    f"Profitable trade confirmed (+${net_trade_pnl:.2f}, {hold_time_s}s hold). "
-                    f"Calibrated cooldown maintained at {self.entry_cooldown_s}s with ATR multiplier {self.atr_target_multiplier:.2f}x."
+                    f"Profitable trade confirmed on {symbol} (+${net_trade_pnl:.2f}, {hold_time_s}s hold). "
+                    f"Cooldown maintained at {params['entry_cooldown_s']}s with ATR multiplier {params['atr_target_multiplier']:.2f}x."
                 ),
                 "action": "REINFORCE_CONVICTION",
             })
             logger.info(
-                f"Reflex [PROFIT_CONFIRMATION]: Profit +${net_trade_pnl:.2f}"
+                f"Reflex [PROFIT_CONFIRMATION] for {symbol}: Profit +${net_trade_pnl:.2f}"
             )
 
-        # Synchronize parameters across all live strategies
-        for strat in self.imbalance_scalpers.values():
-            strat.threshold = self.depth5_imbalance_threshold
-            strat.atr_target_multiplier = self.atr_target_multiplier
+        # Synchronize parameters ONLY for this specific strategy leg
+        if strat:
+            strat.threshold = params["depth5_imbalance_threshold"]
+            strat.atr_target_multiplier = params["atr_target_multiplier"]
 
     def flatten_position(self, symbol: str) -> None:
         """Emergency flattens position(s) at live market prices."""
@@ -906,18 +992,29 @@ class AutonomousLiveEngine:
     def apply_ai_strategy(self, config: dict[str, Any] | None = None) -> dict[str, Any]:
         """Applies AI-learned strategy parameters and resets capital for clean validation."""
         config = config or {}
-        if "maker_only_mode" in config:
-            self.maker_only_mode = bool(config["maker_only_mode"])
-        if "entry_cooldown_s" in config:
-            self.entry_cooldown_s = int(config["entry_cooldown_s"])
+        target_symbol = config.get("symbol", "all")
+        targets = [target_symbol] if target_symbol in self.instrument_params else list(self.instrument_params.keys())
+
+        for sym in targets:
+            p = self.instrument_params[sym]
+            if "maker_only_mode" in config:
+                p["maker_only_mode"] = bool(config["maker_only_mode"])
+            if "entry_cooldown_s" in config:
+                p["entry_cooldown_s"] = int(config["entry_cooldown_s"])
+            if "atr_target_multiplier" in config:
+                p["atr_target_multiplier"] = float(config["atr_target_multiplier"])
+            if "ml_gate_enabled" in config:
+                p["ml_gate_enabled"] = bool(config["ml_gate_enabled"])
+            if "depth5_imbalance_threshold" in config:
+                p["depth5_imbalance_threshold"] = float(config["depth5_imbalance_threshold"])
+
+            strat = self.imbalance_scalpers.get(sym)
+            if strat:
+                strat.threshold = p["depth5_imbalance_threshold"]
+                strat.atr_target_multiplier = p["atr_target_multiplier"]
+
         if "max_session_drawdown_pct" in config:
             self.max_session_drawdown_pct = float(config["max_session_drawdown_pct"])
-        if "atr_target_multiplier" in config:
-            self.atr_target_multiplier = float(config["atr_target_multiplier"])
-        if "ml_gate_enabled" in config:
-            self.ml_gate_enabled = bool(config["ml_gate_enabled"])
-        if "depth5_imbalance_threshold" in config:
-            self.depth5_imbalance_threshold = float(config["depth5_imbalance_threshold"])
 
         # Reset capital to $10,000 if requested (default True for clean validation)
         if config.get("reset_capital", True):
@@ -931,26 +1028,22 @@ class AutonomousLiveEngine:
                 self.instrument_realized_pnl[s] = Decimal("0.00")
                 self.instrument_trade_counts[s] = {"total": 0, "wins": 0}
 
-        # Synchronize parameters across strategies
-        for strat in self.imbalance_scalpers.values():
-            strat.threshold = self.depth5_imbalance_threshold
-            strat.atr_target_multiplier = self.atr_target_multiplier
-
         now_ns = time.time_ns()
         self.total_reflex_actions += 1
         self.reflex_events.appendleft({
             "timestamp_ns": now_ns,
             "type": "BASELINE_APPLIED",
-            "instrument_id": "GLOBAL",
+            "instrument_id": target_symbol.upper(),
             "detail": (
-                f"AI Strategy applied: Maker={self.maker_only_mode}, ATR Mult={self.atr_target_multiplier:.2f}x, "
-                f"Cooldown={self.entry_cooldown_s}s, Capital Reset={config.get('reset_capital', True)}."
+                f"AI Strategy applied independently for {target_symbol.upper()}. "
+                f"Capital Reset={config.get('reset_capital', True)}."
             ),
             "action": "CONFIG_APPLIED",
         })
 
         return {
             "status": "APPLIED",
+            "instruments": {s: dict(p) for s, p in self.instrument_params.items()},
             "maker_only_mode": self.maker_only_mode,
             "entry_cooldown_s": self.entry_cooldown_s,
             "max_session_drawdown_pct": self.max_session_drawdown_pct,
@@ -961,22 +1054,26 @@ class AutonomousLiveEngine:
             "equity": str(self.initial_equity + self.realized_pnl),
         }
 
-    def get_reflex_status(self) -> dict[str, Any]:
-        """Provides dynamic telemetry on the Event-Driven Reflex Engine (§15.2)."""
+    def get_reflex_status(self, symbol: str = "BTCUSDT") -> dict[str, Any]:
+        """Provides dynamic telemetry on the Event-Driven Reflex Engine (§15.2), per-instrument leg."""
+        sym = symbol if symbol in self.instrument_params else "BTCUSDT"
+        sym_params = self.instrument_params.get(sym, {})
         return {
+            "symbol": sym,
             "auto_tuner_enabled": self.event_auto_tuner_enabled,
-            "maker_only_mode": self.maker_only_mode,
-            "current_atr_multiplier": self.atr_target_multiplier,
-            "entry_cooldown_s": self.entry_cooldown_s,
-            "depth5_threshold": self.depth5_imbalance_threshold,
+            "maker_only_mode": sym_params.get("maker_only_mode", True),
+            "current_atr_multiplier": sym_params.get("atr_target_multiplier", 3.5),
+            "entry_cooldown_s": sym_params.get("entry_cooldown_s", 60),
+            "depth5_threshold": sym_params.get("depth5_imbalance_threshold", 0.35),
+            "spread_shock_active": sym_params.get("spread_shock_active", False),
             "circuit_breaker_pct": self.max_session_drawdown_pct,
             "circuit_breaker_tripped": self.circuit_breaker_tripped,
             "total_reflex_actions": self.total_reflex_actions,
-            "spread_shock_active": self._spread_shock_active,
+            "instruments": {s: dict(p) for s, p in self.instrument_params.items()},
             "recent_events": list(self.reflex_events)[:15],
         }
 
-    def toggle_reflex_tuner(self, enabled: bool) -> dict[str, Any]:
+    def toggle_reflex_tuner(self, enabled: bool, symbol: str = "all") -> dict[str, Any]:
         """Enables or pauses dynamic event-driven auto-tuning."""
         self.event_auto_tuner_enabled = enabled
         now_ns = time.time_ns()
@@ -984,53 +1081,73 @@ class AutonomousLiveEngine:
         self.reflex_events.appendleft({
             "timestamp_ns": now_ns,
             "type": "TUNER_STATE_CHANGE",
-            "instrument_id": "GLOBAL",
+            "instrument_id": symbol.upper(),
             "detail": f"Event-Driven Auto-Tuner toggled {'ACTIVE' if enabled else 'PAUSED'} by operator.",
             "action": "TUNER_ENGAGED" if enabled else "TUNER_PAUSED",
         })
-        return self.get_reflex_status()
+        return self.get_reflex_status(symbol if symbol in self.instrument_params else "BTCUSDT")
 
-    def manual_trigger_reflex(self, action_type: str = "MICRO_AUDIT") -> dict[str, Any]:
-        """Triggers an instantaneous micro-audit reflex or resets to clean baseline."""
+    def manual_trigger_reflex(self, action_type: str = "MICRO_AUDIT", symbol: str = "all") -> dict[str, Any]:
+        """Triggers an instantaneous micro-audit reflex or resets to clean baseline per symbol."""
         now_ns = time.time_ns()
         self.total_reflex_actions += 1
+        targets = [symbol] if symbol in self.instrument_params else list(self.instrument_params.keys())
 
         if action_type == "RESET_BASELINE":
-            self.maker_only_mode = True
-            self.entry_cooldown_s = 60
-            self.depth5_imbalance_threshold = 0.35
-            self.atr_target_multiplier = 3.5
+            for sym in targets:
+                p = self.instrument_params[sym]
+                p["maker_only_mode"] = True
+                p["spread_shock_active"] = False
+                if sym == "BTCUSDT":
+                    p["entry_cooldown_s"] = 60
+                    p["depth5_imbalance_threshold"] = 0.35
+                    p["atr_target_multiplier"] = 3.5
+                else:  # ETHUSDT
+                    p["entry_cooldown_s"] = 90
+                    p["depth5_imbalance_threshold"] = 0.40
+                    p["atr_target_multiplier"] = 4.0
+
+                strat = self.imbalance_scalpers.get(sym)
+                if strat:
+                    strat.threshold = p["depth5_imbalance_threshold"]
+                    strat.atr_target_multiplier = p["atr_target_multiplier"]
+
             self.event_auto_tuner_enabled = True
-            self._spread_shock_active = False
-
-            for strat in self.imbalance_scalpers.values():
-                strat.threshold = 0.35
-                strat.atr_target_multiplier = 3.5
-
             self.reflex_events.appendleft({
                 "timestamp_ns": now_ns,
                 "type": "BASELINE_RESET",
-                "instrument_id": "GLOBAL",
-                "detail": "Restored institutional baseline: Passive Maker mode, 3.50x ATR target, 60s cooldown, 0.35 OBI threshold.",
+                "instrument_id": symbol.upper(),
+                "detail": (
+                    f"Restored institutional baseline for {symbol.upper()} "
+                    f"(BTC: 60s/3.50x ATR/0.35 OBI; ETH: 90s/4.00x ATR/0.40 OBI)."
+                ),
                 "action": "BASELINE_CALIBRATED",
             })
         else:
-            # Instant micro-audit: Inspect feature engines and market conditions
-            self.atr_target_multiplier = round(max(3.0, min(4.5, self.atr_target_multiplier)), 2)
-            self.depth5_imbalance_threshold = round(max(0.30, min(0.50, self.depth5_imbalance_threshold)), 2)
-            for strat in self.imbalance_scalpers.values():
-                strat.threshold = self.depth5_imbalance_threshold
-                strat.atr_target_multiplier = self.atr_target_multiplier
+            # Instant micro-audit for targeted legs
+            for sym in targets:
+                p = self.instrument_params[sym]
+                if sym == "ETHUSDT":
+                    p["atr_target_multiplier"] = round(max(3.5, min(5.0, p["atr_target_multiplier"])), 2)
+                    p["depth5_imbalance_threshold"] = round(max(0.35, min(0.55, p["depth5_imbalance_threshold"])), 2)
+                else:
+                    p["atr_target_multiplier"] = round(max(3.0, min(4.5, p["atr_target_multiplier"])), 2)
+                    p["depth5_imbalance_threshold"] = round(max(0.30, min(0.50, p["depth5_imbalance_threshold"])), 2)
+
+                strat = self.imbalance_scalpers.get(sym)
+                if strat:
+                    strat.threshold = p["depth5_imbalance_threshold"]
+                    strat.atr_target_multiplier = p["atr_target_multiplier"]
 
             self.reflex_events.appendleft({
                 "timestamp_ns": now_ns,
                 "type": "INSTANT_MICRO_AUDIT",
-                "instrument_id": "ALL",
-                "detail": f"Instant micro-audit completed across live order books. Parameters tuned: {self.atr_target_multiplier:.2f}x ATR, {self.depth5_imbalance_threshold:.2f} OBI threshold.",
+                "instrument_id": symbol.upper(),
+                "detail": f"Instant micro-audit completed for {symbol.upper()}. Calibrated independent thresholds against live depth.",
                 "action": "MICRO_AUDIT_COMMITTED",
             })
 
-        return self.get_reflex_status()
+        return self.get_reflex_status(symbol if symbol in self.instrument_params else "BTCUSDT")
 
     def get_strategies(self) -> list[dict[str, Any]]:
         res = []
