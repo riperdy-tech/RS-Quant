@@ -85,12 +85,13 @@ async def sse_event_generator(last_event_id: str | None = None) -> AsyncGenerato
     try:
         while True:
             try:
-                # Wait for next event or send keepalive ping every 15s
-                evt = await asyncio.wait_for(queue.get(), timeout=15.0)
+                # Wait for next event or send 1-second projection heartbeat per §17
+                evt = await asyncio.wait_for(queue.get(), timeout=1.0)
                 yield f"id: {evt['id']}\nevent: {evt['topic']}\ndata: {json.dumps(evt)}\n\n"
             except TimeoutError:
-                # Keepalive comment
-                yield ": keepalive\n\n"
+                # Periodic 1 Hz heartbeat guarantees UI freshness remains well within 3s window (§17)
+                hb = {"topic": "heartbeat", "time_ns": time.time_ns()}
+                yield f"event: heartbeat\ndata: {json.dumps(hb)}\n\n"
     finally:
         if queue in event_hub.subscribers:
             event_hub.subscribers.remove(queue)

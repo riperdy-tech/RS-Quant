@@ -41,14 +41,16 @@ export function useSSE(onEvent?: (event: SSEEventEnvelope) => void) {
       };
 
       es.onmessage = handleMessage;
-      es.addEventListener('resync', () => {
-        lastMsgTimeRef.current = Date.now();
-        setIsStale(false);
-      });
-      es.addEventListener('connected', () => {
-        lastMsgTimeRef.current = Date.now();
-        setIsStale(false);
-      });
+      es.addEventListener('heartbeat', handleMessage);
+      es.addEventListener('connected', handleMessage);
+      es.addEventListener('resync', handleMessage);
+      es.addEventListener('system_status', handleMessage);
+      es.addEventListener('market_delta', handleMessage);
+      es.addEventListener('position', handleMessage);
+      es.addEventListener('balance', handleMessage);
+      es.addEventListener('order', handleMessage);
+      es.addEventListener('fill', handleMessage);
+      es.addEventListener('risk', handleMessage);
     };
 
     connect();
