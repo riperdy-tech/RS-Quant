@@ -1,14 +1,21 @@
-from __future__ import annotations
-
+import time
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 
-from quantdesk.api.auth import Session, require_viewer
+from quantdesk.api.auth import Session, require_operator, require_viewer
 from quantdesk.observability.health import HealthMonitor
+from quantdesk.venues.bitget_uta.auth import Credentials, signed_headers
 
 router = APIRouter(tags=["system"])
 health_monitor = HealthMonitor()
+
+
+class CredentialsPayload(BaseModel):
+    api_key: str
+    secret_key: str
+    passphrase: str
 
 
 @router.get("/health/live")
@@ -51,13 +58,133 @@ def get_readiness_checklist(
     session: Session = Depends(require_viewer),
 ) -> dict[str, Any]:
     """Readiness checklist items for operations and deployments (§15.2)."""
+    import keyring
+
+    has_creds = bool(keyring.get_password("quantdesk-bitget", "api_key"))
+    cred_status = "CONFIGURED" if has_creds else "DEMO_MODE"
     return {
         "items": [
             {"id": "db_connectivity", "name": "SQLite Database", "status": "PASSED"},
-            {"id": "credentials", "name": "Exchange Credentials", "status": "DEMO_MODE"},
+            {"id": "credentials", "name": "Exchange Credentials", "status": cred_status},
             {"id": "disk_space", "name": "Storage Space", "status": "PASSED"},
             {"id": "model_registry", "name": "Model Governance", "status": "PASSED"},
             {"id": "live_guards", "name": "Live Protection Guards", "status": "FAIL_CLOSED"},
         ],
         "all_passed": True,
     }
+
+
+@router.post("/api/v1/settings/credentials")
+def save_credentials(
+    payload: CredentialsPayload,
+    session: Session = Depends(require_operator),
+) -> dict[str, Any]:
+    """Stores Bitget UTA V3 API credentials securely in OS Keyring (§15.4, §16.1)."""
+    import keyring
+
+    if not payload.api_key or not payload.secret_key or not payload.passphrase:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Complete credential set required (api_key, secret_key, passphrase)",
+        )
+
+    keyring.set_password("quantdesk-bitget", "api_key", payload.api_key.strip())
+    keyring.set_password("quantdesk-bitget", "secret_key", payload.secret_key.strip())
+    keyring.set_password("quantdesk-bitget", "passphrase", payload.passphrase.strip())
+
+    key_len = len(payload.api_key.strip())
+    fingerprint = f"...{payload.api_key.strip()[-4:]}" if key_len >= 4 else "configured"
+    return {
+        "status": "STORED",
+        "key_fingerprint": fingerprint,
+        "message": "Credentials securely stored in OS Keyring / Windows Credential Manager.",
+    }
+
+
+@router.get("/api/v1/settings/credentials/status")
+def get_credentials_status(
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Checks whether Bitget UTA credentials exist in OS Keyring without returning secrets."""
+    import keyring
+
+    api_key = keyring.get_password("quantdesk-bitget", "api_key")
+    if not api_key:
+        return {"has_credentials": False, "key_fingerprint": None}
+    fingerprint = f"...{api_key[-4:]}" if len(api_key) >= 4 else "configured"
+    return {"has_credentials": True, "key_fingerprint": fingerprint}
+
+
+@router.post("/api/v1/settings/test-connection")
+async def test_bitget_connection(
+    payload: CredentialsPayload | None = None,
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Performs a read-only preflight verification against Bitget UTA V3 REST API."""
+    import httpx
+    import keyring
+
+    api_key = (
+        payload.api_key.strip()
+        if payload and payload.api_key
+        else keyring.get_password("quantdesk-bitget", "api_key")
+    )
+    secret = (
+        payload.secret_key.strip()
+        if payload and payload.secret_key
+        else keyring.get_password("quantdesk-bitget", "secret_key")
+    )
+    passphrase = (
+        payload.passphrase.strip()
+        if payload and payload.passphrase
+        else keyring.get_password("quantdesk-bitget", "passphrase")
+    )
+
+    if not api_key or not secret or not passphrase:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No credentials provided or found in Keyring to test.",
+        )
+
+    try:
+        creds = Credentials(api_key=api_key, secret=secret, passphrase=passphrase)
+    except Exception as exc:
+        return {"success": False, "message": f"Invalid credential format: {exc}"}
+
+    ts_ms = int(time.time() * 1000)
+    target = "/api/v3/account/info"
+    headers = signed_headers(creds, ts_ms, "GET", target)
+
+    base_url = "https://api.bitget.com"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{base_url}{target}", headers=headers)
+            try:
+                data = resp.json()
+            except Exception:
+                preview = resp.text[:200]
+                return {
+                    "success": False,
+                    "message": f"Bitget returned non-JSON HTTP {resp.status_code}: {preview}",
+                }
+
+            if resp.status_code == 200 and str(data.get("code")) == "00000":
+                account_info = data.get("data", {})
+                account_level = account_info.get("accountLevel", "unknown")
+                return {
+                    "success": True,
+                    "message": "Bitget UTA V3 read-only connection verified. No orders placed.",
+                    "account_level": account_level,
+                    "data": account_info,
+                }
+            else:
+                msg = data.get("msg") or str(data)
+                return {
+                    "success": False,
+                    "message": f"Bitget API rejected request: {msg} (code: {data.get('code')})",
+                }
+    except Exception as exc:
+        return {
+            "success": False,
+            "message": f"Network error connecting to Bitget: {exc!s}",
+        }

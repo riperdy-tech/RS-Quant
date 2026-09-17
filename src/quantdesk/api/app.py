@@ -123,12 +123,24 @@ def create_app(db_path: Path | str | None = None) -> FastAPI:
     app.include_router(research.router)
     app.include_router(events.router)
 
-    # Serve static frontend if built (§177)
+    # Serve static frontend with SPA routing fallback if built (§17)
     dist_dir = Path("web/dist")
     if dist_dir.exists() and (dist_dir / "index.html").exists():
+        from fastapi.responses import FileResponse
         from fastapi.staticfiles import StaticFiles
 
-        app.mount("/", StaticFiles(directory=str(dist_dir), html=True), name="static")
+        assets_dir = dist_dir / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="static_assets")
+
+        @app.get("/{full_path:path}")
+        async def serve_spa(full_path: str) -> Response:
+            if full_path.startswith("api/") or full_path.startswith("health/"):
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
+            file_path = dist_dir / full_path
+            if full_path and file_path.exists() and file_path.is_file():
+                return FileResponse(file_path)
+            return FileResponse(dist_dir / "index.html")
 
     return app
 
