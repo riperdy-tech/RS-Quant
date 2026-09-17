@@ -37,6 +37,8 @@ class DurableInbox:
         self.strategy_states: dict[str, str] = {
             "imbalance-btc": "RUNNING",
             "momentum-btc": "RUNNING",
+            "imbalance-eth": "RUNNING",
+            "momentum-eth": "RUNNING",
         }
 
         if self.db_path:
@@ -232,6 +234,28 @@ class DurableInbox:
             self.emergency_halted = True
             for k in list(self.strategy_states.keys()):
                 self.strategy_states[k] = "PAUSED"
+            try:
+                from quantdesk.strategies.live_runner import autonomous_live_engine
+                autonomous_live_engine.emergency_stop_all()
+            except Exception:
+                pass
+        elif cmd_type in ("STOP_DEMO", "PAUSE_ALL"):
+            for k in list(self.strategy_states.keys()):
+                self.strategy_states[k] = "PAUSED"
+            try:
+                from quantdesk.strategies.live_runner import autonomous_live_engine
+                autonomous_live_engine.pause_trading()
+            except Exception:
+                pass
+        elif cmd_type in ("START_DEMO", "RESUME_ALL"):
+            self.emergency_halted = False
+            for k in list(self.strategy_states.keys()):
+                self.strategy_states[k] = "RUNNING"
+            try:
+                from quantdesk.strategies.live_runner import autonomous_live_engine
+                autonomous_live_engine.resume_trading()
+            except Exception:
+                pass
         elif cmd_type == "RESET_RISK_LATCH":
             self.emergency_halted = False
             # Note: reset does NOT resume paused strategies (§15)

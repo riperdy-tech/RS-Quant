@@ -121,6 +121,33 @@ def flatten_position(
     return {"symbol": symbol, "status": "FLATTENED"}
 
 
+@router.post("/trading/pause")
+def pause_all_trading(
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Pauses all autonomous algorithms immediately."""
+    autonomous_live_engine.pause_trading()
+    return {"status": "PAUSED", "engine_state": "PAUSED"}
+
+
+@router.post("/trading/resume")
+def resume_all_trading(
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Resumes all autonomous algorithms."""
+    autonomous_live_engine.resume_trading()
+    return {"status": "RUNNING", "engine_state": "RUNNING"}
+
+
+@router.post("/trading/emergency-stop")
+def emergency_stop_trading(
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Emergency halt: trips safety latch, pauses all algorithms, and immediately flattens all open positions."""
+    autonomous_live_engine.emergency_stop_all()
+    return {"status": "EMERGENCY_HALTED", "engine_state": "HALTED", "positions": "FLATTENED"}
+
+
 @router.post("/strategies/trigger-diagnostic")
 def trigger_diagnostic_signal(
     strategy_id: str = "imbalance-btc",

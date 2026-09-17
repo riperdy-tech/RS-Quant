@@ -136,6 +136,44 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
     }
   };
 
+  const isAllPaused = strategies.length > 0 && strategies.every((s) => s.status === 'PAUSED');
+
+  const handlePauseAll = async () => {
+    try {
+      await api.pauseAllTrading();
+      setActionNotice('All autonomous trading algorithms PAUSED. Live market feed remains active.');
+      fetchTradingData();
+      setTimeout(() => setActionNotice(null), 5000);
+    } catch (e: any) {
+      alert(`Failed to pause trading: ${e.message}`);
+    }
+  };
+
+  const handleResumeAll = async () => {
+    try {
+      await api.resumeAllTrading();
+      setActionNotice('All autonomous trading algorithms RESUMED.');
+      fetchTradingData();
+      setTimeout(() => setActionNotice(null), 5000);
+    } catch (e: any) {
+      alert(`Failed to resume trading: ${e.message}`);
+    }
+  };
+
+  const handleEmergencyStopAll = async () => {
+    if (!window.confirm('Are you sure you want to trigger Emergency Stop? This will halt all algorithms and immediately flatten all open positions.')) {
+      return;
+    }
+    try {
+      await api.emergencyStopTrading();
+      setActionNotice('EMERGENCY STOP EXECUTED: All trading halted and open positions flattened.');
+      fetchTradingData();
+      setTimeout(() => setActionNotice(null), 6000);
+    } catch (e: any) {
+      alert(`Emergency stop failed: ${e.message}`);
+    }
+  };
+
   const fetchTradingData = async () => {
     try {
       const [pos, ords, fls, bals, perf, strats, decs] = await Promise.all([
@@ -266,7 +304,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button
             onClick={() => {
               fetchTradingData();
@@ -277,8 +315,64 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
             <RefreshCw className="w-3.5 h-3.5" />
             Refresh
           </button>
+
+          {!isViewer && (
+            <>
+              {isAllPaused ? (
+                <button
+                  data-testid="resume-trading-btn"
+                  onClick={handleResumeAll}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  Resume Trading
+                </button>
+              ) : (
+                <button
+                  data-testid="pause-trading-btn"
+                  onClick={handlePauseAll}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-sm transition-colors"
+                >
+                  <Pause className="w-3.5 h-3.5 fill-current" />
+                  Pause Trading
+                </button>
+              )}
+
+              <button
+                data-testid="stop-flatten-btn"
+                onClick={handleEmergencyStopAll}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition-colors"
+              >
+                <AlertOctagon className="w-3.5 h-3.5" />
+                Stop & Flatten All
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {isAllPaused && (
+        <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-200 rounded-xl flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-200 dark:bg-amber-900 rounded-lg text-amber-900 dark:text-amber-200">
+              <Pause className="w-5 h-5 fill-current" />
+            </div>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider">Trading Algorithms Paused</div>
+              <div className="text-xs text-amber-800/90 dark:text-amber-300/90 mt-0.5">
+                All autonomous execution is currently stopped. No new orders will be submitted. Market WebSocket stream remains connected.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={handleResumeAll}
+            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            Resume
+          </button>
+        </div>
+      )}
 
       {actionNotice && (
         <div className="p-3 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-800 dark:text-indigo-300 rounded-xl text-xs font-semibold flex items-center justify-between">

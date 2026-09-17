@@ -591,6 +591,26 @@ class AutonomousLiveEngine:
                 "status": "EXECUTED",
             })
 
+    def pause_trading(self) -> None:
+        """Pauses all autonomous strategies from generating new orders."""
+        for s in self.symbols:
+            durable_inbox.strategy_states[f"imbalance-{s[:3].lower()}"] = "PAUSED"
+            durable_inbox.strategy_states[f"momentum-{s[:3].lower()}"] = "PAUSED"
+
+    def resume_trading(self) -> None:
+        """Resumes all autonomous strategies."""
+        durable_inbox.emergency_halted = False
+        self.circuit_breaker_tripped = False
+        for s in self.symbols:
+            durable_inbox.strategy_states[f"imbalance-{s[:3].lower()}"] = "RUNNING"
+            durable_inbox.strategy_states[f"momentum-{s[:3].lower()}"] = "RUNNING"
+
+    def emergency_stop_all(self) -> None:
+        """Trips emergency latch, pauses all strategies, and immediately flattens all open positions."""
+        durable_inbox.emergency_halted = True
+        self.pause_trading()
+        self.flatten_position("all")
+
     def manual_trigger_signal(self, strategy_id: str, symbol: str, side: str) -> None:
         """Allows testing/verifying strategy signal execution against live Bitget depth on demand."""
         from quantdesk.venues.bitget_uta.live_feed import live_feed_service

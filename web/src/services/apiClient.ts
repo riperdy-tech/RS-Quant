@@ -178,6 +178,18 @@ export const api = {
       `/api/v1/trading/flatten?symbol=${encodeURIComponent(symbol)}`,
       { method: 'POST' }
     ),
+  pauseAllTrading: () =>
+    request<{ status: string; engine_state: string }>('/api/v1/trading/pause', {
+      method: 'POST',
+    }),
+  resumeAllTrading: () =>
+    request<{ status: string; engine_state: string }>('/api/v1/trading/resume', {
+      method: 'POST',
+    }),
+  emergencyStopTrading: () =>
+    request<{ status: string; engine_state: string; positions: string }>('/api/v1/trading/emergency-stop', {
+      method: 'POST',
+    }),
   triggerDiagnosticSignal: (strategyId: string = 'imbalance-btc', symbol: string = 'BTCUSDT', side: string = 'BUY') =>
     request<{ status: string; strategy_id: string; symbol: string; side: string }>(
       `/api/v1/strategies/trigger-diagnostic?strategy_id=${encodeURIComponent(strategyId)}&symbol=${encodeURIComponent(symbol)}&side=${encodeURIComponent(side)}`,

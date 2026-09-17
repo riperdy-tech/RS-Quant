@@ -83,6 +83,7 @@ export function App() {
 
   const handleEmergencyStop = async () => {
     try {
+      await api.emergencyStopTrading().catch(() => null);
       await api.submitCommand({
         command_id: `kill-${Date.now()}`,
         type: 'EMERGENCY_KILL',
