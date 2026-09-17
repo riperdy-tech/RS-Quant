@@ -34,10 +34,13 @@ from quantdesk.venues.bitget_uta.auth import Credentials
 from quantdesk.venues.bitget_uta.normalize import (
     Normalizer,
     VenueObservation,
+    audit_json,
     decimal,
     identifier,
     instrument,
     timestamp,
+    wire_object,
+    wire_rows,
 )
 from quantdesk.venues.bitget_uta.orders import client_id, order_request
 from quantdesk.venues.bitget_uta.private_ws import Socket, StreamSession, websocket_connect
@@ -317,15 +320,24 @@ class BitgetUTAAdapter:
     def normalize_stream(
         self, observation: Observation, *, private: bool
     ) -> tuple[IncomingEvent, ...]:
-        data = observation.data
-        arg = data["arg"]
-        topic = arg["topic"]
-        if arg["instType"] != ("UTA" if private else "usdt-futures"):
+        data = wire_object(observation.data)
+        arg = wire_object(data["arg"])
+        topic = identifier(arg["topic"])
+        topics = (
+            {"order", "fill", "account", "position"}
+            if private
+            else {"books", "books1", "books5", "books50", "publicTrade", "ticker"}
+        )
+        if topic not in topics:
+            raise ValueError("unknown or unsupported stream topic")
+        if identifier(arg["instType"]) != ("UTA" if private else "usdt-futures"):
             raise ValueError("stream product mismatch")
+        rows = wire_rows(data["data"])
+        arg_symbol = identifier(arg["symbol"]) if "symbol" in arg else None
         events: list[IncomingEvent] = []
-        for row in data["data"]:
-            symbol = row.get("symbol", arg.get("symbol"))
-            spec = self.normalizer.specs.get(symbol)
+        for row in rows:
+            symbol = identifier(row["symbol"]) if "symbol" in row else arg_symbol
+            spec = self.normalizer.specs.get(symbol) if symbol is not None else None
             instrument_id = spec.instrument_id if spec else None
             payloads: list[EventPayload] = []
             if topic == "order":
@@ -335,9 +347,10 @@ class BitgetUTAAdapter:
                     VenueObservation(
                         "order-metadata",
                         identifier(row["orderId"]),
-                        json.dumps(row, sort_keys=True),
+                        audit_json(row, observation.raw_ref),
                         "LIQUIDATION_OR_ADL"
-                        if row.get("execType") in {"liquidation", "reduce", "offset"}
+                        if "execType" in row
+                        and identifier(row["execType"]) in {"liquidation", "reduce", "offset"}
                         else None,
                     )
                 )
@@ -346,18 +359,20 @@ class BitgetUTAAdapter:
             elif topic in {"account", "position"}:
                 payloads.append(
                     VenueObservation(
-                        topic, str(observation.receive_seq), json.dumps(row, sort_keys=True)
+                        topic, str(observation.receive_seq), audit_json(row, observation.raw_ref)
                     )
                 )
             elif topic.startswith("books"):
-                payloads.append(self.normalizer.book(symbol, topic, data["action"], row))
+                payloads.append(
+                    self.normalizer.book(identifier(symbol), topic, identifier(data["action"]), row)
+                )
             elif topic == "publicTrade" and spec:
                 payloads.append(
                     Trade(
                         identifier(row["i"]),
                         spec.price_to_ticks(decimal(row["p"])),
                         spec.quantity_to_lots(decimal(row["v"])),
-                        Side(row["S"].upper()),
+                        Side(identifier(row["S"]).upper()),
                         tuple((key, identifier(row[key])) for key in ("L", "isRPI") if key in row),
                     )
                 )
@@ -630,15 +645,19 @@ class BitgetUTAAdapter:
             assets.receive_ns,
         )
         protected: set[str] = set()
-        protective_rows = []
+        protective_rows: list[str] = []
         native_protection: list[NativeProtection] = []
+        invalid_groups: set[str] = set()
+        protected_groups: dict[str, str] = {}
         protection_pages = await self.read_protection()
         native_sources: dict[str, Observation] = {}
         for page in protection_pages:
             evidence.append(page.raw_ref)
-            protective_rows.extend(page.data)
-            for row_index, row in enumerate(page.data):
+            for row_index, value in enumerate(page.data):
+                audit = audit_json(value, page.raw_ref)
+                protective_rows.append(audit)
                 try:
+                    row = wire_object(value)
                     native = identifier(row["orderId"])
                 except (KeyError, TypeError, ValueError):
                     native = f"unidentified:{page.receive_seq}:{row_index}"
@@ -656,7 +675,7 @@ class BitgetUTAAdapter:
                         VenueObservation(
                             "protection",
                             native,
-                            json.dumps(row, sort_keys=True),
+                            audit,
                             "FOREIGN_OR_UNVERIFIED_PROTECTION",
                         ),
                         page,
@@ -665,6 +684,7 @@ class BitgetUTAAdapter:
                 order = candidates[0]
                 native_sources[order.protection_group_id or ""] = page
                 try:
+                    row = wire_object(value)
                     spec = self.normalizer.spec(row)
                     native_lots = spec.quantity_to_lots(decimal(row["qty"]))
                     trigger = decimal(row["stopLoss"])
@@ -698,11 +718,12 @@ class BitgetUTAAdapter:
                     )
                 except (KeyError, ValueError, TypeError):
                     reasons.add("PROTECTION_UNVERIFIED")
+                    invalid_groups.add(order.protection_group_id or "")
                     observe(
                         VenueObservation(
                             "protection",
                             native,
-                            json.dumps(row, sort_keys=True),
+                            audit,
                             "PROTECTION_UNVERIFIED",
                         ),
                         page,
@@ -713,7 +734,7 @@ class BitgetUTAAdapter:
                     VenueObservation(
                         "protection",
                         native,
-                        json.dumps(row, sort_keys=True),
+                        audit,
                         None if safe and status == "pending" else "PROTECTION_UNVERIFIED",
                     ),
                     page,
@@ -733,13 +754,23 @@ class BitgetUTAAdapter:
                     and trigger == order.native_trigger_value
                     and native_lots == lots
                 ):
-                    protected.add(spec.instrument_id)
+                    protected_groups[order.protection_group_id or ""] = spec.instrument_id
+        # A malformed bound row invalidates the group's complete evidence set.
+        # A duplicate/replacement good leg cannot erase uncertainty in that set.
+        usable_protection = tuple(
+            leg for leg in native_protection if leg.group_id not in invalid_groups
+        )
+        protected.update(
+            instrument_id
+            for group, instrument_id in protected_groups.items()
+            if group not in invalid_groups
+        )
         for order in original_orders:
             if order.protection_group_id and not order.reduce_only:
                 observe(
                     ProtectionReview(
                         order.protection_group_id,
-                        tuple(native_protection),
+                        usable_protection,
                         self.clock(),
                         False,
                         bool(self.protection_capability_evidence),

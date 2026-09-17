@@ -52,9 +52,40 @@ def decimal(value: object) -> Decimal:
 
 
 def identifier(value: object) -> str:
-    if not isinstance(value, str) or not value or len(value) > 256:
+    if (
+        not isinstance(value, str)
+        or not value
+        or len(value) > 256
+        or any(0xD800 <= ord(char) <= 0xDFFF for char in value)
+    ):
         raise ValueError("native identifier must be a nonempty string")
     return value
+
+
+def wire_object(value: object) -> dict[str, Any]:
+    """JSON containers are checked before any field access or normalization."""
+    if not isinstance(value, dict):
+        raise ValueError("wire object required")
+    return value
+
+
+def wire_rows(value: object) -> tuple[dict[str, Any], ...]:
+    if not isinstance(value, list):
+        raise ValueError("wire row array required")
+    return tuple(wire_object(row) for row in value)
+
+
+def audit_json(value: object, raw_ref: str) -> str:
+    """Keep arbitrary decoded JSON outside canonical serialization.
+
+    ASCII escapes preserve lone surrogates; nonfinite parser results remain
+    explicit JSON audit tokens, never financial numbers. The durable raw frame
+    remains authoritative, including for inputs beyond the serializer depth.
+    """
+    try:
+        return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+    except RecursionError:
+        return json.dumps({"raw_ref": raw_ref, "reason": "AUDIT_JSON_DEPTH_LIMIT"})
 
 
 def instrument(data: Mapping[str, Any], known_ns: int) -> InstrumentSpec:
@@ -101,7 +132,7 @@ class Normalizer:
         self.specs = {s.instrument_id.split(":")[-1]: s for s in specs}
 
     def spec(self, row: Mapping[str, Any]) -> InstrumentSpec:
-        if str(row["category"]).upper() != "USDT-FUTURES":
+        if identifier(row["category"]).upper() != "USDT-FUTURES":
             raise ValueError("unsupported observed product")
         return self.specs[identifier(row["symbol"])]
 
@@ -115,12 +146,13 @@ class Normalizer:
             "cancelled": "CANCELED",
             "canceled": "CANCELED",
         }
-        if row["orderStatus"] not in statuses:
+        status = identifier(row["orderStatus"])
+        if status not in statuses:
             raise ValueError("unknown order status")
         return OrderReport(
             identifier(row["clientOid"]),
             identifier(row["orderId"]),
-            statuses[row["orderStatus"]],
+            statuses[status],
             spec.quantity_to_lots(decimal(row["cumExecQty"])),
             timestamp(row["updatedTime"]),
         )
@@ -182,10 +214,10 @@ class Normalizer:
                 "stopLoss", lambda v: trigger_contract_value(decimal(v))
             ),
             "stop_trigger_basis": attached(
-                "slTriggerBy", lambda v: {"mark": "MARK", "market": "LAST"}[v]
+                "slTriggerBy", lambda v: {"mark": "MARK", "market": "LAST"}[identifier(v)]
             ),
             "stop_order_type": attached(
-                "slOrderType", lambda v: {"market": "MARKET", "limit": "LIMIT"}[v]
+                "slOrderType", lambda v: {"market": "MARKET", "limit": "LIMIT"}[identifier(v)]
             ),
         }
         expected = order_contract_terms(instruction) if instruction else {}
@@ -206,13 +238,13 @@ class Normalizer:
         fees = row["feeDetail"]
         if not isinstance(fees, list) or len(fees) != 1:
             raise ValueError("one explicitly reported fee currency required")
-        fee = fees[0]
-        scope = row.get("tradeScope")
+        fee = wire_object(fees[0])
+        scope = identifier(row.get("tradeScope"))
         if scope not in {"maker", "taker"}:
             raise ValueError("unknown liquidity role")
         return ExecutionReport(
             identifier(row["execId"]),
-            row.get("clientOid") or None,
+            identifier(row["clientOid"]) if row.get("clientOid") not in (None, "") else None,
             identifier(row["orderId"]),
             Side(identifier(row["side"]).upper()),
             spec.quantity_to_lots(decimal(row["execQty"])),

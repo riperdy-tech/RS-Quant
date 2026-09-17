@@ -6,7 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from quantdesk.core.engine import Engine
+from quantdesk.core.engine import Engine, EngineMode
 from quantdesk.core.events import (
     IncomingEvent,
     OrderInstruction,
@@ -52,7 +52,7 @@ def instruction(client="client", **changes):
 
 
 class AccountCase:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, mode: EngineMode = EngineMode.DEMO):
         self.db = Database(path / "engine.sqlite")
         self.store = EventStore(self.db)
         self.journal = RawJournal(path / "raw")
@@ -70,6 +70,7 @@ class AccountCase:
                     LedgerState("fixture", "DEMO", "demo"),
                 ),
             ),
+            mode=mode,
             code_hash="oms-v1",
             schema_hash="oms-v1",
         )

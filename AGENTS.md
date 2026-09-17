@@ -4,6 +4,7 @@ The authoritative product and implementation specification is [docs/IMPLEMENTATI
 
 Essential rules:
 
+- STRICT COMPLIANCE: I must strictly follow the implementation plan requirements on each task TO THE WORD. I will not deviate from it, cut corners, mock core functionality to speed up the process, or invent new unapproved architectures on my own.
 - Preserve deterministic single-writer event processing, append-only audit history, exact Decimal financial arithmetic, idempotent economic effects, atomic event/ledger/outbox commits, and strict venue/core separation.
 - Default to DEMO and fail closed. Never enable LIVE, place mainnet orders, alter exchange settings, request production credentials, or treat unavailable external checks as passed.
 - Use boundary fakes only for external systems. Strategies, reducers, OMS, ledger, risk, replay, simulator, API, and browser workflows must exercise real local components.

@@ -1,0 +1,31 @@
+[Unit]
+Description=QuantDesk Trading Engine and Control Plane (§16.3)
+After=network.target local-fs.target
+Documentation=https://github.com/rs-quant/quantdesk
+
+[Service]
+Type=simple
+User=quantdesk
+Group=quantdesk
+WorkingDirectory=/opt/quantdesk
+ExecStart=/opt/quantdesk/.venv/bin/python -m uvicorn quantdesk.api.app:create_app --factory --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5s
+
+# Process and file security hardening
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/quantdesk /var/log/quantdesk
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictRealtime=true
+
+# Environment and limits
+LimitNOFILE=65536
+Environment=QUANTDESK_MODE=DEMO
+Environment=QUANTDESK_DATA_DIR=/var/lib/quantdesk
+
+[Install]
+WantedBy=multi-user.target

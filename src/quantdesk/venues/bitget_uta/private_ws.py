@@ -13,6 +13,7 @@ from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed
 
 from quantdesk.venues.bitget_uta.auth import login
+from quantdesk.venues.bitget_uta.normalize import wire_object
 from quantdesk.venues.bitget_uta.rest import Observation, RestClient, VenueError
 
 
@@ -115,7 +116,7 @@ class StreamSession:
                 login(self.rest.credentials, self.rest.clock() // 1_000_000), capture=False
             )
             async with asyncio.timeout(10):
-                result = json.loads(await self.socket.recv())
+                result = wire_object(json.loads(await self.socket.recv()))
             if result.get("event") != "login" or result.get("code") != "0":
                 await self.close()
                 raise VenueError("WS_LOGIN_FAILED", "AUTH")
@@ -124,7 +125,7 @@ class StreamSession:
         async with asyncio.timeout(10):
             while expected:
                 message = await self.read()
-                data = message.data
+                data = wire_object(message.data)
                 if data.get("event") == "error":
                     raise VenueError("WS_SUBSCRIBE_FAILED", "AUTH")
                 if data.get("event") == "subscribe":
@@ -163,8 +164,6 @@ class StreamSession:
             epoch=str(self.epoch),
         )
         value = {"pong": True} if body == b"pong" else json.loads(body)
-        if not isinstance(value, dict):
-            raise ValueError("WS message must be object")
         return Observation(value, ref, now, seq, None, str(self.epoch), self.rest.last_monotonic_ns)
 
     def add(self, observation: Observation) -> None:
@@ -198,12 +197,13 @@ class StreamSession:
                         value = await self.read()
                 except TimeoutError:
                     continue
-                if value.data.get("pong"):
+                data = value.data
+                if data == {"pong": True}:
                     self.last_pong_ns = value.receive_ns
                     pong_deadline = None
-                elif value.data.get("event") == "error":
+                elif isinstance(data, dict) and data.get("event") == "error":
                     raise ConnectionError("WS_ERROR")
-                elif "event" not in value.data:
+                elif not isinstance(data, dict) or "event" not in data:
                     self.add(value)
         except asyncio.CancelledError:
             raise

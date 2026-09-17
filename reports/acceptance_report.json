@@ -1,0 +1,69 @@
+{
+  "timestamp_utc": "2026-09-16T14:53:10Z",
+  "platform": {
+    "system": "Windows",
+    "release": "11",
+    "machine": "AMD64",
+    "python_version": "3.12.10"
+  },
+  "overall_status": "PASS",
+  "total_duration_seconds": 352.5,
+  "suites": {
+    "Foundation & Invariants": {
+      "passed": true,
+      "exit_code": 0,
+      "duration_seconds": 17.827
+    },
+    "Property Invariants": {
+      "passed": true,
+      "exit_code": 0,
+      "duration_seconds": 17.794
+    },
+    "Deterministic Replay": {
+      "passed": true,
+      "exit_code": 0,
+      "duration_seconds": 9.305
+    },
+    "Integration (Security & Supervisor)": {
+      "passed": true,
+      "exit_code": 0,
+      "duration_seconds": 9.61
+    },
+    "Fault Injection & Crashes": {
+      "passed": true,
+      "exit_code": 0,
+      "duration_seconds": 259.293
+    },
+    "Performance & Load": {
+      "passed": true,
+      "exit_code": 0,
+      "duration_seconds": 38.667
+    }
+  },
+  "gates": {
+    "G0_OfflineBuild": {
+      "status": "PASS",
+      "evidence": "All unit, property, replay, fault, integration, and performance tests verified locally"
+    },
+    "G1_PublicPaper": {
+      "status": "NOT_RUN",
+      "evidence": "Requires 24 hours of continuous public feed recording on target symbols"
+    },
+    "G2_VenueProtocol": {
+      "status": "PASS",
+      "evidence": "Bitget UTA V3 book reconstruction, idempotency, order recovery, and native protection verified via deterministic emulator and contracts"
+    },
+    "G3_ResearchShadow": {
+      "status": "NOT_RUN",
+      "evidence": "Requires 7 calendar days shadow/paper and 200+ qualified decisions"
+    },
+    "G4_TinyLive": {
+      "status": "BLOCKED",
+      "evidence": "Requires dedicated isolated Bitget UTA account credentials and manual operator LIVE arming"
+    },
+    "G5_BroaderLive": {
+      "status": "BLOCKED",
+      "evidence": "Requires multi-week operational review of tiny live fills and risk reconciliation"
+    }
+  }
+}

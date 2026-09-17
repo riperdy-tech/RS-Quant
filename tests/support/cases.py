@@ -64,6 +64,31 @@ register_case("foundation", _foundation_case)
 register_case("accounting_worked_example", accounting_worked_example_case)
 register_case("partial_fill_cancel_race", partial_fill_cancel_race_case)
 register_case("book_gap_and_rebuild", book_gap_and_rebuild_case)
+from tests.support.protection_case import kill_with_venue_outage_case
+
+register_case("kill_with_venue_outage", kill_with_venue_outage_case)
+from tests.support.feature_case import causal_prefix_case, rule_strategies_case
+
+register_case("causal_prefix", causal_prefix_case)
+register_case("rule_strategies", rule_strategies_case)
+from tests.support.sim_case import passive_queue_case
+
+register_case("passive_queue", passive_queue_case)
+from tests.support.backtest_case import backtest_and_purged_folds_case
+
+register_case("backtest_and_purged_folds", backtest_and_purged_folds_case)
+from tests.support.api_case import api_duplicate_command_case
+
+register_case("api_duplicate_command", api_duplicate_command_case)
+from tests.support.supervisor_case import launcher_second_instance_and_restore_case
+
+register_case("launcher_second_instance_and_restore", launcher_second_instance_and_restore_case)
+from tests.support.ml_case import drift_rejected_candidate_case
+
+register_case("drift_rejected_candidate", drift_rejected_candidate_case)
+from tests.support.crash_case import crash_after_send_before_response_case
+
+register_case("crash_after_send_before_response", crash_after_send_before_response_case)
 
 
 def _crash_before_commit_case(**overrides: object) -> dict[str, object]:

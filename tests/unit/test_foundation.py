@@ -10,6 +10,9 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+import quantdesk.execution.protection
+import quantdesk.execution.reconciliation
+import quantdesk.venues.bitget_uta.normalize  # noqa: F401
 from quantdesk.config.loader import ConfigError, load_config
 from quantdesk.config.schema import AccountConfig, Mode
 from quantdesk.core.clock import SystemClock, VirtualClock
@@ -73,6 +76,11 @@ REQUIRED_PAYLOAD_TYPES = {
     "SimulatedLiquidationTriggered",
     "CheckpointWritten",
     "RunBoundary",
+    "RecoveryProgress",
+    "OrderContractObserved",
+    "VenueObservation",
+    "ProtectionReview",
+    "ProtectionActionsRequired",
 }
 
 PAYLOAD_CONTRACTS = {
@@ -244,6 +252,11 @@ PAYLOAD_CONTRACTS = {
     "DispatchStarted": {"instruction_id", "attempt_id"},
     "CancelAttemptObserved": {"instruction_id", "result"},
     "UnsentAborted": {"instruction_id", "reason"},
+    "RecoveryProgress": {"status", "cursor_ms", "observation_ids", "reasons", "observations"},
+    "OrderContractObserved": {"client_order_id", "venue_order_id", "instruction_id", "observed", "expected", "discrepancies"},
+    "VenueObservation": {"kind", "native_id", "json_data", "reason"},
+    "ProtectionReview": {"group_id", "native_orders", "observed_ns", "verified_flat", "capability_verified", "restoration_supported"},
+    "ProtectionActionsRequired": {"group_id", "instrument_id", "desired_lots", "actions", "observed_ns"},
 }
 
 

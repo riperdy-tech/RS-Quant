@@ -1,9 +1,9 @@
 # QuantDesk implementation status
 
-Implementation is in progress. See [BUILD_STATUS.md](BUILD_STATUS.md) for task-by-task commands and evidence and [DECISIONS.md](DECISIONS.md) for material rulings.
+Implementation is in progress. See [BUILD_STATUS.md](BUILD_STATUS.md) for task-by-task commands and evidence, [DECISIONS.md](DECISIONS.md) for material rulings, and [ACCEPTANCE.md](ACCEPTANCE.md) for observed performance metrics and fault validation.
 
-- Completed: Tasks 01–06 — deterministic platform/data, exact accounting, and shared OMS/routing with idempotent fenced dispatch
-- Current task: Task 07 — Bitget UTA V3 connector, private recovery, reconciliation, and native protection
-- Default/live state: DEMO; LIVE disabled
+- Completed: Tasks 01–18 (ALL TASKS COMPLETE) — deterministic platform/data, exact accounting, shared OMS/routing with idempotent fenced dispatch, Bitget UTA V3 connector, §11 risk controls/emergency recovery, §12 incremental features and four rule strategies, §14 high-fidelity execution simulator, §13/§14.5 backtest orchestration, metrics, ML row labeling, purged walk-forward splits, §13.2/§13.3 bounded LightGBM training, model governance registry, PSI drift monitoring, hybrid strategy gating, §15 FastAPI control plane, read models, command inbox, process-isolated research jobs, security/RBAC, 10-page browser workspace workflows, Task 16 integrated fault-injection matrix, correlation tracing, metrics percentiles, incident timeline, redacted diagnostic exporter, performance load/burst benchmarks, Task 17 desktop graphical launcher, single-instance activation (`OPEN_EXISTING_DASHBOARD`), exclusive OS directory locks, ownership epochs, engine heartbeat watchdog, visible error recovery without PowerShell, consistent encrypted backup/restore, retention policies with deletion preview, Windows packaging spec, Inno Setup installer, Linux container/compose deployment, and Task 18 full acceptance profile, comprehensive README, machine-readable acceptance report, zero-mock test suite validation, and operator handoff.
+- Next task: None. Full implementation plan execution is complete.
+- Default/live state: DEMO; LIVE disabled fail-closed.
 - Preflight: complete; architecture and current Bitget documentation conflicts ruled conservatively
 - External checks: Bitget credentials/sandbox, physical power-loss durability, Windows ACL/key-store integration, timed paper/shadow gates, and all live readiness remain pending

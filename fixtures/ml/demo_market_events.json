@@ -1,0 +1,5402 @@
+[
+  {
+    "event_id": "quote-0",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000000000000000,
+    "received_ns": 1700000000010000000,
+    "available_ns": 1700000000020000000,
+    "engine_seq": 1,
+    "correlation_id": "q-0",
+    "causality_token": "tok-0",
+    "payload": {
+      "bid_price_ticks": 50024,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50026,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-1",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000001000000000,
+    "received_ns": 1700000001010000000,
+    "available_ns": 1700000001020000000,
+    "engine_seq": 2,
+    "correlation_id": "q-1",
+    "causality_token": "tok-1",
+    "payload": {
+      "bid_price_ticks": 50039,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50041,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-2",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000002000000000,
+    "received_ns": 1700000002010000000,
+    "available_ns": 1700000002020000000,
+    "engine_seq": 3,
+    "correlation_id": "q-2",
+    "causality_token": "tok-2",
+    "payload": {
+      "bid_price_ticks": 50054,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50056,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-3",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000003000000000,
+    "received_ns": 1700000003010000000,
+    "available_ns": 1700000003020000000,
+    "engine_seq": 4,
+    "correlation_id": "q-3",
+    "causality_token": "tok-3",
+    "payload": {
+      "bid_price_ticks": 50079,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50081,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-4",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000004000000000,
+    "received_ns": 1700000004010000000,
+    "available_ns": 1700000004020000000,
+    "engine_seq": 5,
+    "correlation_id": "q-4",
+    "causality_token": "tok-4",
+    "payload": {
+      "bid_price_ticks": 50094,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50096,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-5",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000005000000000,
+    "received_ns": 1700000005010000000,
+    "available_ns": 1700000005020000000,
+    "engine_seq": 6,
+    "correlation_id": "q-5",
+    "causality_token": "tok-5",
+    "payload": {
+      "bid_price_ticks": 50109,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50111,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-6",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000006000000000,
+    "received_ns": 1700000006010000000,
+    "available_ns": 1700000006020000000,
+    "engine_seq": 7,
+    "correlation_id": "q-6",
+    "causality_token": "tok-6",
+    "payload": {
+      "bid_price_ticks": 50134,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50136,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-7",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000007000000000,
+    "received_ns": 1700000007010000000,
+    "available_ns": 1700000007020000000,
+    "engine_seq": 8,
+    "correlation_id": "q-7",
+    "causality_token": "tok-7",
+    "payload": {
+      "bid_price_ticks": 50149,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50151,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-8",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000008000000000,
+    "received_ns": 1700000008010000000,
+    "available_ns": 1700000008020000000,
+    "engine_seq": 9,
+    "correlation_id": "q-8",
+    "causality_token": "tok-8",
+    "payload": {
+      "bid_price_ticks": 50164,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50166,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-9",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000009000000000,
+    "received_ns": 1700000009010000000,
+    "available_ns": 1700000009020000000,
+    "engine_seq": 10,
+    "correlation_id": "q-9",
+    "causality_token": "tok-9",
+    "payload": {
+      "bid_price_ticks": 50189,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50191,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-0",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000009000000000,
+    "received_ns": 1700000009010000000,
+    "available_ns": 1700000009020000000,
+    "engine_seq": 1009,
+    "correlation_id": "b-0",
+    "causality_token": "tok-bar-9",
+    "payload": {
+      "start_ns": 1699999999000000000,
+      "end_ns": 1700000009000000000,
+      "open_ticks": 50065,
+      "high_ticks": 50220,
+      "low_ticks": 50160,
+      "close_ticks": 50190,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-10",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000010000000000,
+    "received_ns": 1700000010010000000,
+    "available_ns": 1700000010020000000,
+    "engine_seq": 11,
+    "correlation_id": "q-10",
+    "causality_token": "tok-10",
+    "payload": {
+      "bid_price_ticks": 50204,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50206,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-11",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000011000000000,
+    "received_ns": 1700000011010000000,
+    "available_ns": 1700000011020000000,
+    "engine_seq": 12,
+    "correlation_id": "q-11",
+    "causality_token": "tok-11",
+    "payload": {
+      "bid_price_ticks": 50219,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50221,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-12",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000012000000000,
+    "received_ns": 1700000012010000000,
+    "available_ns": 1700000012020000000,
+    "engine_seq": 13,
+    "correlation_id": "q-12",
+    "causality_token": "tok-12",
+    "payload": {
+      "bid_price_ticks": 50244,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50246,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-13",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000013000000000,
+    "received_ns": 1700000013010000000,
+    "available_ns": 1700000013020000000,
+    "engine_seq": 14,
+    "correlation_id": "q-13",
+    "causality_token": "tok-13",
+    "payload": {
+      "bid_price_ticks": 50259,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50261,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-14",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000014000000000,
+    "received_ns": 1700000014010000000,
+    "available_ns": 1700000014020000000,
+    "engine_seq": 15,
+    "correlation_id": "q-14",
+    "causality_token": "tok-14",
+    "payload": {
+      "bid_price_ticks": 50274,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50276,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-15",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000015000000000,
+    "received_ns": 1700000015010000000,
+    "available_ns": 1700000015020000000,
+    "engine_seq": 16,
+    "correlation_id": "q-15",
+    "causality_token": "tok-15",
+    "payload": {
+      "bid_price_ticks": 50299,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50301,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-16",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000016000000000,
+    "received_ns": 1700000016010000000,
+    "available_ns": 1700000016020000000,
+    "engine_seq": 17,
+    "correlation_id": "q-16",
+    "causality_token": "tok-16",
+    "payload": {
+      "bid_price_ticks": 50314,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50316,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-17",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000017000000000,
+    "received_ns": 1700000017010000000,
+    "available_ns": 1700000017020000000,
+    "engine_seq": 18,
+    "correlation_id": "q-17",
+    "causality_token": "tok-17",
+    "payload": {
+      "bid_price_ticks": 50329,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50331,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-18",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000018000000000,
+    "received_ns": 1700000018010000000,
+    "available_ns": 1700000018020000000,
+    "engine_seq": 19,
+    "correlation_id": "q-18",
+    "causality_token": "tok-18",
+    "payload": {
+      "bid_price_ticks": 50354,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50356,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-19",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000019000000000,
+    "received_ns": 1700000019010000000,
+    "available_ns": 1700000019020000000,
+    "engine_seq": 20,
+    "correlation_id": "q-19",
+    "causality_token": "tok-19",
+    "payload": {
+      "bid_price_ticks": 50369,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50371,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-1",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000019000000000,
+    "received_ns": 1700000019010000000,
+    "available_ns": 1700000019020000000,
+    "engine_seq": 1019,
+    "correlation_id": "b-1",
+    "causality_token": "tok-bar-19",
+    "payload": {
+      "start_ns": 1700000009000000000,
+      "end_ns": 1700000019000000000,
+      "open_ticks": 50295,
+      "high_ticks": 50400,
+      "low_ticks": 50340,
+      "close_ticks": 50370,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-20",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000020000000000,
+    "received_ns": 1700000020010000000,
+    "available_ns": 1700000020020000000,
+    "engine_seq": 21,
+    "correlation_id": "q-20",
+    "causality_token": "tok-20",
+    "payload": {
+      "bid_price_ticks": 50344,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50346,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-21",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000021000000000,
+    "received_ns": 1700000021010000000,
+    "available_ns": 1700000021020000000,
+    "engine_seq": 22,
+    "correlation_id": "q-21",
+    "causality_token": "tok-21",
+    "payload": {
+      "bid_price_ticks": 50329,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50331,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-22",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000022000000000,
+    "received_ns": 1700000022010000000,
+    "available_ns": 1700000022020000000,
+    "engine_seq": 23,
+    "correlation_id": "q-22",
+    "causality_token": "tok-22",
+    "payload": {
+      "bid_price_ticks": 50304,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50306,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-23",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000023000000000,
+    "received_ns": 1700000023010000000,
+    "available_ns": 1700000023020000000,
+    "engine_seq": 24,
+    "correlation_id": "q-23",
+    "causality_token": "tok-23",
+    "payload": {
+      "bid_price_ticks": 50279,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50281,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-24",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000024000000000,
+    "received_ns": 1700000024010000000,
+    "available_ns": 1700000024020000000,
+    "engine_seq": 25,
+    "correlation_id": "q-24",
+    "causality_token": "tok-24",
+    "payload": {
+      "bid_price_ticks": 50264,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50266,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-25",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000025000000000,
+    "received_ns": 1700000025010000000,
+    "available_ns": 1700000025020000000,
+    "engine_seq": 26,
+    "correlation_id": "q-25",
+    "causality_token": "tok-25",
+    "payload": {
+      "bid_price_ticks": 50239,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50241,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-26",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000026000000000,
+    "received_ns": 1700000026010000000,
+    "available_ns": 1700000026020000000,
+    "engine_seq": 27,
+    "correlation_id": "q-26",
+    "causality_token": "tok-26",
+    "payload": {
+      "bid_price_ticks": 50214,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50216,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-27",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000027000000000,
+    "received_ns": 1700000027010000000,
+    "available_ns": 1700000027020000000,
+    "engine_seq": 28,
+    "correlation_id": "q-27",
+    "causality_token": "tok-27",
+    "payload": {
+      "bid_price_ticks": 50199,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50201,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-28",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000028000000000,
+    "received_ns": 1700000028010000000,
+    "available_ns": 1700000028020000000,
+    "engine_seq": 29,
+    "correlation_id": "q-28",
+    "causality_token": "tok-28",
+    "payload": {
+      "bid_price_ticks": 50174,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50176,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-29",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000029000000000,
+    "received_ns": 1700000029010000000,
+    "available_ns": 1700000029020000000,
+    "engine_seq": 30,
+    "correlation_id": "q-29",
+    "causality_token": "tok-29",
+    "payload": {
+      "bid_price_ticks": 50149,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50151,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-2",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000029000000000,
+    "received_ns": 1700000029010000000,
+    "available_ns": 1700000029020000000,
+    "engine_seq": 1029,
+    "correlation_id": "b-2",
+    "causality_token": "tok-bar-29",
+    "payload": {
+      "start_ns": 1700000019000000000,
+      "end_ns": 1700000029000000000,
+      "open_ticks": 50275,
+      "high_ticks": 50180,
+      "low_ticks": 50120,
+      "close_ticks": 50150,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-30",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000030000000000,
+    "received_ns": 1700000030010000000,
+    "available_ns": 1700000030020000000,
+    "engine_seq": 31,
+    "correlation_id": "q-30",
+    "causality_token": "tok-30",
+    "payload": {
+      "bid_price_ticks": 50134,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50136,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-31",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000031000000000,
+    "received_ns": 1700000031010000000,
+    "available_ns": 1700000031020000000,
+    "engine_seq": 32,
+    "correlation_id": "q-31",
+    "causality_token": "tok-31",
+    "payload": {
+      "bid_price_ticks": 50109,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50111,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-32",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000032000000000,
+    "received_ns": 1700000032010000000,
+    "available_ns": 1700000032020000000,
+    "engine_seq": 33,
+    "correlation_id": "q-32",
+    "causality_token": "tok-32",
+    "payload": {
+      "bid_price_ticks": 50084,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50086,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-33",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000033000000000,
+    "received_ns": 1700000033010000000,
+    "available_ns": 1700000033020000000,
+    "engine_seq": 34,
+    "correlation_id": "q-33",
+    "causality_token": "tok-33",
+    "payload": {
+      "bid_price_ticks": 50069,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50071,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-34",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000034000000000,
+    "received_ns": 1700000034010000000,
+    "available_ns": 1700000034020000000,
+    "engine_seq": 35,
+    "correlation_id": "q-34",
+    "causality_token": "tok-34",
+    "payload": {
+      "bid_price_ticks": 50044,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50046,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-35",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000035000000000,
+    "received_ns": 1700000035010000000,
+    "available_ns": 1700000035020000000,
+    "engine_seq": 36,
+    "correlation_id": "q-35",
+    "causality_token": "tok-35",
+    "payload": {
+      "bid_price_ticks": 50019,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50021,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-36",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000036000000000,
+    "received_ns": 1700000036010000000,
+    "available_ns": 1700000036020000000,
+    "engine_seq": 37,
+    "correlation_id": "q-36",
+    "causality_token": "tok-36",
+    "payload": {
+      "bid_price_ticks": 50004,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50006,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-37",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000037000000000,
+    "received_ns": 1700000037010000000,
+    "available_ns": 1700000037020000000,
+    "engine_seq": 38,
+    "correlation_id": "q-37",
+    "causality_token": "tok-37",
+    "payload": {
+      "bid_price_ticks": 49979,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49981,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-38",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000038000000000,
+    "received_ns": 1700000038010000000,
+    "available_ns": 1700000038020000000,
+    "engine_seq": 39,
+    "correlation_id": "q-38",
+    "causality_token": "tok-38",
+    "payload": {
+      "bid_price_ticks": 49954,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49956,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-39",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000039000000000,
+    "received_ns": 1700000039010000000,
+    "available_ns": 1700000039020000000,
+    "engine_seq": 40,
+    "correlation_id": "q-39",
+    "causality_token": "tok-39",
+    "payload": {
+      "bid_price_ticks": 49939,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49941,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-3",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000039000000000,
+    "received_ns": 1700000039010000000,
+    "available_ns": 1700000039020000000,
+    "engine_seq": 1039,
+    "correlation_id": "b-3",
+    "causality_token": "tok-bar-39",
+    "payload": {
+      "start_ns": 1700000029000000000,
+      "end_ns": 1700000039000000000,
+      "open_ticks": 50015,
+      "high_ticks": 49970,
+      "low_ticks": 49910,
+      "close_ticks": 49940,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-40",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000040000000000,
+    "received_ns": 1700000040010000000,
+    "available_ns": 1700000040020000000,
+    "engine_seq": 41,
+    "correlation_id": "q-40",
+    "causality_token": "tok-40",
+    "payload": {
+      "bid_price_ticks": 49954,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49956,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-41",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000041000000000,
+    "received_ns": 1700000041010000000,
+    "available_ns": 1700000041020000000,
+    "engine_seq": 42,
+    "correlation_id": "q-41",
+    "causality_token": "tok-41",
+    "payload": {
+      "bid_price_ticks": 49969,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49971,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-42",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000042000000000,
+    "received_ns": 1700000042010000000,
+    "available_ns": 1700000042020000000,
+    "engine_seq": 43,
+    "correlation_id": "q-42",
+    "causality_token": "tok-42",
+    "payload": {
+      "bid_price_ticks": 49994,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49996,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-43",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000043000000000,
+    "received_ns": 1700000043010000000,
+    "available_ns": 1700000043020000000,
+    "engine_seq": 44,
+    "correlation_id": "q-43",
+    "causality_token": "tok-43",
+    "payload": {
+      "bid_price_ticks": 50009,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50011,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-44",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000044000000000,
+    "received_ns": 1700000044010000000,
+    "available_ns": 1700000044020000000,
+    "engine_seq": 45,
+    "correlation_id": "q-44",
+    "causality_token": "tok-44",
+    "payload": {
+      "bid_price_ticks": 50024,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50026,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-45",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000045000000000,
+    "received_ns": 1700000045010000000,
+    "available_ns": 1700000045020000000,
+    "engine_seq": 46,
+    "correlation_id": "q-45",
+    "causality_token": "tok-45",
+    "payload": {
+      "bid_price_ticks": 50049,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50051,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-46",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000046000000000,
+    "received_ns": 1700000046010000000,
+    "available_ns": 1700000046020000000,
+    "engine_seq": 47,
+    "correlation_id": "q-46",
+    "causality_token": "tok-46",
+    "payload": {
+      "bid_price_ticks": 50064,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50066,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-47",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000047000000000,
+    "received_ns": 1700000047010000000,
+    "available_ns": 1700000047020000000,
+    "engine_seq": 48,
+    "correlation_id": "q-47",
+    "causality_token": "tok-47",
+    "payload": {
+      "bid_price_ticks": 50079,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50081,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-48",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000048000000000,
+    "received_ns": 1700000048010000000,
+    "available_ns": 1700000048020000000,
+    "engine_seq": 49,
+    "correlation_id": "q-48",
+    "causality_token": "tok-48",
+    "payload": {
+      "bid_price_ticks": 50104,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50106,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-49",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000049000000000,
+    "received_ns": 1700000049010000000,
+    "available_ns": 1700000049020000000,
+    "engine_seq": 50,
+    "correlation_id": "q-49",
+    "causality_token": "tok-49",
+    "payload": {
+      "bid_price_ticks": 50119,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50121,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-4",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000049000000000,
+    "received_ns": 1700000049010000000,
+    "available_ns": 1700000049020000000,
+    "engine_seq": 1049,
+    "correlation_id": "b-4",
+    "causality_token": "tok-bar-49",
+    "payload": {
+      "start_ns": 1700000039000000000,
+      "end_ns": 1700000049000000000,
+      "open_ticks": 50045,
+      "high_ticks": 50150,
+      "low_ticks": 50090,
+      "close_ticks": 50120,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-50",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000050000000000,
+    "received_ns": 1700000050010000000,
+    "available_ns": 1700000050020000000,
+    "engine_seq": 51,
+    "correlation_id": "q-50",
+    "causality_token": "tok-50",
+    "payload": {
+      "bid_price_ticks": 50134,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50136,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-51",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000051000000000,
+    "received_ns": 1700000051010000000,
+    "available_ns": 1700000051020000000,
+    "engine_seq": 52,
+    "correlation_id": "q-51",
+    "causality_token": "tok-51",
+    "payload": {
+      "bid_price_ticks": 50159,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50161,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-52",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000052000000000,
+    "received_ns": 1700000052010000000,
+    "available_ns": 1700000052020000000,
+    "engine_seq": 53,
+    "correlation_id": "q-52",
+    "causality_token": "tok-52",
+    "payload": {
+      "bid_price_ticks": 50174,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50176,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-53",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000053000000000,
+    "received_ns": 1700000053010000000,
+    "available_ns": 1700000053020000000,
+    "engine_seq": 54,
+    "correlation_id": "q-53",
+    "causality_token": "tok-53",
+    "payload": {
+      "bid_price_ticks": 50189,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50191,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-54",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000054000000000,
+    "received_ns": 1700000054010000000,
+    "available_ns": 1700000054020000000,
+    "engine_seq": 55,
+    "correlation_id": "q-54",
+    "causality_token": "tok-54",
+    "payload": {
+      "bid_price_ticks": 50214,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50216,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-55",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000055000000000,
+    "received_ns": 1700000055010000000,
+    "available_ns": 1700000055020000000,
+    "engine_seq": 56,
+    "correlation_id": "q-55",
+    "causality_token": "tok-55",
+    "payload": {
+      "bid_price_ticks": 50229,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50231,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-56",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000056000000000,
+    "received_ns": 1700000056010000000,
+    "available_ns": 1700000056020000000,
+    "engine_seq": 57,
+    "correlation_id": "q-56",
+    "causality_token": "tok-56",
+    "payload": {
+      "bid_price_ticks": 50244,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50246,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-57",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000057000000000,
+    "received_ns": 1700000057010000000,
+    "available_ns": 1700000057020000000,
+    "engine_seq": 58,
+    "correlation_id": "q-57",
+    "causality_token": "tok-57",
+    "payload": {
+      "bid_price_ticks": 50269,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50271,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-58",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000058000000000,
+    "received_ns": 1700000058010000000,
+    "available_ns": 1700000058020000000,
+    "engine_seq": 59,
+    "correlation_id": "q-58",
+    "causality_token": "tok-58",
+    "payload": {
+      "bid_price_ticks": 50284,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50286,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-59",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000059000000000,
+    "received_ns": 1700000059010000000,
+    "available_ns": 1700000059020000000,
+    "engine_seq": 60,
+    "correlation_id": "q-59",
+    "causality_token": "tok-59",
+    "payload": {
+      "bid_price_ticks": 50299,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50301,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-5",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000059000000000,
+    "received_ns": 1700000059010000000,
+    "available_ns": 1700000059020000000,
+    "engine_seq": 1059,
+    "correlation_id": "b-5",
+    "causality_token": "tok-bar-59",
+    "payload": {
+      "start_ns": 1700000049000000000,
+      "end_ns": 1700000059000000000,
+      "open_ticks": 50225,
+      "high_ticks": 50330,
+      "low_ticks": 50270,
+      "close_ticks": 50300,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-60",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000060000000000,
+    "received_ns": 1700000060010000000,
+    "available_ns": 1700000060020000000,
+    "engine_seq": 61,
+    "correlation_id": "q-60",
+    "causality_token": "tok-60",
+    "payload": {
+      "bid_price_ticks": 50284,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50286,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-61",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000061000000000,
+    "received_ns": 1700000061010000000,
+    "available_ns": 1700000061020000000,
+    "engine_seq": 62,
+    "correlation_id": "q-61",
+    "causality_token": "tok-61",
+    "payload": {
+      "bid_price_ticks": 50259,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50261,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-62",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000062000000000,
+    "received_ns": 1700000062010000000,
+    "available_ns": 1700000062020000000,
+    "engine_seq": 63,
+    "correlation_id": "q-62",
+    "causality_token": "tok-62",
+    "payload": {
+      "bid_price_ticks": 50234,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50236,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-63",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000063000000000,
+    "received_ns": 1700000063010000000,
+    "available_ns": 1700000063020000000,
+    "engine_seq": 64,
+    "correlation_id": "q-63",
+    "causality_token": "tok-63",
+    "payload": {
+      "bid_price_ticks": 50219,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50221,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-64",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000064000000000,
+    "received_ns": 1700000064010000000,
+    "available_ns": 1700000064020000000,
+    "engine_seq": 65,
+    "correlation_id": "q-64",
+    "causality_token": "tok-64",
+    "payload": {
+      "bid_price_ticks": 50194,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50196,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-65",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000065000000000,
+    "received_ns": 1700000065010000000,
+    "available_ns": 1700000065020000000,
+    "engine_seq": 66,
+    "correlation_id": "q-65",
+    "causality_token": "tok-65",
+    "payload": {
+      "bid_price_ticks": 50169,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50171,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-66",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000066000000000,
+    "received_ns": 1700000066010000000,
+    "available_ns": 1700000066020000000,
+    "engine_seq": 67,
+    "correlation_id": "q-66",
+    "causality_token": "tok-66",
+    "payload": {
+      "bid_price_ticks": 50154,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50156,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-67",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000067000000000,
+    "received_ns": 1700000067010000000,
+    "available_ns": 1700000067020000000,
+    "engine_seq": 68,
+    "correlation_id": "q-67",
+    "causality_token": "tok-67",
+    "payload": {
+      "bid_price_ticks": 50129,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50131,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-68",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000068000000000,
+    "received_ns": 1700000068010000000,
+    "available_ns": 1700000068020000000,
+    "engine_seq": 69,
+    "correlation_id": "q-68",
+    "causality_token": "tok-68",
+    "payload": {
+      "bid_price_ticks": 50104,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50106,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-69",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000069000000000,
+    "received_ns": 1700000069010000000,
+    "available_ns": 1700000069020000000,
+    "engine_seq": 70,
+    "correlation_id": "q-69",
+    "causality_token": "tok-69",
+    "payload": {
+      "bid_price_ticks": 50089,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50091,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-6",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000069000000000,
+    "received_ns": 1700000069010000000,
+    "available_ns": 1700000069020000000,
+    "engine_seq": 1069,
+    "correlation_id": "b-6",
+    "causality_token": "tok-bar-69",
+    "payload": {
+      "start_ns": 1700000059000000000,
+      "end_ns": 1700000069000000000,
+      "open_ticks": 50165,
+      "high_ticks": 50120,
+      "low_ticks": 50060,
+      "close_ticks": 50090,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-70",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000070000000000,
+    "received_ns": 1700000070010000000,
+    "available_ns": 1700000070020000000,
+    "engine_seq": 71,
+    "correlation_id": "q-70",
+    "causality_token": "tok-70",
+    "payload": {
+      "bid_price_ticks": 50064,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50066,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-71",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000071000000000,
+    "received_ns": 1700000071010000000,
+    "available_ns": 1700000071020000000,
+    "engine_seq": 72,
+    "correlation_id": "q-71",
+    "causality_token": "tok-71",
+    "payload": {
+      "bid_price_ticks": 50039,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50041,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-72",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000072000000000,
+    "received_ns": 1700000072010000000,
+    "available_ns": 1700000072020000000,
+    "engine_seq": 73,
+    "correlation_id": "q-72",
+    "causality_token": "tok-72",
+    "payload": {
+      "bid_price_ticks": 50024,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50026,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-73",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000073000000000,
+    "received_ns": 1700000073010000000,
+    "available_ns": 1700000073020000000,
+    "engine_seq": 74,
+    "correlation_id": "q-73",
+    "causality_token": "tok-73",
+    "payload": {
+      "bid_price_ticks": 49999,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50001,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-74",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000074000000000,
+    "received_ns": 1700000074010000000,
+    "available_ns": 1700000074020000000,
+    "engine_seq": 75,
+    "correlation_id": "q-74",
+    "causality_token": "tok-74",
+    "payload": {
+      "bid_price_ticks": 49974,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49976,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-75",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000075000000000,
+    "received_ns": 1700000075010000000,
+    "available_ns": 1700000075020000000,
+    "engine_seq": 76,
+    "correlation_id": "q-75",
+    "causality_token": "tok-75",
+    "payload": {
+      "bid_price_ticks": 49959,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49961,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-76",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000076000000000,
+    "received_ns": 1700000076010000000,
+    "available_ns": 1700000076020000000,
+    "engine_seq": 77,
+    "correlation_id": "q-76",
+    "causality_token": "tok-76",
+    "payload": {
+      "bid_price_ticks": 49934,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49936,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-77",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000077000000000,
+    "received_ns": 1700000077010000000,
+    "available_ns": 1700000077020000000,
+    "engine_seq": 78,
+    "correlation_id": "q-77",
+    "causality_token": "tok-77",
+    "payload": {
+      "bid_price_ticks": 49909,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49911,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-78",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000078000000000,
+    "received_ns": 1700000078010000000,
+    "available_ns": 1700000078020000000,
+    "engine_seq": 79,
+    "correlation_id": "q-78",
+    "causality_token": "tok-78",
+    "payload": {
+      "bid_price_ticks": 49894,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49896,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-79",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000079000000000,
+    "received_ns": 1700000079010000000,
+    "available_ns": 1700000079020000000,
+    "engine_seq": 80,
+    "correlation_id": "q-79",
+    "causality_token": "tok-79",
+    "payload": {
+      "bid_price_ticks": 49869,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49871,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-7",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000079000000000,
+    "received_ns": 1700000079010000000,
+    "available_ns": 1700000079020000000,
+    "engine_seq": 1079,
+    "correlation_id": "b-7",
+    "causality_token": "tok-bar-79",
+    "payload": {
+      "start_ns": 1700000069000000000,
+      "end_ns": 1700000079000000000,
+      "open_ticks": 49995,
+      "high_ticks": 49900,
+      "low_ticks": 49840,
+      "close_ticks": 49870,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-80",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000080000000000,
+    "received_ns": 1700000080010000000,
+    "available_ns": 1700000080020000000,
+    "engine_seq": 81,
+    "correlation_id": "q-80",
+    "causality_token": "tok-80",
+    "payload": {
+      "bid_price_ticks": 49884,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49886,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-81",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000081000000000,
+    "received_ns": 1700000081010000000,
+    "available_ns": 1700000081020000000,
+    "engine_seq": 82,
+    "correlation_id": "q-81",
+    "causality_token": "tok-81",
+    "payload": {
+      "bid_price_ticks": 49909,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49911,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-82",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000082000000000,
+    "received_ns": 1700000082010000000,
+    "available_ns": 1700000082020000000,
+    "engine_seq": 83,
+    "correlation_id": "q-82",
+    "causality_token": "tok-82",
+    "payload": {
+      "bid_price_ticks": 49924,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49926,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-83",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000083000000000,
+    "received_ns": 1700000083010000000,
+    "available_ns": 1700000083020000000,
+    "engine_seq": 84,
+    "correlation_id": "q-83",
+    "causality_token": "tok-83",
+    "payload": {
+      "bid_price_ticks": 49939,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49941,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-84",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000084000000000,
+    "received_ns": 1700000084010000000,
+    "available_ns": 1700000084020000000,
+    "engine_seq": 85,
+    "correlation_id": "q-84",
+    "causality_token": "tok-84",
+    "payload": {
+      "bid_price_ticks": 49964,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49966,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-85",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000085000000000,
+    "received_ns": 1700000085010000000,
+    "available_ns": 1700000085020000000,
+    "engine_seq": 86,
+    "correlation_id": "q-85",
+    "causality_token": "tok-85",
+    "payload": {
+      "bid_price_ticks": 49979,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49981,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-86",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000086000000000,
+    "received_ns": 1700000086010000000,
+    "available_ns": 1700000086020000000,
+    "engine_seq": 87,
+    "correlation_id": "q-86",
+    "causality_token": "tok-86",
+    "payload": {
+      "bid_price_ticks": 49994,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49996,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-87",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000087000000000,
+    "received_ns": 1700000087010000000,
+    "available_ns": 1700000087020000000,
+    "engine_seq": 88,
+    "correlation_id": "q-87",
+    "causality_token": "tok-87",
+    "payload": {
+      "bid_price_ticks": 50019,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50021,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-88",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000088000000000,
+    "received_ns": 1700000088010000000,
+    "available_ns": 1700000088020000000,
+    "engine_seq": 89,
+    "correlation_id": "q-88",
+    "causality_token": "tok-88",
+    "payload": {
+      "bid_price_ticks": 50034,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50036,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-89",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000089000000000,
+    "received_ns": 1700000089010000000,
+    "available_ns": 1700000089020000000,
+    "engine_seq": 90,
+    "correlation_id": "q-89",
+    "causality_token": "tok-89",
+    "payload": {
+      "bid_price_ticks": 50049,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50051,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-8",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000089000000000,
+    "received_ns": 1700000089010000000,
+    "available_ns": 1700000089020000000,
+    "engine_seq": 1089,
+    "correlation_id": "b-8",
+    "causality_token": "tok-bar-89",
+    "payload": {
+      "start_ns": 1700000079000000000,
+      "end_ns": 1700000089000000000,
+      "open_ticks": 49975,
+      "high_ticks": 50080,
+      "low_ticks": 50020,
+      "close_ticks": 50050,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-90",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000090000000000,
+    "received_ns": 1700000090010000000,
+    "available_ns": 1700000090020000000,
+    "engine_seq": 91,
+    "correlation_id": "q-90",
+    "causality_token": "tok-90",
+    "payload": {
+      "bid_price_ticks": 50074,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50076,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-91",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000091000000000,
+    "received_ns": 1700000091010000000,
+    "available_ns": 1700000091020000000,
+    "engine_seq": 92,
+    "correlation_id": "q-91",
+    "causality_token": "tok-91",
+    "payload": {
+      "bid_price_ticks": 50089,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50091,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-92",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000092000000000,
+    "received_ns": 1700000092010000000,
+    "available_ns": 1700000092020000000,
+    "engine_seq": 93,
+    "correlation_id": "q-92",
+    "causality_token": "tok-92",
+    "payload": {
+      "bid_price_ticks": 50104,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50106,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-93",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000093000000000,
+    "received_ns": 1700000093010000000,
+    "available_ns": 1700000093020000000,
+    "engine_seq": 94,
+    "correlation_id": "q-93",
+    "causality_token": "tok-93",
+    "payload": {
+      "bid_price_ticks": 50129,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50131,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-94",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000094000000000,
+    "received_ns": 1700000094010000000,
+    "available_ns": 1700000094020000000,
+    "engine_seq": 95,
+    "correlation_id": "q-94",
+    "causality_token": "tok-94",
+    "payload": {
+      "bid_price_ticks": 50144,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50146,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-95",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000095000000000,
+    "received_ns": 1700000095010000000,
+    "available_ns": 1700000095020000000,
+    "engine_seq": 96,
+    "correlation_id": "q-95",
+    "causality_token": "tok-95",
+    "payload": {
+      "bid_price_ticks": 50159,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50161,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-96",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000096000000000,
+    "received_ns": 1700000096010000000,
+    "available_ns": 1700000096020000000,
+    "engine_seq": 97,
+    "correlation_id": "q-96",
+    "causality_token": "tok-96",
+    "payload": {
+      "bid_price_ticks": 50184,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50186,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-97",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000097000000000,
+    "received_ns": 1700000097010000000,
+    "available_ns": 1700000097020000000,
+    "engine_seq": 98,
+    "correlation_id": "q-97",
+    "causality_token": "tok-97",
+    "payload": {
+      "bid_price_ticks": 50199,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50201,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-98",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000098000000000,
+    "received_ns": 1700000098010000000,
+    "available_ns": 1700000098020000000,
+    "engine_seq": 99,
+    "correlation_id": "q-98",
+    "causality_token": "tok-98",
+    "payload": {
+      "bid_price_ticks": 50214,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50216,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-99",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000099000000000,
+    "received_ns": 1700000099010000000,
+    "available_ns": 1700000099020000000,
+    "engine_seq": 100,
+    "correlation_id": "q-99",
+    "causality_token": "tok-99",
+    "payload": {
+      "bid_price_ticks": 50239,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50241,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-9",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000099000000000,
+    "received_ns": 1700000099010000000,
+    "available_ns": 1700000099020000000,
+    "engine_seq": 1099,
+    "correlation_id": "b-9",
+    "causality_token": "tok-bar-99",
+    "payload": {
+      "start_ns": 1700000089000000000,
+      "end_ns": 1700000099000000000,
+      "open_ticks": 50115,
+      "high_ticks": 50270,
+      "low_ticks": 50210,
+      "close_ticks": 50240,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-100",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000100000000000,
+    "received_ns": 1700000100010000000,
+    "available_ns": 1700000100020000000,
+    "engine_seq": 101,
+    "correlation_id": "q-100",
+    "causality_token": "tok-100",
+    "payload": {
+      "bid_price_ticks": 50214,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50216,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-101",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000101000000000,
+    "received_ns": 1700000101010000000,
+    "available_ns": 1700000101020000000,
+    "engine_seq": 102,
+    "correlation_id": "q-101",
+    "causality_token": "tok-101",
+    "payload": {
+      "bid_price_ticks": 50189,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50191,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-102",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000102000000000,
+    "received_ns": 1700000102010000000,
+    "available_ns": 1700000102020000000,
+    "engine_seq": 103,
+    "correlation_id": "q-102",
+    "causality_token": "tok-102",
+    "payload": {
+      "bid_price_ticks": 50174,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50176,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-103",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000103000000000,
+    "received_ns": 1700000103010000000,
+    "available_ns": 1700000103020000000,
+    "engine_seq": 104,
+    "correlation_id": "q-103",
+    "causality_token": "tok-103",
+    "payload": {
+      "bid_price_ticks": 50149,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50151,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-104",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000104000000000,
+    "received_ns": 1700000104010000000,
+    "available_ns": 1700000104020000000,
+    "engine_seq": 105,
+    "correlation_id": "q-104",
+    "causality_token": "tok-104",
+    "payload": {
+      "bid_price_ticks": 50124,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50126,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-105",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000105000000000,
+    "received_ns": 1700000105010000000,
+    "available_ns": 1700000105020000000,
+    "engine_seq": 106,
+    "correlation_id": "q-105",
+    "causality_token": "tok-105",
+    "payload": {
+      "bid_price_ticks": 50109,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50111,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-106",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000106000000000,
+    "received_ns": 1700000106010000000,
+    "available_ns": 1700000106020000000,
+    "engine_seq": 107,
+    "correlation_id": "q-106",
+    "causality_token": "tok-106",
+    "payload": {
+      "bid_price_ticks": 50084,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50086,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-107",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000107000000000,
+    "received_ns": 1700000107010000000,
+    "available_ns": 1700000107020000000,
+    "engine_seq": 108,
+    "correlation_id": "q-107",
+    "causality_token": "tok-107",
+    "payload": {
+      "bid_price_ticks": 50059,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50061,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-108",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000108000000000,
+    "received_ns": 1700000108010000000,
+    "available_ns": 1700000108020000000,
+    "engine_seq": 109,
+    "correlation_id": "q-108",
+    "causality_token": "tok-108",
+    "payload": {
+      "bid_price_ticks": 50044,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50046,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-109",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000109000000000,
+    "received_ns": 1700000109010000000,
+    "available_ns": 1700000109020000000,
+    "engine_seq": 110,
+    "correlation_id": "q-109",
+    "causality_token": "tok-109",
+    "payload": {
+      "bid_price_ticks": 50019,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50021,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-10",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000109000000000,
+    "received_ns": 1700000109010000000,
+    "available_ns": 1700000109020000000,
+    "engine_seq": 1109,
+    "correlation_id": "b-10",
+    "causality_token": "tok-bar-109",
+    "payload": {
+      "start_ns": 1700000099000000000,
+      "end_ns": 1700000109000000000,
+      "open_ticks": 50145,
+      "high_ticks": 50050,
+      "low_ticks": 49990,
+      "close_ticks": 50020,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-110",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000110000000000,
+    "received_ns": 1700000110010000000,
+    "available_ns": 1700000110020000000,
+    "engine_seq": 111,
+    "correlation_id": "q-110",
+    "causality_token": "tok-110",
+    "payload": {
+      "bid_price_ticks": 49994,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49996,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-111",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000111000000000,
+    "received_ns": 1700000111010000000,
+    "available_ns": 1700000111020000000,
+    "engine_seq": 112,
+    "correlation_id": "q-111",
+    "causality_token": "tok-111",
+    "payload": {
+      "bid_price_ticks": 49979,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49981,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-112",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000112000000000,
+    "received_ns": 1700000112010000000,
+    "available_ns": 1700000112020000000,
+    "engine_seq": 113,
+    "correlation_id": "q-112",
+    "causality_token": "tok-112",
+    "payload": {
+      "bid_price_ticks": 49954,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49956,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-113",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000113000000000,
+    "received_ns": 1700000113010000000,
+    "available_ns": 1700000113020000000,
+    "engine_seq": 114,
+    "correlation_id": "q-113",
+    "causality_token": "tok-113",
+    "payload": {
+      "bid_price_ticks": 49929,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49931,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-114",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000114000000000,
+    "received_ns": 1700000114010000000,
+    "available_ns": 1700000114020000000,
+    "engine_seq": 115,
+    "correlation_id": "q-114",
+    "causality_token": "tok-114",
+    "payload": {
+      "bid_price_ticks": 49914,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49916,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-115",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000115000000000,
+    "received_ns": 1700000115010000000,
+    "available_ns": 1700000115020000000,
+    "engine_seq": 116,
+    "correlation_id": "q-115",
+    "causality_token": "tok-115",
+    "payload": {
+      "bid_price_ticks": 49889,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49891,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-116",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000116000000000,
+    "received_ns": 1700000116010000000,
+    "available_ns": 1700000116020000000,
+    "engine_seq": 117,
+    "correlation_id": "q-116",
+    "causality_token": "tok-116",
+    "payload": {
+      "bid_price_ticks": 49864,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49866,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-117",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000117000000000,
+    "received_ns": 1700000117010000000,
+    "available_ns": 1700000117020000000,
+    "engine_seq": 118,
+    "correlation_id": "q-117",
+    "causality_token": "tok-117",
+    "payload": {
+      "bid_price_ticks": 49849,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49851,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-118",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000118000000000,
+    "received_ns": 1700000118010000000,
+    "available_ns": 1700000118020000000,
+    "engine_seq": 119,
+    "correlation_id": "q-118",
+    "causality_token": "tok-118",
+    "payload": {
+      "bid_price_ticks": 49824,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49826,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-119",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000119000000000,
+    "received_ns": 1700000119010000000,
+    "available_ns": 1700000119020000000,
+    "engine_seq": 120,
+    "correlation_id": "q-119",
+    "causality_token": "tok-119",
+    "payload": {
+      "bid_price_ticks": 49799,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49801,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-11",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000119000000000,
+    "received_ns": 1700000119010000000,
+    "available_ns": 1700000119020000000,
+    "engine_seq": 1119,
+    "correlation_id": "b-11",
+    "causality_token": "tok-bar-119",
+    "payload": {
+      "start_ns": 1700000109000000000,
+      "end_ns": 1700000119000000000,
+      "open_ticks": 49925,
+      "high_ticks": 49830,
+      "low_ticks": 49770,
+      "close_ticks": 49800,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-120",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000120000000000,
+    "received_ns": 1700000120010000000,
+    "available_ns": 1700000120020000000,
+    "engine_seq": 121,
+    "correlation_id": "q-120",
+    "causality_token": "tok-120",
+    "payload": {
+      "bid_price_ticks": 49824,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49826,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-121",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000121000000000,
+    "received_ns": 1700000121010000000,
+    "available_ns": 1700000121020000000,
+    "engine_seq": 122,
+    "correlation_id": "q-121",
+    "causality_token": "tok-121",
+    "payload": {
+      "bid_price_ticks": 49839,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49841,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-122",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000122000000000,
+    "received_ns": 1700000122010000000,
+    "available_ns": 1700000122020000000,
+    "engine_seq": 123,
+    "correlation_id": "q-122",
+    "causality_token": "tok-122",
+    "payload": {
+      "bid_price_ticks": 49854,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49856,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-123",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000123000000000,
+    "received_ns": 1700000123010000000,
+    "available_ns": 1700000123020000000,
+    "engine_seq": 124,
+    "correlation_id": "q-123",
+    "causality_token": "tok-123",
+    "payload": {
+      "bid_price_ticks": 49879,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49881,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-124",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000124000000000,
+    "received_ns": 1700000124010000000,
+    "available_ns": 1700000124020000000,
+    "engine_seq": 125,
+    "correlation_id": "q-124",
+    "causality_token": "tok-124",
+    "payload": {
+      "bid_price_ticks": 49894,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49896,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-125",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000125000000000,
+    "received_ns": 1700000125010000000,
+    "available_ns": 1700000125020000000,
+    "engine_seq": 126,
+    "correlation_id": "q-125",
+    "causality_token": "tok-125",
+    "payload": {
+      "bid_price_ticks": 49909,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49911,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-126",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000126000000000,
+    "received_ns": 1700000126010000000,
+    "available_ns": 1700000126020000000,
+    "engine_seq": 127,
+    "correlation_id": "q-126",
+    "causality_token": "tok-126",
+    "payload": {
+      "bid_price_ticks": 49934,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49936,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-127",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000127000000000,
+    "received_ns": 1700000127010000000,
+    "available_ns": 1700000127020000000,
+    "engine_seq": 128,
+    "correlation_id": "q-127",
+    "causality_token": "tok-127",
+    "payload": {
+      "bid_price_ticks": 49949,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49951,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-128",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000128000000000,
+    "received_ns": 1700000128010000000,
+    "available_ns": 1700000128020000000,
+    "engine_seq": 129,
+    "correlation_id": "q-128",
+    "causality_token": "tok-128",
+    "payload": {
+      "bid_price_ticks": 49964,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49966,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-129",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000129000000000,
+    "received_ns": 1700000129010000000,
+    "available_ns": 1700000129020000000,
+    "engine_seq": 130,
+    "correlation_id": "q-129",
+    "causality_token": "tok-129",
+    "payload": {
+      "bid_price_ticks": 49989,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49991,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-12",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000129000000000,
+    "received_ns": 1700000129010000000,
+    "available_ns": 1700000129020000000,
+    "engine_seq": 1129,
+    "correlation_id": "b-12",
+    "causality_token": "tok-bar-129",
+    "payload": {
+      "start_ns": 1700000119000000000,
+      "end_ns": 1700000129000000000,
+      "open_ticks": 49865,
+      "high_ticks": 50020,
+      "low_ticks": 49960,
+      "close_ticks": 49990,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-130",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000130000000000,
+    "received_ns": 1700000130010000000,
+    "available_ns": 1700000130020000000,
+    "engine_seq": 131,
+    "correlation_id": "q-130",
+    "causality_token": "tok-130",
+    "payload": {
+      "bid_price_ticks": 50004,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50006,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-131",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000131000000000,
+    "received_ns": 1700000131010000000,
+    "available_ns": 1700000131020000000,
+    "engine_seq": 132,
+    "correlation_id": "q-131",
+    "causality_token": "tok-131",
+    "payload": {
+      "bid_price_ticks": 50019,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50021,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-132",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000132000000000,
+    "received_ns": 1700000132010000000,
+    "available_ns": 1700000132020000000,
+    "engine_seq": 133,
+    "correlation_id": "q-132",
+    "causality_token": "tok-132",
+    "payload": {
+      "bid_price_ticks": 50044,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50046,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-133",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000133000000000,
+    "received_ns": 1700000133010000000,
+    "available_ns": 1700000133020000000,
+    "engine_seq": 134,
+    "correlation_id": "q-133",
+    "causality_token": "tok-133",
+    "payload": {
+      "bid_price_ticks": 50059,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50061,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-134",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000134000000000,
+    "received_ns": 1700000134010000000,
+    "available_ns": 1700000134020000000,
+    "engine_seq": 135,
+    "correlation_id": "q-134",
+    "causality_token": "tok-134",
+    "payload": {
+      "bid_price_ticks": 50074,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50076,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-135",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000135000000000,
+    "received_ns": 1700000135010000000,
+    "available_ns": 1700000135020000000,
+    "engine_seq": 136,
+    "correlation_id": "q-135",
+    "causality_token": "tok-135",
+    "payload": {
+      "bid_price_ticks": 50099,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50101,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-136",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000136000000000,
+    "received_ns": 1700000136010000000,
+    "available_ns": 1700000136020000000,
+    "engine_seq": 137,
+    "correlation_id": "q-136",
+    "causality_token": "tok-136",
+    "payload": {
+      "bid_price_ticks": 50114,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50116,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-137",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000137000000000,
+    "received_ns": 1700000137010000000,
+    "available_ns": 1700000137020000000,
+    "engine_seq": 138,
+    "correlation_id": "q-137",
+    "causality_token": "tok-137",
+    "payload": {
+      "bid_price_ticks": 50129,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50131,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-138",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000138000000000,
+    "received_ns": 1700000138010000000,
+    "available_ns": 1700000138020000000,
+    "engine_seq": 139,
+    "correlation_id": "q-138",
+    "causality_token": "tok-138",
+    "payload": {
+      "bid_price_ticks": 50154,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50156,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-139",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000139000000000,
+    "received_ns": 1700000139010000000,
+    "available_ns": 1700000139020000000,
+    "engine_seq": 140,
+    "correlation_id": "q-139",
+    "causality_token": "tok-139",
+    "payload": {
+      "bid_price_ticks": 50169,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50171,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-13",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000139000000000,
+    "received_ns": 1700000139010000000,
+    "available_ns": 1700000139020000000,
+    "engine_seq": 1139,
+    "correlation_id": "b-13",
+    "causality_token": "tok-bar-139",
+    "payload": {
+      "start_ns": 1700000129000000000,
+      "end_ns": 1700000139000000000,
+      "open_ticks": 50095,
+      "high_ticks": 50200,
+      "low_ticks": 50140,
+      "close_ticks": 50170,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-140",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000140000000000,
+    "received_ns": 1700000140010000000,
+    "available_ns": 1700000140020000000,
+    "engine_seq": 141,
+    "correlation_id": "q-140",
+    "causality_token": "tok-140",
+    "payload": {
+      "bid_price_ticks": 50144,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50146,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-141",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000141000000000,
+    "received_ns": 1700000141010000000,
+    "available_ns": 1700000141020000000,
+    "engine_seq": 142,
+    "correlation_id": "q-141",
+    "causality_token": "tok-141",
+    "payload": {
+      "bid_price_ticks": 50129,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50131,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-142",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000142000000000,
+    "received_ns": 1700000142010000000,
+    "available_ns": 1700000142020000000,
+    "engine_seq": 143,
+    "correlation_id": "q-142",
+    "causality_token": "tok-142",
+    "payload": {
+      "bid_price_ticks": 50104,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50106,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-143",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000143000000000,
+    "received_ns": 1700000143010000000,
+    "available_ns": 1700000143020000000,
+    "engine_seq": 144,
+    "correlation_id": "q-143",
+    "causality_token": "tok-143",
+    "payload": {
+      "bid_price_ticks": 50079,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50081,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-144",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000144000000000,
+    "received_ns": 1700000144010000000,
+    "available_ns": 1700000144020000000,
+    "engine_seq": 145,
+    "correlation_id": "q-144",
+    "causality_token": "tok-144",
+    "payload": {
+      "bid_price_ticks": 50064,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50066,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-145",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000145000000000,
+    "received_ns": 1700000145010000000,
+    "available_ns": 1700000145020000000,
+    "engine_seq": 146,
+    "correlation_id": "q-145",
+    "causality_token": "tok-145",
+    "payload": {
+      "bid_price_ticks": 50039,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50041,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-146",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000146000000000,
+    "received_ns": 1700000146010000000,
+    "available_ns": 1700000146020000000,
+    "engine_seq": 147,
+    "correlation_id": "q-146",
+    "causality_token": "tok-146",
+    "payload": {
+      "bid_price_ticks": 50014,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50016,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-147",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000147000000000,
+    "received_ns": 1700000147010000000,
+    "available_ns": 1700000147020000000,
+    "engine_seq": 148,
+    "correlation_id": "q-147",
+    "causality_token": "tok-147",
+    "payload": {
+      "bid_price_ticks": 49999,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50001,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-148",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000148000000000,
+    "received_ns": 1700000148010000000,
+    "available_ns": 1700000148020000000,
+    "engine_seq": 149,
+    "correlation_id": "q-148",
+    "causality_token": "tok-148",
+    "payload": {
+      "bid_price_ticks": 49974,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49976,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-149",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000149000000000,
+    "received_ns": 1700000149010000000,
+    "available_ns": 1700000149020000000,
+    "engine_seq": 150,
+    "correlation_id": "q-149",
+    "causality_token": "tok-149",
+    "payload": {
+      "bid_price_ticks": 49949,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49951,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-14",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000149000000000,
+    "received_ns": 1700000149010000000,
+    "available_ns": 1700000149020000000,
+    "engine_seq": 1149,
+    "correlation_id": "b-14",
+    "causality_token": "tok-bar-149",
+    "payload": {
+      "start_ns": 1700000139000000000,
+      "end_ns": 1700000149000000000,
+      "open_ticks": 50075,
+      "high_ticks": 49980,
+      "low_ticks": 49920,
+      "close_ticks": 49950,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-150",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000150000000000,
+    "received_ns": 1700000150010000000,
+    "available_ns": 1700000150020000000,
+    "engine_seq": 151,
+    "correlation_id": "q-150",
+    "causality_token": "tok-150",
+    "payload": {
+      "bid_price_ticks": 49934,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49936,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-151",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000151000000000,
+    "received_ns": 1700000151010000000,
+    "available_ns": 1700000151020000000,
+    "engine_seq": 152,
+    "correlation_id": "q-151",
+    "causality_token": "tok-151",
+    "payload": {
+      "bid_price_ticks": 49909,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49911,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-152",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000152000000000,
+    "received_ns": 1700000152010000000,
+    "available_ns": 1700000152020000000,
+    "engine_seq": 153,
+    "correlation_id": "q-152",
+    "causality_token": "tok-152",
+    "payload": {
+      "bid_price_ticks": 49884,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49886,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-153",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000153000000000,
+    "received_ns": 1700000153010000000,
+    "available_ns": 1700000153020000000,
+    "engine_seq": 154,
+    "correlation_id": "q-153",
+    "causality_token": "tok-153",
+    "payload": {
+      "bid_price_ticks": 49869,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49871,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-154",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000154000000000,
+    "received_ns": 1700000154010000000,
+    "available_ns": 1700000154020000000,
+    "engine_seq": 155,
+    "correlation_id": "q-154",
+    "causality_token": "tok-154",
+    "payload": {
+      "bid_price_ticks": 49844,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49846,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-155",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000155000000000,
+    "received_ns": 1700000155010000000,
+    "available_ns": 1700000155020000000,
+    "engine_seq": 156,
+    "correlation_id": "q-155",
+    "causality_token": "tok-155",
+    "payload": {
+      "bid_price_ticks": 49819,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49821,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-156",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000156000000000,
+    "received_ns": 1700000156010000000,
+    "available_ns": 1700000156020000000,
+    "engine_seq": 157,
+    "correlation_id": "q-156",
+    "causality_token": "tok-156",
+    "payload": {
+      "bid_price_ticks": 49804,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49806,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-157",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000157000000000,
+    "received_ns": 1700000157010000000,
+    "available_ns": 1700000157020000000,
+    "engine_seq": 158,
+    "correlation_id": "q-157",
+    "causality_token": "tok-157",
+    "payload": {
+      "bid_price_ticks": 49779,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49781,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-158",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000158000000000,
+    "received_ns": 1700000158010000000,
+    "available_ns": 1700000158020000000,
+    "engine_seq": 159,
+    "correlation_id": "q-158",
+    "causality_token": "tok-158",
+    "payload": {
+      "bid_price_ticks": 49754,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49756,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-159",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000159000000000,
+    "received_ns": 1700000159010000000,
+    "available_ns": 1700000159020000000,
+    "engine_seq": 160,
+    "correlation_id": "q-159",
+    "causality_token": "tok-159",
+    "payload": {
+      "bid_price_ticks": 49739,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49741,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-15",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000159000000000,
+    "received_ns": 1700000159010000000,
+    "available_ns": 1700000159020000000,
+    "engine_seq": 1159,
+    "correlation_id": "b-15",
+    "causality_token": "tok-bar-159",
+    "payload": {
+      "start_ns": 1700000149000000000,
+      "end_ns": 1700000159000000000,
+      "open_ticks": 49815,
+      "high_ticks": 49770,
+      "low_ticks": 49710,
+      "close_ticks": 49740,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-160",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000160000000000,
+    "received_ns": 1700000160010000000,
+    "available_ns": 1700000160020000000,
+    "engine_seq": 161,
+    "correlation_id": "q-160",
+    "causality_token": "tok-160",
+    "payload": {
+      "bid_price_ticks": 49754,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49756,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-161",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000161000000000,
+    "received_ns": 1700000161010000000,
+    "available_ns": 1700000161020000000,
+    "engine_seq": 162,
+    "correlation_id": "q-161",
+    "causality_token": "tok-161",
+    "payload": {
+      "bid_price_ticks": 49769,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49771,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-162",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000162000000000,
+    "received_ns": 1700000162010000000,
+    "available_ns": 1700000162020000000,
+    "engine_seq": 163,
+    "correlation_id": "q-162",
+    "causality_token": "tok-162",
+    "payload": {
+      "bid_price_ticks": 49794,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49796,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-163",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000163000000000,
+    "received_ns": 1700000163010000000,
+    "available_ns": 1700000163020000000,
+    "engine_seq": 164,
+    "correlation_id": "q-163",
+    "causality_token": "tok-163",
+    "payload": {
+      "bid_price_ticks": 49809,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49811,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-164",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000164000000000,
+    "received_ns": 1700000164010000000,
+    "available_ns": 1700000164020000000,
+    "engine_seq": 165,
+    "correlation_id": "q-164",
+    "causality_token": "tok-164",
+    "payload": {
+      "bid_price_ticks": 49824,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49826,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-165",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000165000000000,
+    "received_ns": 1700000165010000000,
+    "available_ns": 1700000165020000000,
+    "engine_seq": 166,
+    "correlation_id": "q-165",
+    "causality_token": "tok-165",
+    "payload": {
+      "bid_price_ticks": 49849,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49851,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-166",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000166000000000,
+    "received_ns": 1700000166010000000,
+    "available_ns": 1700000166020000000,
+    "engine_seq": 167,
+    "correlation_id": "q-166",
+    "causality_token": "tok-166",
+    "payload": {
+      "bid_price_ticks": 49864,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49866,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-167",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000167000000000,
+    "received_ns": 1700000167010000000,
+    "available_ns": 1700000167020000000,
+    "engine_seq": 168,
+    "correlation_id": "q-167",
+    "causality_token": "tok-167",
+    "payload": {
+      "bid_price_ticks": 49879,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49881,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-168",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000168000000000,
+    "received_ns": 1700000168010000000,
+    "available_ns": 1700000168020000000,
+    "engine_seq": 169,
+    "correlation_id": "q-168",
+    "causality_token": "tok-168",
+    "payload": {
+      "bid_price_ticks": 49904,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49906,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-169",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000169000000000,
+    "received_ns": 1700000169010000000,
+    "available_ns": 1700000169020000000,
+    "engine_seq": 170,
+    "correlation_id": "q-169",
+    "causality_token": "tok-169",
+    "payload": {
+      "bid_price_ticks": 49919,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49921,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-16",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000169000000000,
+    "received_ns": 1700000169010000000,
+    "available_ns": 1700000169020000000,
+    "engine_seq": 1169,
+    "correlation_id": "b-16",
+    "causality_token": "tok-bar-169",
+    "payload": {
+      "start_ns": 1700000159000000000,
+      "end_ns": 1700000169000000000,
+      "open_ticks": 49845,
+      "high_ticks": 49950,
+      "low_ticks": 49890,
+      "close_ticks": 49920,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-170",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000170000000000,
+    "received_ns": 1700000170010000000,
+    "available_ns": 1700000170020000000,
+    "engine_seq": 171,
+    "correlation_id": "q-170",
+    "causality_token": "tok-170",
+    "payload": {
+      "bid_price_ticks": 49934,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49936,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-171",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000171000000000,
+    "received_ns": 1700000171010000000,
+    "available_ns": 1700000171020000000,
+    "engine_seq": 172,
+    "correlation_id": "q-171",
+    "causality_token": "tok-171",
+    "payload": {
+      "bid_price_ticks": 49959,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49961,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-172",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000172000000000,
+    "received_ns": 1700000172010000000,
+    "available_ns": 1700000172020000000,
+    "engine_seq": 173,
+    "correlation_id": "q-172",
+    "causality_token": "tok-172",
+    "payload": {
+      "bid_price_ticks": 49974,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49976,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-173",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000173000000000,
+    "received_ns": 1700000173010000000,
+    "available_ns": 1700000173020000000,
+    "engine_seq": 174,
+    "correlation_id": "q-173",
+    "causality_token": "tok-173",
+    "payload": {
+      "bid_price_ticks": 49989,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49991,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-174",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000174000000000,
+    "received_ns": 1700000174010000000,
+    "available_ns": 1700000174020000000,
+    "engine_seq": 175,
+    "correlation_id": "q-174",
+    "causality_token": "tok-174",
+    "payload": {
+      "bid_price_ticks": 50014,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50016,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-175",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000175000000000,
+    "received_ns": 1700000175010000000,
+    "available_ns": 1700000175020000000,
+    "engine_seq": 176,
+    "correlation_id": "q-175",
+    "causality_token": "tok-175",
+    "payload": {
+      "bid_price_ticks": 50029,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50031,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-176",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000176000000000,
+    "received_ns": 1700000176010000000,
+    "available_ns": 1700000176020000000,
+    "engine_seq": 177,
+    "correlation_id": "q-176",
+    "causality_token": "tok-176",
+    "payload": {
+      "bid_price_ticks": 50044,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50046,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-177",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000177000000000,
+    "received_ns": 1700000177010000000,
+    "available_ns": 1700000177020000000,
+    "engine_seq": 178,
+    "correlation_id": "q-177",
+    "causality_token": "tok-177",
+    "payload": {
+      "bid_price_ticks": 50069,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50071,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-178",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000178000000000,
+    "received_ns": 1700000178010000000,
+    "available_ns": 1700000178020000000,
+    "engine_seq": 179,
+    "correlation_id": "q-178",
+    "causality_token": "tok-178",
+    "payload": {
+      "bid_price_ticks": 50084,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50086,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-179",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000179000000000,
+    "received_ns": 1700000179010000000,
+    "available_ns": 1700000179020000000,
+    "engine_seq": 180,
+    "correlation_id": "q-179",
+    "causality_token": "tok-179",
+    "payload": {
+      "bid_price_ticks": 50099,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50101,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-17",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000179000000000,
+    "received_ns": 1700000179010000000,
+    "available_ns": 1700000179020000000,
+    "engine_seq": 1179,
+    "correlation_id": "b-17",
+    "causality_token": "tok-bar-179",
+    "payload": {
+      "start_ns": 1700000169000000000,
+      "end_ns": 1700000179000000000,
+      "open_ticks": 50025,
+      "high_ticks": 50130,
+      "low_ticks": 50070,
+      "close_ticks": 50100,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-180",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000180000000000,
+    "received_ns": 1700000180010000000,
+    "available_ns": 1700000180020000000,
+    "engine_seq": 181,
+    "correlation_id": "q-180",
+    "causality_token": "tok-180",
+    "payload": {
+      "bid_price_ticks": 50084,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50086,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-181",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000181000000000,
+    "received_ns": 1700000181010000000,
+    "available_ns": 1700000181020000000,
+    "engine_seq": 182,
+    "correlation_id": "q-181",
+    "causality_token": "tok-181",
+    "payload": {
+      "bid_price_ticks": 50059,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50061,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-182",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000182000000000,
+    "received_ns": 1700000182010000000,
+    "available_ns": 1700000182020000000,
+    "engine_seq": 183,
+    "correlation_id": "q-182",
+    "causality_token": "tok-182",
+    "payload": {
+      "bid_price_ticks": 50034,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50036,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-183",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000183000000000,
+    "received_ns": 1700000183010000000,
+    "available_ns": 1700000183020000000,
+    "engine_seq": 184,
+    "correlation_id": "q-183",
+    "causality_token": "tok-183",
+    "payload": {
+      "bid_price_ticks": 50019,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50021,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-184",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000184000000000,
+    "received_ns": 1700000184010000000,
+    "available_ns": 1700000184020000000,
+    "engine_seq": 185,
+    "correlation_id": "q-184",
+    "causality_token": "tok-184",
+    "payload": {
+      "bid_price_ticks": 49994,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49996,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-185",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000185000000000,
+    "received_ns": 1700000185010000000,
+    "available_ns": 1700000185020000000,
+    "engine_seq": 186,
+    "correlation_id": "q-185",
+    "causality_token": "tok-185",
+    "payload": {
+      "bid_price_ticks": 49969,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49971,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-186",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000186000000000,
+    "received_ns": 1700000186010000000,
+    "available_ns": 1700000186020000000,
+    "engine_seq": 187,
+    "correlation_id": "q-186",
+    "causality_token": "tok-186",
+    "payload": {
+      "bid_price_ticks": 49954,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49956,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-187",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000187000000000,
+    "received_ns": 1700000187010000000,
+    "available_ns": 1700000187020000000,
+    "engine_seq": 188,
+    "correlation_id": "q-187",
+    "causality_token": "tok-187",
+    "payload": {
+      "bid_price_ticks": 49929,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49931,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-188",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000188000000000,
+    "received_ns": 1700000188010000000,
+    "available_ns": 1700000188020000000,
+    "engine_seq": 189,
+    "correlation_id": "q-188",
+    "causality_token": "tok-188",
+    "payload": {
+      "bid_price_ticks": 49904,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49906,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-189",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000189000000000,
+    "received_ns": 1700000189010000000,
+    "available_ns": 1700000189020000000,
+    "engine_seq": 190,
+    "correlation_id": "q-189",
+    "causality_token": "tok-189",
+    "payload": {
+      "bid_price_ticks": 49889,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49891,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-18",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000189000000000,
+    "received_ns": 1700000189010000000,
+    "available_ns": 1700000189020000000,
+    "engine_seq": 1189,
+    "correlation_id": "b-18",
+    "causality_token": "tok-bar-189",
+    "payload": {
+      "start_ns": 1700000179000000000,
+      "end_ns": 1700000189000000000,
+      "open_ticks": 49965,
+      "high_ticks": 49920,
+      "low_ticks": 49860,
+      "close_ticks": 49890,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-190",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000190000000000,
+    "received_ns": 1700000190010000000,
+    "available_ns": 1700000190020000000,
+    "engine_seq": 191,
+    "correlation_id": "q-190",
+    "causality_token": "tok-190",
+    "payload": {
+      "bid_price_ticks": 49864,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49866,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-191",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000191000000000,
+    "received_ns": 1700000191010000000,
+    "available_ns": 1700000191020000000,
+    "engine_seq": 192,
+    "correlation_id": "q-191",
+    "causality_token": "tok-191",
+    "payload": {
+      "bid_price_ticks": 49839,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49841,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-192",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000192000000000,
+    "received_ns": 1700000192010000000,
+    "available_ns": 1700000192020000000,
+    "engine_seq": 193,
+    "correlation_id": "q-192",
+    "causality_token": "tok-192",
+    "payload": {
+      "bid_price_ticks": 49824,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49826,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-193",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000193000000000,
+    "received_ns": 1700000193010000000,
+    "available_ns": 1700000193020000000,
+    "engine_seq": 194,
+    "correlation_id": "q-193",
+    "causality_token": "tok-193",
+    "payload": {
+      "bid_price_ticks": 49799,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49801,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-194",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000194000000000,
+    "received_ns": 1700000194010000000,
+    "available_ns": 1700000194020000000,
+    "engine_seq": 195,
+    "correlation_id": "q-194",
+    "causality_token": "tok-194",
+    "payload": {
+      "bid_price_ticks": 49774,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49776,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-195",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000195000000000,
+    "received_ns": 1700000195010000000,
+    "available_ns": 1700000195020000000,
+    "engine_seq": 196,
+    "correlation_id": "q-195",
+    "causality_token": "tok-195",
+    "payload": {
+      "bid_price_ticks": 49759,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49761,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-196",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000196000000000,
+    "received_ns": 1700000196010000000,
+    "available_ns": 1700000196020000000,
+    "engine_seq": 197,
+    "correlation_id": "q-196",
+    "causality_token": "tok-196",
+    "payload": {
+      "bid_price_ticks": 49734,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49736,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-197",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000197000000000,
+    "received_ns": 1700000197010000000,
+    "available_ns": 1700000197020000000,
+    "engine_seq": 198,
+    "correlation_id": "q-197",
+    "causality_token": "tok-197",
+    "payload": {
+      "bid_price_ticks": 49709,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49711,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-198",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000198000000000,
+    "received_ns": 1700000198010000000,
+    "available_ns": 1700000198020000000,
+    "engine_seq": 199,
+    "correlation_id": "q-198",
+    "causality_token": "tok-198",
+    "payload": {
+      "bid_price_ticks": 49694,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49696,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-199",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000199000000000,
+    "received_ns": 1700000199010000000,
+    "available_ns": 1700000199020000000,
+    "engine_seq": 200,
+    "correlation_id": "q-199",
+    "causality_token": "tok-199",
+    "payload": {
+      "bid_price_ticks": 49669,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49671,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-19",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000199000000000,
+    "received_ns": 1700000199010000000,
+    "available_ns": 1700000199020000000,
+    "engine_seq": 1199,
+    "correlation_id": "b-19",
+    "causality_token": "tok-bar-199",
+    "payload": {
+      "start_ns": 1700000189000000000,
+      "end_ns": 1700000199000000000,
+      "open_ticks": 49795,
+      "high_ticks": 49700,
+      "low_ticks": 49640,
+      "close_ticks": 49670,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-200",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000200000000000,
+    "received_ns": 1700000200010000000,
+    "available_ns": 1700000200020000000,
+    "engine_seq": 201,
+    "correlation_id": "q-200",
+    "causality_token": "tok-200",
+    "payload": {
+      "bid_price_ticks": 49684,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49686,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-201",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000201000000000,
+    "received_ns": 1700000201010000000,
+    "available_ns": 1700000201020000000,
+    "engine_seq": 202,
+    "correlation_id": "q-201",
+    "causality_token": "tok-201",
+    "payload": {
+      "bid_price_ticks": 49709,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49711,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-202",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000202000000000,
+    "received_ns": 1700000202010000000,
+    "available_ns": 1700000202020000000,
+    "engine_seq": 203,
+    "correlation_id": "q-202",
+    "causality_token": "tok-202",
+    "payload": {
+      "bid_price_ticks": 49724,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49726,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-203",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000203000000000,
+    "received_ns": 1700000203010000000,
+    "available_ns": 1700000203020000000,
+    "engine_seq": 204,
+    "correlation_id": "q-203",
+    "causality_token": "tok-203",
+    "payload": {
+      "bid_price_ticks": 49739,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49741,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-204",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000204000000000,
+    "received_ns": 1700000204010000000,
+    "available_ns": 1700000204020000000,
+    "engine_seq": 205,
+    "correlation_id": "q-204",
+    "causality_token": "tok-204",
+    "payload": {
+      "bid_price_ticks": 49764,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49766,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-205",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000205000000000,
+    "received_ns": 1700000205010000000,
+    "available_ns": 1700000205020000000,
+    "engine_seq": 206,
+    "correlation_id": "q-205",
+    "causality_token": "tok-205",
+    "payload": {
+      "bid_price_ticks": 49779,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49781,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-206",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000206000000000,
+    "received_ns": 1700000206010000000,
+    "available_ns": 1700000206020000000,
+    "engine_seq": 207,
+    "correlation_id": "q-206",
+    "causality_token": "tok-206",
+    "payload": {
+      "bid_price_ticks": 49794,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49796,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-207",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000207000000000,
+    "received_ns": 1700000207010000000,
+    "available_ns": 1700000207020000000,
+    "engine_seq": 208,
+    "correlation_id": "q-207",
+    "causality_token": "tok-207",
+    "payload": {
+      "bid_price_ticks": 49819,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49821,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-208",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000208000000000,
+    "received_ns": 1700000208010000000,
+    "available_ns": 1700000208020000000,
+    "engine_seq": 209,
+    "correlation_id": "q-208",
+    "causality_token": "tok-208",
+    "payload": {
+      "bid_price_ticks": 49834,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49836,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-209",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000209000000000,
+    "received_ns": 1700000209010000000,
+    "available_ns": 1700000209020000000,
+    "engine_seq": 210,
+    "correlation_id": "q-209",
+    "causality_token": "tok-209",
+    "payload": {
+      "bid_price_ticks": 49849,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49851,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-20",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000209000000000,
+    "received_ns": 1700000209010000000,
+    "available_ns": 1700000209020000000,
+    "engine_seq": 1209,
+    "correlation_id": "b-20",
+    "causality_token": "tok-bar-209",
+    "payload": {
+      "start_ns": 1700000199000000000,
+      "end_ns": 1700000209000000000,
+      "open_ticks": 49775,
+      "high_ticks": 49880,
+      "low_ticks": 49820,
+      "close_ticks": 49850,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-210",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000210000000000,
+    "received_ns": 1700000210010000000,
+    "available_ns": 1700000210020000000,
+    "engine_seq": 211,
+    "correlation_id": "q-210",
+    "causality_token": "tok-210",
+    "payload": {
+      "bid_price_ticks": 49874,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49876,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-211",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000211000000000,
+    "received_ns": 1700000211010000000,
+    "available_ns": 1700000211020000000,
+    "engine_seq": 212,
+    "correlation_id": "q-211",
+    "causality_token": "tok-211",
+    "payload": {
+      "bid_price_ticks": 49889,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49891,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-212",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000212000000000,
+    "received_ns": 1700000212010000000,
+    "available_ns": 1700000212020000000,
+    "engine_seq": 213,
+    "correlation_id": "q-212",
+    "causality_token": "tok-212",
+    "payload": {
+      "bid_price_ticks": 49904,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49906,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-213",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000213000000000,
+    "received_ns": 1700000213010000000,
+    "available_ns": 1700000213020000000,
+    "engine_seq": 214,
+    "correlation_id": "q-213",
+    "causality_token": "tok-213",
+    "payload": {
+      "bid_price_ticks": 49929,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49931,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-214",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000214000000000,
+    "received_ns": 1700000214010000000,
+    "available_ns": 1700000214020000000,
+    "engine_seq": 215,
+    "correlation_id": "q-214",
+    "causality_token": "tok-214",
+    "payload": {
+      "bid_price_ticks": 49944,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49946,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-215",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000215000000000,
+    "received_ns": 1700000215010000000,
+    "available_ns": 1700000215020000000,
+    "engine_seq": 216,
+    "correlation_id": "q-215",
+    "causality_token": "tok-215",
+    "payload": {
+      "bid_price_ticks": 49959,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49961,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-216",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000216000000000,
+    "received_ns": 1700000216010000000,
+    "available_ns": 1700000216020000000,
+    "engine_seq": 217,
+    "correlation_id": "q-216",
+    "causality_token": "tok-216",
+    "payload": {
+      "bid_price_ticks": 49984,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49986,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-217",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000217000000000,
+    "received_ns": 1700000217010000000,
+    "available_ns": 1700000217020000000,
+    "engine_seq": 218,
+    "correlation_id": "q-217",
+    "causality_token": "tok-217",
+    "payload": {
+      "bid_price_ticks": 49999,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50001,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-218",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000218000000000,
+    "received_ns": 1700000218010000000,
+    "available_ns": 1700000218020000000,
+    "engine_seq": 219,
+    "correlation_id": "q-218",
+    "causality_token": "tok-218",
+    "payload": {
+      "bid_price_ticks": 50014,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50016,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-219",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000219000000000,
+    "received_ns": 1700000219010000000,
+    "available_ns": 1700000219020000000,
+    "engine_seq": 220,
+    "correlation_id": "q-219",
+    "causality_token": "tok-219",
+    "payload": {
+      "bid_price_ticks": 50039,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50041,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-21",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000219000000000,
+    "received_ns": 1700000219010000000,
+    "available_ns": 1700000219020000000,
+    "engine_seq": 1219,
+    "correlation_id": "b-21",
+    "causality_token": "tok-bar-219",
+    "payload": {
+      "start_ns": 1700000209000000000,
+      "end_ns": 1700000219000000000,
+      "open_ticks": 49915,
+      "high_ticks": 50070,
+      "low_ticks": 50010,
+      "close_ticks": 50040,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-220",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000220000000000,
+    "received_ns": 1700000220010000000,
+    "available_ns": 1700000220020000000,
+    "engine_seq": 221,
+    "correlation_id": "q-220",
+    "causality_token": "tok-220",
+    "payload": {
+      "bid_price_ticks": 50014,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 50016,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-221",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000221000000000,
+    "received_ns": 1700000221010000000,
+    "available_ns": 1700000221020000000,
+    "engine_seq": 222,
+    "correlation_id": "q-221",
+    "causality_token": "tok-221",
+    "payload": {
+      "bid_price_ticks": 49989,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49991,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-222",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000222000000000,
+    "received_ns": 1700000222010000000,
+    "available_ns": 1700000222020000000,
+    "engine_seq": 223,
+    "correlation_id": "q-222",
+    "causality_token": "tok-222",
+    "payload": {
+      "bid_price_ticks": 49974,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49976,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-223",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000223000000000,
+    "received_ns": 1700000223010000000,
+    "available_ns": 1700000223020000000,
+    "engine_seq": 224,
+    "correlation_id": "q-223",
+    "causality_token": "tok-223",
+    "payload": {
+      "bid_price_ticks": 49949,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49951,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-224",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000224000000000,
+    "received_ns": 1700000224010000000,
+    "available_ns": 1700000224020000000,
+    "engine_seq": 225,
+    "correlation_id": "q-224",
+    "causality_token": "tok-224",
+    "payload": {
+      "bid_price_ticks": 49924,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49926,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-225",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000225000000000,
+    "received_ns": 1700000225010000000,
+    "available_ns": 1700000225020000000,
+    "engine_seq": 226,
+    "correlation_id": "q-225",
+    "causality_token": "tok-225",
+    "payload": {
+      "bid_price_ticks": 49909,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49911,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-226",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000226000000000,
+    "received_ns": 1700000226010000000,
+    "available_ns": 1700000226020000000,
+    "engine_seq": 227,
+    "correlation_id": "q-226",
+    "causality_token": "tok-226",
+    "payload": {
+      "bid_price_ticks": 49884,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49886,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-227",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000227000000000,
+    "received_ns": 1700000227010000000,
+    "available_ns": 1700000227020000000,
+    "engine_seq": 228,
+    "correlation_id": "q-227",
+    "causality_token": "tok-227",
+    "payload": {
+      "bid_price_ticks": 49859,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49861,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-228",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000228000000000,
+    "received_ns": 1700000228010000000,
+    "available_ns": 1700000228020000000,
+    "engine_seq": 229,
+    "correlation_id": "q-228",
+    "causality_token": "tok-228",
+    "payload": {
+      "bid_price_ticks": 49844,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49846,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-229",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000229000000000,
+    "received_ns": 1700000229010000000,
+    "available_ns": 1700000229020000000,
+    "engine_seq": 230,
+    "correlation_id": "q-229",
+    "causality_token": "tok-229",
+    "payload": {
+      "bid_price_ticks": 49819,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49821,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-22",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000229000000000,
+    "received_ns": 1700000229010000000,
+    "available_ns": 1700000229020000000,
+    "engine_seq": 1229,
+    "correlation_id": "b-22",
+    "causality_token": "tok-bar-229",
+    "payload": {
+      "start_ns": 1700000219000000000,
+      "end_ns": 1700000229000000000,
+      "open_ticks": 49945,
+      "high_ticks": 49850,
+      "low_ticks": 49790,
+      "close_ticks": 49820,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-230",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000230000000000,
+    "received_ns": 1700000230010000000,
+    "available_ns": 1700000230020000000,
+    "engine_seq": 231,
+    "correlation_id": "q-230",
+    "causality_token": "tok-230",
+    "payload": {
+      "bid_price_ticks": 49794,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49796,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-231",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000231000000000,
+    "received_ns": 1700000231010000000,
+    "available_ns": 1700000231020000000,
+    "engine_seq": 232,
+    "correlation_id": "q-231",
+    "causality_token": "tok-231",
+    "payload": {
+      "bid_price_ticks": 49779,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49781,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-232",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000232000000000,
+    "received_ns": 1700000232010000000,
+    "available_ns": 1700000232020000000,
+    "engine_seq": 233,
+    "correlation_id": "q-232",
+    "causality_token": "tok-232",
+    "payload": {
+      "bid_price_ticks": 49754,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49756,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-233",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000233000000000,
+    "received_ns": 1700000233010000000,
+    "available_ns": 1700000233020000000,
+    "engine_seq": 234,
+    "correlation_id": "q-233",
+    "causality_token": "tok-233",
+    "payload": {
+      "bid_price_ticks": 49729,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49731,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-234",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000234000000000,
+    "received_ns": 1700000234010000000,
+    "available_ns": 1700000234020000000,
+    "engine_seq": 235,
+    "correlation_id": "q-234",
+    "causality_token": "tok-234",
+    "payload": {
+      "bid_price_ticks": 49714,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49716,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-235",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000235000000000,
+    "received_ns": 1700000235010000000,
+    "available_ns": 1700000235020000000,
+    "engine_seq": 236,
+    "correlation_id": "q-235",
+    "causality_token": "tok-235",
+    "payload": {
+      "bid_price_ticks": 49689,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49691,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-236",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000236000000000,
+    "received_ns": 1700000236010000000,
+    "available_ns": 1700000236020000000,
+    "engine_seq": 237,
+    "correlation_id": "q-236",
+    "causality_token": "tok-236",
+    "payload": {
+      "bid_price_ticks": 49664,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49666,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-237",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000237000000000,
+    "received_ns": 1700000237010000000,
+    "available_ns": 1700000237020000000,
+    "engine_seq": 238,
+    "correlation_id": "q-237",
+    "causality_token": "tok-237",
+    "payload": {
+      "bid_price_ticks": 49649,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49651,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-238",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000238000000000,
+    "received_ns": 1700000238010000000,
+    "available_ns": 1700000238020000000,
+    "engine_seq": 239,
+    "correlation_id": "q-238",
+    "causality_token": "tok-238",
+    "payload": {
+      "bid_price_ticks": 49624,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49626,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-239",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000239000000000,
+    "received_ns": 1700000239010000000,
+    "available_ns": 1700000239020000000,
+    "engine_seq": 240,
+    "correlation_id": "q-239",
+    "causality_token": "tok-239",
+    "payload": {
+      "bid_price_ticks": 49599,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49601,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-23",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000239000000000,
+    "received_ns": 1700000239010000000,
+    "available_ns": 1700000239020000000,
+    "engine_seq": 1239,
+    "correlation_id": "b-23",
+    "causality_token": "tok-bar-239",
+    "payload": {
+      "start_ns": 1700000229000000000,
+      "end_ns": 1700000239000000000,
+      "open_ticks": 49725,
+      "high_ticks": 49630,
+      "low_ticks": 49570,
+      "close_ticks": 49600,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-240",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000240000000000,
+    "received_ns": 1700000240010000000,
+    "available_ns": 1700000240020000000,
+    "engine_seq": 241,
+    "correlation_id": "q-240",
+    "causality_token": "tok-240",
+    "payload": {
+      "bid_price_ticks": 49624,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49626,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-241",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000241000000000,
+    "received_ns": 1700000241010000000,
+    "available_ns": 1700000241020000000,
+    "engine_seq": 242,
+    "correlation_id": "q-241",
+    "causality_token": "tok-241",
+    "payload": {
+      "bid_price_ticks": 49639,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49641,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-242",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000242000000000,
+    "received_ns": 1700000242010000000,
+    "available_ns": 1700000242020000000,
+    "engine_seq": 243,
+    "correlation_id": "q-242",
+    "causality_token": "tok-242",
+    "payload": {
+      "bid_price_ticks": 49654,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49656,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-243",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000243000000000,
+    "received_ns": 1700000243010000000,
+    "available_ns": 1700000243020000000,
+    "engine_seq": 244,
+    "correlation_id": "q-243",
+    "causality_token": "tok-243",
+    "payload": {
+      "bid_price_ticks": 49679,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49681,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-244",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000244000000000,
+    "received_ns": 1700000244010000000,
+    "available_ns": 1700000244020000000,
+    "engine_seq": 245,
+    "correlation_id": "q-244",
+    "causality_token": "tok-244",
+    "payload": {
+      "bid_price_ticks": 49694,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49696,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-245",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000245000000000,
+    "received_ns": 1700000245010000000,
+    "available_ns": 1700000245020000000,
+    "engine_seq": 246,
+    "correlation_id": "q-245",
+    "causality_token": "tok-245",
+    "payload": {
+      "bid_price_ticks": 49709,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49711,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-246",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000246000000000,
+    "received_ns": 1700000246010000000,
+    "available_ns": 1700000246020000000,
+    "engine_seq": 247,
+    "correlation_id": "q-246",
+    "causality_token": "tok-246",
+    "payload": {
+      "bid_price_ticks": 49734,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49736,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-247",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000247000000000,
+    "received_ns": 1700000247010000000,
+    "available_ns": 1700000247020000000,
+    "engine_seq": 248,
+    "correlation_id": "q-247",
+    "causality_token": "tok-247",
+    "payload": {
+      "bid_price_ticks": 49749,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49751,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-248",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000248000000000,
+    "received_ns": 1700000248010000000,
+    "available_ns": 1700000248020000000,
+    "engine_seq": 249,
+    "correlation_id": "q-248",
+    "causality_token": "tok-248",
+    "payload": {
+      "bid_price_ticks": 49764,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49766,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-249",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000249000000000,
+    "received_ns": 1700000249010000000,
+    "available_ns": 1700000249020000000,
+    "engine_seq": 250,
+    "correlation_id": "q-249",
+    "causality_token": "tok-249",
+    "payload": {
+      "bid_price_ticks": 49789,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49791,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-24",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000249000000000,
+    "received_ns": 1700000249010000000,
+    "available_ns": 1700000249020000000,
+    "engine_seq": 1249,
+    "correlation_id": "b-24",
+    "causality_token": "tok-bar-249",
+    "payload": {
+      "start_ns": 1700000239000000000,
+      "end_ns": 1700000249000000000,
+      "open_ticks": 49665,
+      "high_ticks": 49820,
+      "low_ticks": 49760,
+      "close_ticks": 49790,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-250",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000250000000000,
+    "received_ns": 1700000250010000000,
+    "available_ns": 1700000250020000000,
+    "engine_seq": 251,
+    "correlation_id": "q-250",
+    "causality_token": "tok-250",
+    "payload": {
+      "bid_price_ticks": 49804,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49806,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-251",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000251000000000,
+    "received_ns": 1700000251010000000,
+    "available_ns": 1700000251020000000,
+    "engine_seq": 252,
+    "correlation_id": "q-251",
+    "causality_token": "tok-251",
+    "payload": {
+      "bid_price_ticks": 49819,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49821,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-252",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000252000000000,
+    "received_ns": 1700000252010000000,
+    "available_ns": 1700000252020000000,
+    "engine_seq": 253,
+    "correlation_id": "q-252",
+    "causality_token": "tok-252",
+    "payload": {
+      "bid_price_ticks": 49844,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49846,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-253",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000253000000000,
+    "received_ns": 1700000253010000000,
+    "available_ns": 1700000253020000000,
+    "engine_seq": 254,
+    "correlation_id": "q-253",
+    "causality_token": "tok-253",
+    "payload": {
+      "bid_price_ticks": 49859,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49861,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-254",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000254000000000,
+    "received_ns": 1700000254010000000,
+    "available_ns": 1700000254020000000,
+    "engine_seq": 255,
+    "correlation_id": "q-254",
+    "causality_token": "tok-254",
+    "payload": {
+      "bid_price_ticks": 49874,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49876,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-255",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000255000000000,
+    "received_ns": 1700000255010000000,
+    "available_ns": 1700000255020000000,
+    "engine_seq": 256,
+    "correlation_id": "q-255",
+    "causality_token": "tok-255",
+    "payload": {
+      "bid_price_ticks": 49899,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49901,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-256",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000256000000000,
+    "received_ns": 1700000256010000000,
+    "available_ns": 1700000256020000000,
+    "engine_seq": 257,
+    "correlation_id": "q-256",
+    "causality_token": "tok-256",
+    "payload": {
+      "bid_price_ticks": 49914,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49916,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-257",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000257000000000,
+    "received_ns": 1700000257010000000,
+    "available_ns": 1700000257020000000,
+    "engine_seq": 258,
+    "correlation_id": "q-257",
+    "causality_token": "tok-257",
+    "payload": {
+      "bid_price_ticks": 49929,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49931,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-258",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000258000000000,
+    "received_ns": 1700000258010000000,
+    "available_ns": 1700000258020000000,
+    "engine_seq": 259,
+    "correlation_id": "q-258",
+    "causality_token": "tok-258",
+    "payload": {
+      "bid_price_ticks": 49954,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49956,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-259",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000259000000000,
+    "received_ns": 1700000259010000000,
+    "available_ns": 1700000259020000000,
+    "engine_seq": 260,
+    "correlation_id": "q-259",
+    "causality_token": "tok-259",
+    "payload": {
+      "bid_price_ticks": 49969,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49971,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-25",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000259000000000,
+    "received_ns": 1700000259010000000,
+    "available_ns": 1700000259020000000,
+    "engine_seq": 1259,
+    "correlation_id": "b-25",
+    "causality_token": "tok-bar-259",
+    "payload": {
+      "start_ns": 1700000249000000000,
+      "end_ns": 1700000259000000000,
+      "open_ticks": 49895,
+      "high_ticks": 50000,
+      "low_ticks": 49940,
+      "close_ticks": 49970,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-260",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000260000000000,
+    "received_ns": 1700000260010000000,
+    "available_ns": 1700000260020000000,
+    "engine_seq": 261,
+    "correlation_id": "q-260",
+    "causality_token": "tok-260",
+    "payload": {
+      "bid_price_ticks": 49944,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49946,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-261",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000261000000000,
+    "received_ns": 1700000261010000000,
+    "available_ns": 1700000261020000000,
+    "engine_seq": 262,
+    "correlation_id": "q-261",
+    "causality_token": "tok-261",
+    "payload": {
+      "bid_price_ticks": 49929,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49931,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-262",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000262000000000,
+    "received_ns": 1700000262010000000,
+    "available_ns": 1700000262020000000,
+    "engine_seq": 263,
+    "correlation_id": "q-262",
+    "causality_token": "tok-262",
+    "payload": {
+      "bid_price_ticks": 49904,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49906,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-263",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000263000000000,
+    "received_ns": 1700000263010000000,
+    "available_ns": 1700000263020000000,
+    "engine_seq": 264,
+    "correlation_id": "q-263",
+    "causality_token": "tok-263",
+    "payload": {
+      "bid_price_ticks": 49879,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49881,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-264",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000264000000000,
+    "received_ns": 1700000264010000000,
+    "available_ns": 1700000264020000000,
+    "engine_seq": 265,
+    "correlation_id": "q-264",
+    "causality_token": "tok-264",
+    "payload": {
+      "bid_price_ticks": 49864,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49866,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-265",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000265000000000,
+    "received_ns": 1700000265010000000,
+    "available_ns": 1700000265020000000,
+    "engine_seq": 266,
+    "correlation_id": "q-265",
+    "causality_token": "tok-265",
+    "payload": {
+      "bid_price_ticks": 49839,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49841,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-266",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000266000000000,
+    "received_ns": 1700000266010000000,
+    "available_ns": 1700000266020000000,
+    "engine_seq": 267,
+    "correlation_id": "q-266",
+    "causality_token": "tok-266",
+    "payload": {
+      "bid_price_ticks": 49814,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49816,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-267",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000267000000000,
+    "received_ns": 1700000267010000000,
+    "available_ns": 1700000267020000000,
+    "engine_seq": 268,
+    "correlation_id": "q-267",
+    "causality_token": "tok-267",
+    "payload": {
+      "bid_price_ticks": 49799,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49801,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-268",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000268000000000,
+    "received_ns": 1700000268010000000,
+    "available_ns": 1700000268020000000,
+    "engine_seq": 269,
+    "correlation_id": "q-268",
+    "causality_token": "tok-268",
+    "payload": {
+      "bid_price_ticks": 49774,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49776,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-269",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000269000000000,
+    "received_ns": 1700000269010000000,
+    "available_ns": 1700000269020000000,
+    "engine_seq": 270,
+    "correlation_id": "q-269",
+    "causality_token": "tok-269",
+    "payload": {
+      "bid_price_ticks": 49749,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49751,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-26",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000269000000000,
+    "received_ns": 1700000269010000000,
+    "available_ns": 1700000269020000000,
+    "engine_seq": 1269,
+    "correlation_id": "b-26",
+    "causality_token": "tok-bar-269",
+    "payload": {
+      "start_ns": 1700000259000000000,
+      "end_ns": 1700000269000000000,
+      "open_ticks": 49875,
+      "high_ticks": 49780,
+      "low_ticks": 49720,
+      "close_ticks": 49750,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-270",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000270000000000,
+    "received_ns": 1700000270010000000,
+    "available_ns": 1700000270020000000,
+    "engine_seq": 271,
+    "correlation_id": "q-270",
+    "causality_token": "tok-270",
+    "payload": {
+      "bid_price_ticks": 49734,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49736,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-271",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000271000000000,
+    "received_ns": 1700000271010000000,
+    "available_ns": 1700000271020000000,
+    "engine_seq": 272,
+    "correlation_id": "q-271",
+    "causality_token": "tok-271",
+    "payload": {
+      "bid_price_ticks": 49709,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49711,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-272",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000272000000000,
+    "received_ns": 1700000272010000000,
+    "available_ns": 1700000272020000000,
+    "engine_seq": 273,
+    "correlation_id": "q-272",
+    "causality_token": "tok-272",
+    "payload": {
+      "bid_price_ticks": 49684,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49686,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-273",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000273000000000,
+    "received_ns": 1700000273010000000,
+    "available_ns": 1700000273020000000,
+    "engine_seq": 274,
+    "correlation_id": "q-273",
+    "causality_token": "tok-273",
+    "payload": {
+      "bid_price_ticks": 49669,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49671,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-274",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000274000000000,
+    "received_ns": 1700000274010000000,
+    "available_ns": 1700000274020000000,
+    "engine_seq": 275,
+    "correlation_id": "q-274",
+    "causality_token": "tok-274",
+    "payload": {
+      "bid_price_ticks": 49644,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49646,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-275",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000275000000000,
+    "received_ns": 1700000275010000000,
+    "available_ns": 1700000275020000000,
+    "engine_seq": 276,
+    "correlation_id": "q-275",
+    "causality_token": "tok-275",
+    "payload": {
+      "bid_price_ticks": 49619,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49621,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-276",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000276000000000,
+    "received_ns": 1700000276010000000,
+    "available_ns": 1700000276020000000,
+    "engine_seq": 277,
+    "correlation_id": "q-276",
+    "causality_token": "tok-276",
+    "payload": {
+      "bid_price_ticks": 49604,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49606,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-277",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000277000000000,
+    "received_ns": 1700000277010000000,
+    "available_ns": 1700000277020000000,
+    "engine_seq": 278,
+    "correlation_id": "q-277",
+    "causality_token": "tok-277",
+    "payload": {
+      "bid_price_ticks": 49579,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49581,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-278",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000278000000000,
+    "received_ns": 1700000278010000000,
+    "available_ns": 1700000278020000000,
+    "engine_seq": 279,
+    "correlation_id": "q-278",
+    "causality_token": "tok-278",
+    "payload": {
+      "bid_price_ticks": 49554,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49556,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-279",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000279000000000,
+    "received_ns": 1700000279010000000,
+    "available_ns": 1700000279020000000,
+    "engine_seq": 280,
+    "correlation_id": "q-279",
+    "causality_token": "tok-279",
+    "payload": {
+      "bid_price_ticks": 49539,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49541,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-27",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000279000000000,
+    "received_ns": 1700000279010000000,
+    "available_ns": 1700000279020000000,
+    "engine_seq": 1279,
+    "correlation_id": "b-27",
+    "causality_token": "tok-bar-279",
+    "payload": {
+      "start_ns": 1700000269000000000,
+      "end_ns": 1700000279000000000,
+      "open_ticks": 49615,
+      "high_ticks": 49570,
+      "low_ticks": 49510,
+      "close_ticks": 49540,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-280",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000280000000000,
+    "received_ns": 1700000280010000000,
+    "available_ns": 1700000280020000000,
+    "engine_seq": 281,
+    "correlation_id": "q-280",
+    "causality_token": "tok-280",
+    "payload": {
+      "bid_price_ticks": 49554,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49556,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-281",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000281000000000,
+    "received_ns": 1700000281010000000,
+    "available_ns": 1700000281020000000,
+    "engine_seq": 282,
+    "correlation_id": "q-281",
+    "causality_token": "tok-281",
+    "payload": {
+      "bid_price_ticks": 49569,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49571,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-282",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000282000000000,
+    "received_ns": 1700000282010000000,
+    "available_ns": 1700000282020000000,
+    "engine_seq": 283,
+    "correlation_id": "q-282",
+    "causality_token": "tok-282",
+    "payload": {
+      "bid_price_ticks": 49594,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49596,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-283",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000283000000000,
+    "received_ns": 1700000283010000000,
+    "available_ns": 1700000283020000000,
+    "engine_seq": 284,
+    "correlation_id": "q-283",
+    "causality_token": "tok-283",
+    "payload": {
+      "bid_price_ticks": 49609,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49611,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-284",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000284000000000,
+    "received_ns": 1700000284010000000,
+    "available_ns": 1700000284020000000,
+    "engine_seq": 285,
+    "correlation_id": "q-284",
+    "causality_token": "tok-284",
+    "payload": {
+      "bid_price_ticks": 49624,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49626,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-285",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000285000000000,
+    "received_ns": 1700000285010000000,
+    "available_ns": 1700000285020000000,
+    "engine_seq": 286,
+    "correlation_id": "q-285",
+    "causality_token": "tok-285",
+    "payload": {
+      "bid_price_ticks": 49649,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49651,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-286",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000286000000000,
+    "received_ns": 1700000286010000000,
+    "available_ns": 1700000286020000000,
+    "engine_seq": 287,
+    "correlation_id": "q-286",
+    "causality_token": "tok-286",
+    "payload": {
+      "bid_price_ticks": 49664,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49666,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-287",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000287000000000,
+    "received_ns": 1700000287010000000,
+    "available_ns": 1700000287020000000,
+    "engine_seq": 288,
+    "correlation_id": "q-287",
+    "causality_token": "tok-287",
+    "payload": {
+      "bid_price_ticks": 49679,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49681,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-288",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000288000000000,
+    "received_ns": 1700000288010000000,
+    "available_ns": 1700000288020000000,
+    "engine_seq": 289,
+    "correlation_id": "q-288",
+    "causality_token": "tok-288",
+    "payload": {
+      "bid_price_ticks": 49704,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49706,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-289",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000289000000000,
+    "received_ns": 1700000289010000000,
+    "available_ns": 1700000289020000000,
+    "engine_seq": 290,
+    "correlation_id": "q-289",
+    "causality_token": "tok-289",
+    "payload": {
+      "bid_price_ticks": 49719,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49721,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-28",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000289000000000,
+    "received_ns": 1700000289010000000,
+    "available_ns": 1700000289020000000,
+    "engine_seq": 1289,
+    "correlation_id": "b-28",
+    "causality_token": "tok-bar-289",
+    "payload": {
+      "start_ns": 1700000279000000000,
+      "end_ns": 1700000289000000000,
+      "open_ticks": 49645,
+      "high_ticks": 49750,
+      "low_ticks": 49690,
+      "close_ticks": 49720,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  },
+  {
+    "event_id": "quote-290",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000290000000000,
+    "received_ns": 1700000290010000000,
+    "available_ns": 1700000290020000000,
+    "engine_seq": 291,
+    "correlation_id": "q-290",
+    "causality_token": "tok-290",
+    "payload": {
+      "bid_price_ticks": 49734,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49736,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-291",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000291000000000,
+    "received_ns": 1700000291010000000,
+    "available_ns": 1700000291020000000,
+    "engine_seq": 292,
+    "correlation_id": "q-291",
+    "causality_token": "tok-291",
+    "payload": {
+      "bid_price_ticks": 49759,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49761,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-292",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000292000000000,
+    "received_ns": 1700000292010000000,
+    "available_ns": 1700000292020000000,
+    "engine_seq": 293,
+    "correlation_id": "q-292",
+    "causality_token": "tok-292",
+    "payload": {
+      "bid_price_ticks": 49774,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49776,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-293",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000293000000000,
+    "received_ns": 1700000293010000000,
+    "available_ns": 1700000293020000000,
+    "engine_seq": 294,
+    "correlation_id": "q-293",
+    "causality_token": "tok-293",
+    "payload": {
+      "bid_price_ticks": 49789,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49791,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-294",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000294000000000,
+    "received_ns": 1700000294010000000,
+    "available_ns": 1700000294020000000,
+    "engine_seq": 295,
+    "correlation_id": "q-294",
+    "causality_token": "tok-294",
+    "payload": {
+      "bid_price_ticks": 49814,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49816,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-295",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000295000000000,
+    "received_ns": 1700000295010000000,
+    "available_ns": 1700000295020000000,
+    "engine_seq": 296,
+    "correlation_id": "q-295",
+    "causality_token": "tok-295",
+    "payload": {
+      "bid_price_ticks": 49829,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49831,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-296",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000296000000000,
+    "received_ns": 1700000296010000000,
+    "available_ns": 1700000296020000000,
+    "engine_seq": 297,
+    "correlation_id": "q-296",
+    "causality_token": "tok-296",
+    "payload": {
+      "bid_price_ticks": 49844,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49846,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-297",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000297000000000,
+    "received_ns": 1700000297010000000,
+    "available_ns": 1700000297020000000,
+    "engine_seq": 298,
+    "correlation_id": "q-297",
+    "causality_token": "tok-297",
+    "payload": {
+      "bid_price_ticks": 49869,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49871,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-298",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000298000000000,
+    "received_ns": 1700000298010000000,
+    "available_ns": 1700000298020000000,
+    "engine_seq": 299,
+    "correlation_id": "q-298",
+    "causality_token": "tok-298",
+    "payload": {
+      "bid_price_ticks": 49884,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49886,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "quote-299",
+    "event_type": "Quote",
+    "exchange_event_ns": 1700000299000000000,
+    "received_ns": 1700000299010000000,
+    "available_ns": 1700000299020000000,
+    "engine_seq": 300,
+    "correlation_id": "q-299",
+    "causality_token": "tok-299",
+    "payload": {
+      "bid_price_ticks": 49899,
+      "bid_size_lots": 100,
+      "ask_price_ticks": 49901,
+      "ask_size_lots": 100
+    }
+  },
+  {
+    "event_id": "bar-29",
+    "event_type": "BarClosed",
+    "exchange_event_ns": 1700000299000000000,
+    "received_ns": 1700000299010000000,
+    "available_ns": 1700000299020000000,
+    "engine_seq": 1299,
+    "correlation_id": "b-29",
+    "causality_token": "tok-bar-299",
+    "payload": {
+      "start_ns": 1700000289000000000,
+      "end_ns": 1700000299000000000,
+      "open_ticks": 49825,
+      "high_ticks": 49930,
+      "low_ticks": 49870,
+      "close_ticks": 49900,
+      "volume_lots": 1000,
+      "synthetic": true
+    }
+  }
+]

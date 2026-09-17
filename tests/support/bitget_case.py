@@ -144,6 +144,8 @@ class RecoveryHTTP(ScriptedHTTP):
         self.accepted = []
         self.order_changes = {}
         self.stop_changes = {}
+        self.stop_rows = None
+        self.extra_stop_rows = []
         self.position_changes = {}
 
     async def prepare(self, request):
@@ -328,10 +330,18 @@ class RecoveryHTTP(ScriptedHTTP):
             )
             if self.fault == "foreign_protection" and query["category"] == ["spot"]:
                 data = [{"orderId": "foreign-conditional", "category": "spot", "symbol": "BTCUSDT"}]
+            if query["category"] == ["usdt-futures"]:
+                if self.stop_rows is not None:
+                    data = self.stop_rows
+                data = [*data, *self.extra_stop_rows]
         else:
             raise AssertionError(f"unrecognized emulator endpoint {path}")
 
         async def response():
+            if path.endswith("unfilled-strategy-orders"):
+                # External JSON need not satisfy the core canonical contract.
+                wire = json.dumps({"code": "00000", "data": data}, ensure_ascii=True)
+                return Response(200, wire.replace("Infinity", "1e999").encode("ascii"))
             return Response(200, canonical_bytes({"code": "00000", "data": data}))
 
         return response()
@@ -433,6 +443,8 @@ async def recovery_case(
     private_order_changes=None,
     position_changes=None,
     second_stop_changes=None,
+    second_stop_rows=None,
+    second_extra_stop_rows=None,
 ):
     from decimal import Decimal
 
@@ -521,13 +533,32 @@ async def recovery_case(
         first_protection = {key: json.loads(data) for key, data in account.engine.state.protection}
         first_cursor = result.cursor_ms
         second_seq = account.engine.state.engine_seq
-        if second_stop_changes is not None:
+        checkpoint = account.engine.checkpoint()
+        if any(
+            value is not None
+            for value in (second_stop_changes, second_stop_rows, second_extra_stop_rows)
+        ):
             assert result.status == "CONVERGED"
-            account.transport.stop_changes = second_stop_changes
+            account.transport.stop_changes = second_stop_changes or {}
+            account.transport.stop_rows = second_stop_rows
+            account.transport.extra_stop_rows = second_extra_stop_rows or []
             result = await runner.run()
         await router.dispatch_ready()
         transactions = account.portfolio.transactions
         records = account.store.read_after(0)
+        from quantdesk.core.engine import Engine, EngineMode
+
+        restored = Engine(
+            "uta-test",
+            account.store,
+            raw_watermark=account.journal.sync,
+            reducers=account.reducers,
+            producers=account.producers,
+            code_hash="uta-test",
+            schema_hash="uta-test",
+            mode=EngineMode.RECOVERY,
+        )
+        restored.restore(checkpoint, account.store.read_after(checkpoint.engine_seq))
         return {
             "distinct_submitted_client_ids": len(
                 {r["clientOid"] for r in account.transport.accepted}
@@ -559,6 +590,10 @@ async def recovery_case(
                 if r.envelope.event_type == "OrderContractObserved"
             ],
             "first_protection": first_protection,
+            "replayed_protection": restored.state.protection,
+            "recorded_protection": account.engine.state.protection,
+            "replayed_latches": restored.state.risk_latches,
+            "recorded_latches": account.engine.state.risk_latches,
             "cursor_unchanged": result.cursor_ms == first_cursor,
             "new_protection_events": [
                 r.envelope

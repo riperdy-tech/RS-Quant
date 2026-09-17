@@ -16,6 +16,7 @@ test-results/
 playwright-report/
 runtime/
 artifacts/
+data/accounts/
 *.log
 .env
 .env.*

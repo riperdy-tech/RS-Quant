@@ -1,0 +1,38 @@
+# QuantDesk Docker Compose Deployment (§16.3)
+# Resource limits, private network, and isolated volumes.
+
+services:
+  quantdesk:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    container_name: quantdesk-app
+    restart: unless-stopped
+    ports:
+      # Private loopback binding only (§16.3)
+      - "127.0.0.1:8000:8000"
+    environment:
+      - QUANTDESK_MODE=DEMO
+      - QUANTDESK_DATA_DIR=/data
+    volumes:
+      - quantdesk-data:/data
+      - ../configs:/app/configs:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4096M
+        reservations:
+          cpus: "1.0"
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  quantdesk-data:
+    driver: local

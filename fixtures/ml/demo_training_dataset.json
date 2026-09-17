@@ -1,0 +1,3776 @@
+{
+  "metadata": {
+    "origin": "demo-only",
+    "synthetic": true,
+    "warning": "Synthetic demo fixture only. Never use to establish live profitability or readiness.",
+    "total_candidates": 145,
+    "valid_rows": 145,
+    "positive_labels": 69,
+    "negative_labels": 76,
+    "n_folds": 3
+  },
+  "feature_names": [
+    "mid",
+    "momentum_10",
+    "spread_bps",
+    "volume_signed"
+  ],
+  "features_matrix": [
+    [
+      50025.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50055.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50095.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50135.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50165.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50205.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50245.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50275.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50315.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50355.0,
+      25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50345.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50305.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50265.0,
+      -15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50215.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50175.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50135.0,
+      -15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50085.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50045.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50005.0,
+      -15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49955.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49955.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49995.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50025.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50065.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50105.0,
+      25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50135.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50175.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50215.0,
+      25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50245.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50285.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50285.0,
+      -15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50235.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50195.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50155.0,
+      -15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50105.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50065.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50025.0,
+      -15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49975.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49935.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49895.0,
+      -15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49885.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49925.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49965.0,
+      25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49995.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50035.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50075.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50105.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50145.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50185.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50215.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50215.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50175.0,
+      -15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50125.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50085.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50045.0,
+      -15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49995.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49955.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49915.0,
+      -15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49865.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49825.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49825.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49855.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49895.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49935.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49965.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50005.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50045.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50075.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50115.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50155.0,
+      25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50145.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50105.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50065.0,
+      -15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50015.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49975.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49935.0,
+      -15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49885.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49845.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49805.0,
+      -15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49755.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49755.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49795.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49825.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49865.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49905.0,
+      25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49935.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49975.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50015.0,
+      25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50045.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50085.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      50085.0,
+      -15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50035.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49995.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49955.0,
+      -15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49905.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49865.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49825.0,
+      -15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49775.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49735.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49695.0,
+      -15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49685.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49725.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49765.0,
+      25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49795.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49835.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49875.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49905.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49945.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49985.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      50015.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      50015.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49975.0,
+      -15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49925.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49885.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49845.0,
+      -15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49795.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49755.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49715.0,
+      -15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49665.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49625.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49625.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49655.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49695.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49735.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49765.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49805.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49845.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49875.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49915.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49955.0,
+      25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49945.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49905.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49865.0,
+      -15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49815.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49775.0,
+      -25.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49735.0,
+      -15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49685.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49645.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49605.0,
+      -15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49555.0,
+      -25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49555.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49595.0,
+      25.0,
+      0.4,
+      50.0
+    ],
+    [
+      49625.0,
+      15.0,
+      0.4,
+      50.0
+    ],
+    [
+      49665.0,
+      15.0,
+      0.4,
+      -50.0
+    ],
+    [
+      49705.0,
+      25.0,
+      0.4,
+      -50.0
+    ]
+  ],
+  "target_labels": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    0,
+    0
+  ],
+  "folds": [
+    {
+      "fold_index": 0,
+      "train_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55
+      ],
+      "val_indices": [
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76
+      ],
+      "holdout_indices": [
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144
+      ],
+      "purged_indices": [
+        56,
+        57
+      ],
+      "val_start_ns": 1700000116000000000,
+      "val_end_ns": 1700000152000000000
+    },
+    {
+      "fold_index": 1,
+      "train_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74
+      ],
+      "val_indices": [
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95
+      ],
+      "holdout_indices": [
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144
+      ],
+      "purged_indices": [
+        75,
+        76
+      ],
+      "val_start_ns": 1700000154000000000,
+      "val_end_ns": 1700000190000000000
+    },
+    {
+      "fold_index": 2,
+      "train_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93
+      ],
+      "val_indices": [
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115
+      ],
+      "holdout_indices": [
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144
+      ],
+      "purged_indices": [
+        94,
+        95
+      ],
+      "val_start_ns": 1700000192000000000,
+      "val_end_ns": 1700000230000000000
+    }
+  ],
+  "rows": [
+    {
+      "candidate_id": "cand-0",
+      "decision_ns": 1700000000000000000,
+      "side": "BUY",
+      "entry_price": "50026.0",
+      "exit_price": "50109.0",
+      "net_return": "22.923150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50025.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-2",
+      "decision_ns": 1700000002000000000,
+      "side": "BUY",
+      "entry_price": "50056.0",
+      "exit_price": "50149.0",
+      "net_return": "32.881650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50055.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-4",
+      "decision_ns": 1700000004000000000,
+      "side": "BUY",
+      "entry_price": "50096.0",
+      "exit_price": "50189.0",
+      "net_return": "32.833650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50095.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-6",
+      "decision_ns": 1700000006000000000,
+      "side": "BUY",
+      "entry_price": "50136.0",
+      "exit_price": "50219.0",
+      "net_return": "22.791150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50135.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-8",
+      "decision_ns": 1700000008000000000,
+      "side": "BUY",
+      "entry_price": "50166.0",
+      "exit_price": "50259.0",
+      "net_return": "32.749650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50165.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-10",
+      "decision_ns": 1700000010000000000,
+      "side": "BUY",
+      "entry_price": "50206.0",
+      "exit_price": "50299.0",
+      "net_return": "32.701650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50205.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-12",
+      "decision_ns": 1700000012000000000,
+      "side": "BUY",
+      "entry_price": "50246.0",
+      "exit_price": "50329.0",
+      "net_return": "22.659150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50245.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-14",
+      "decision_ns": 1700000014000000000,
+      "side": "BUY",
+      "entry_price": "50276.0",
+      "exit_price": "50369.0",
+      "net_return": "32.617650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50275.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-16",
+      "decision_ns": 1700000016000000000,
+      "side": "SELL",
+      "entry_price": "50314.0",
+      "exit_price": "50331.0",
+      "net_return": "-67.323350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50315.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-18",
+      "decision_ns": 1700000018000000000,
+      "side": "SELL",
+      "entry_price": "50354.0",
+      "exit_price": "50281.0",
+      "net_return": "22.686150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50355.0,
+        "momentum_10": 25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-20",
+      "decision_ns": 1700000020000000000,
+      "side": "SELL",
+      "entry_price": "50344.0",
+      "exit_price": "50241.0",
+      "net_return": "52.712650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50345.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-22",
+      "decision_ns": 1700000022000000000,
+      "side": "SELL",
+      "entry_price": "50304.0",
+      "exit_price": "50201.0",
+      "net_return": "52.752650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50305.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-24",
+      "decision_ns": 1700000024000000000,
+      "side": "SELL",
+      "entry_price": "50264.0",
+      "exit_price": "50151.0",
+      "net_return": "62.798150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50265.0,
+        "momentum_10": -15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-26",
+      "decision_ns": 1700000026000000000,
+      "side": "SELL",
+      "entry_price": "50214.0",
+      "exit_price": "50111.0",
+      "net_return": "52.842650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50215.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-28",
+      "decision_ns": 1700000028000000000,
+      "side": "SELL",
+      "entry_price": "50174.0",
+      "exit_price": "50071.0",
+      "net_return": "52.882650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50175.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-30",
+      "decision_ns": 1700000030000000000,
+      "side": "BUY",
+      "entry_price": "50136.0",
+      "exit_price": "50019.0",
+      "net_return": "-177.098850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50135.0,
+        "momentum_10": -15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-32",
+      "decision_ns": 1700000032000000000,
+      "side": "BUY",
+      "entry_price": "50086.0",
+      "exit_price": "49979.0",
+      "net_return": "-167.044350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50085.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-34",
+      "decision_ns": 1700000034000000000,
+      "side": "BUY",
+      "entry_price": "50046.0",
+      "exit_price": "49939.0",
+      "net_return": "-166.996350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50045.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-36",
+      "decision_ns": 1700000036000000000,
+      "side": "BUY",
+      "entry_price": "50006.0",
+      "exit_price": "49969.0",
+      "net_return": "-96.986850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50005.0,
+        "momentum_10": -15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-38",
+      "decision_ns": 1700000038000000000,
+      "side": "BUY",
+      "entry_price": "49956.0",
+      "exit_price": "50009.0",
+      "net_return": "-6.976350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49955.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-40",
+      "decision_ns": 1700000040000000000,
+      "side": "BUY",
+      "entry_price": "49956.0",
+      "exit_price": "50049.0",
+      "net_return": "33.001650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49955.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-42",
+      "decision_ns": 1700000042000000000,
+      "side": "BUY",
+      "entry_price": "49996.0",
+      "exit_price": "50079.0",
+      "net_return": "22.959150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49995.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-44",
+      "decision_ns": 1700000044000000000,
+      "side": "BUY",
+      "entry_price": "50026.0",
+      "exit_price": "50119.0",
+      "net_return": "32.917650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50025.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-46",
+      "decision_ns": 1700000046000000000,
+      "side": "SELL",
+      "entry_price": "50064.0",
+      "exit_price": "50161.0",
+      "net_return": "-147.117350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50065.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-48",
+      "decision_ns": 1700000048000000000,
+      "side": "SELL",
+      "entry_price": "50104.0",
+      "exit_price": "50191.0",
+      "net_return": "-137.151850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50105.0,
+        "momentum_10": 25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-50",
+      "decision_ns": 1700000050000000000,
+      "side": "SELL",
+      "entry_price": "50134.0",
+      "exit_price": "50231.0",
+      "net_return": "-147.187350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50135.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-52",
+      "decision_ns": 1700000052000000000,
+      "side": "SELL",
+      "entry_price": "50174.0",
+      "exit_price": "50271.0",
+      "net_return": "-147.227350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50175.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-54",
+      "decision_ns": 1700000054000000000,
+      "side": "SELL",
+      "entry_price": "50214.0",
+      "exit_price": "50301.0",
+      "net_return": "-137.261850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50215.0,
+        "momentum_10": 25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-56",
+      "decision_ns": 1700000056000000000,
+      "side": "SELL",
+      "entry_price": "50244.0",
+      "exit_price": "50261.0",
+      "net_return": "-67.253350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50245.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-58",
+      "decision_ns": 1700000058000000000,
+      "side": "SELL",
+      "entry_price": "50284.0",
+      "exit_price": "50221.0",
+      "net_return": "12.750650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50285.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-60",
+      "decision_ns": 1700000060000000000,
+      "side": "BUY",
+      "entry_price": "50286.0",
+      "exit_price": "50169.0",
+      "net_return": "-177.278850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50285.0,
+        "momentum_10": -15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-62",
+      "decision_ns": 1700000062000000000,
+      "side": "BUY",
+      "entry_price": "50236.0",
+      "exit_price": "50129.0",
+      "net_return": "-167.224350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50235.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-64",
+      "decision_ns": 1700000064000000000,
+      "side": "BUY",
+      "entry_price": "50196.0",
+      "exit_price": "50089.0",
+      "net_return": "-167.176350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50195.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-66",
+      "decision_ns": 1700000066000000000,
+      "side": "BUY",
+      "entry_price": "50156.0",
+      "exit_price": "50039.0",
+      "net_return": "-177.122850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50155.0,
+        "momentum_10": -15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-68",
+      "decision_ns": 1700000068000000000,
+      "side": "BUY",
+      "entry_price": "50106.0",
+      "exit_price": "49999.0",
+      "net_return": "-167.068350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50105.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-70",
+      "decision_ns": 1700000070000000000,
+      "side": "BUY",
+      "entry_price": "50066.0",
+      "exit_price": "49959.0",
+      "net_return": "-167.020350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50065.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-72",
+      "decision_ns": 1700000072000000000,
+      "side": "BUY",
+      "entry_price": "50026.0",
+      "exit_price": "49909.0",
+      "net_return": "-176.966850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50025.0,
+        "momentum_10": -15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-74",
+      "decision_ns": 1700000074000000000,
+      "side": "BUY",
+      "entry_price": "49976.0",
+      "exit_price": "49869.0",
+      "net_return": "-166.912350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49975.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-76",
+      "decision_ns": 1700000076000000000,
+      "side": "SELL",
+      "entry_price": "49934.0",
+      "exit_price": "49911.0",
+      "net_return": "-26.921350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49935.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-78",
+      "decision_ns": 1700000078000000000,
+      "side": "SELL",
+      "entry_price": "49894.0",
+      "exit_price": "49941.0",
+      "net_return": "-96.919850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49895.0,
+        "momentum_10": -15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-80",
+      "decision_ns": 1700000080000000000,
+      "side": "SELL",
+      "entry_price": "49884.0",
+      "exit_price": "49981.0",
+      "net_return": "-146.937350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49885.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-82",
+      "decision_ns": 1700000082000000000,
+      "side": "SELL",
+      "entry_price": "49924.0",
+      "exit_price": "50021.0",
+      "net_return": "-146.977350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49925.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-84",
+      "decision_ns": 1700000084000000000,
+      "side": "SELL",
+      "entry_price": "49964.0",
+      "exit_price": "50051.0",
+      "net_return": "-137.011850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49965.0,
+        "momentum_10": 25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-86",
+      "decision_ns": 1700000086000000000,
+      "side": "SELL",
+      "entry_price": "49994.0",
+      "exit_price": "50091.0",
+      "net_return": "-147.047350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49995.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-88",
+      "decision_ns": 1700000088000000000,
+      "side": "SELL",
+      "entry_price": "50034.0",
+      "exit_price": "50131.0",
+      "net_return": "-147.087350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50035.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-90",
+      "decision_ns": 1700000090000000000,
+      "side": "BUY",
+      "entry_price": "50076.0",
+      "exit_price": "50159.0",
+      "net_return": "22.863150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50075.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-92",
+      "decision_ns": 1700000092000000000,
+      "side": "BUY",
+      "entry_price": "50106.0",
+      "exit_price": "50199.0",
+      "net_return": "32.821650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50105.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-94",
+      "decision_ns": 1700000094000000000,
+      "side": "BUY",
+      "entry_price": "50146.0",
+      "exit_price": "50239.0",
+      "net_return": "32.773650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50145.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-96",
+      "decision_ns": 1700000096000000000,
+      "side": "BUY",
+      "entry_price": "50186.0",
+      "exit_price": "50189.0",
+      "net_return": "-57.224850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50185.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-98",
+      "decision_ns": 1700000098000000000,
+      "side": "BUY",
+      "entry_price": "50216.0",
+      "exit_price": "50149.0",
+      "net_return": "-127.222350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50215.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-100",
+      "decision_ns": 1700000100000000000,
+      "side": "BUY",
+      "entry_price": "50216.0",
+      "exit_price": "50109.0",
+      "net_return": "-167.200350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50215.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-102",
+      "decision_ns": 1700000102000000000,
+      "side": "BUY",
+      "entry_price": "50176.0",
+      "exit_price": "50059.0",
+      "net_return": "-177.146850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50175.0,
+        "momentum_10": -15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-104",
+      "decision_ns": 1700000104000000000,
+      "side": "BUY",
+      "entry_price": "50126.0",
+      "exit_price": "50019.0",
+      "net_return": "-167.092350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50125.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-106",
+      "decision_ns": 1700000106000000000,
+      "side": "SELL",
+      "entry_price": "50084.0",
+      "exit_price": "49981.0",
+      "net_return": "52.972650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50085.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-108",
+      "decision_ns": 1700000108000000000,
+      "side": "SELL",
+      "entry_price": "50044.0",
+      "exit_price": "49931.0",
+      "net_return": "63.018150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50045.0,
+        "momentum_10": -15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-110",
+      "decision_ns": 1700000110000000000,
+      "side": "SELL",
+      "entry_price": "49994.0",
+      "exit_price": "49891.0",
+      "net_return": "53.062650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49995.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-112",
+      "decision_ns": 1700000112000000000,
+      "side": "SELL",
+      "entry_price": "49954.0",
+      "exit_price": "49851.0",
+      "net_return": "53.102650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49955.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-114",
+      "decision_ns": 1700000114000000000,
+      "side": "SELL",
+      "entry_price": "49914.0",
+      "exit_price": "49801.0",
+      "net_return": "63.148150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49915.0,
+        "momentum_10": -15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-116",
+      "decision_ns": 1700000116000000000,
+      "side": "SELL",
+      "entry_price": "49864.0",
+      "exit_price": "49841.0",
+      "net_return": "-26.851350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49865.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-118",
+      "decision_ns": 1700000118000000000,
+      "side": "SELL",
+      "entry_price": "49824.0",
+      "exit_price": "49881.0",
+      "net_return": "-106.855350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49825.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-120",
+      "decision_ns": 1700000120000000000,
+      "side": "BUY",
+      "entry_price": "49826.0",
+      "exit_price": "49909.0",
+      "net_return": "23.163150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49825.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-122",
+      "decision_ns": 1700000122000000000,
+      "side": "BUY",
+      "entry_price": "49856.0",
+      "exit_price": "49949.0",
+      "net_return": "33.121650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49855.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-124",
+      "decision_ns": 1700000124000000000,
+      "side": "BUY",
+      "entry_price": "49896.0",
+      "exit_price": "49989.0",
+      "net_return": "33.073650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49895.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-126",
+      "decision_ns": 1700000126000000000,
+      "side": "BUY",
+      "entry_price": "49936.0",
+      "exit_price": "50019.0",
+      "net_return": "23.031150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49935.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-128",
+      "decision_ns": 1700000128000000000,
+      "side": "BUY",
+      "entry_price": "49966.0",
+      "exit_price": "50059.0",
+      "net_return": "32.989650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49965.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-130",
+      "decision_ns": 1700000130000000000,
+      "side": "BUY",
+      "entry_price": "50006.0",
+      "exit_price": "50099.0",
+      "net_return": "32.941650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50005.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-132",
+      "decision_ns": 1700000132000000000,
+      "side": "BUY",
+      "entry_price": "50046.0",
+      "exit_price": "50129.0",
+      "net_return": "22.899150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50045.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-134",
+      "decision_ns": 1700000134000000000,
+      "side": "BUY",
+      "entry_price": "50076.0",
+      "exit_price": "50169.0",
+      "net_return": "32.857650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50075.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-136",
+      "decision_ns": 1700000136000000000,
+      "side": "SELL",
+      "entry_price": "50114.0",
+      "exit_price": "50131.0",
+      "net_return": "-67.123350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50115.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-138",
+      "decision_ns": 1700000138000000000,
+      "side": "SELL",
+      "entry_price": "50154.0",
+      "exit_price": "50081.0",
+      "net_return": "22.886150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50155.0,
+        "momentum_10": 25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-140",
+      "decision_ns": 1700000140000000000,
+      "side": "SELL",
+      "entry_price": "50144.0",
+      "exit_price": "50041.0",
+      "net_return": "52.912650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50145.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-142",
+      "decision_ns": 1700000142000000000,
+      "side": "SELL",
+      "entry_price": "50104.0",
+      "exit_price": "50001.0",
+      "net_return": "52.952650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50105.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-144",
+      "decision_ns": 1700000144000000000,
+      "side": "SELL",
+      "entry_price": "50064.0",
+      "exit_price": "49951.0",
+      "net_return": "62.998150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50065.0,
+        "momentum_10": -15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-146",
+      "decision_ns": 1700000146000000000,
+      "side": "SELL",
+      "entry_price": "50014.0",
+      "exit_price": "49911.0",
+      "net_return": "53.042650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50015.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-148",
+      "decision_ns": 1700000148000000000,
+      "side": "SELL",
+      "entry_price": "49974.0",
+      "exit_price": "49871.0",
+      "net_return": "53.082650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49975.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-150",
+      "decision_ns": 1700000150000000000,
+      "side": "BUY",
+      "entry_price": "49936.0",
+      "exit_price": "49819.0",
+      "net_return": "-176.858850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49935.0,
+        "momentum_10": -15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-152",
+      "decision_ns": 1700000152000000000,
+      "side": "BUY",
+      "entry_price": "49886.0",
+      "exit_price": "49779.0",
+      "net_return": "-166.804350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49885.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-154",
+      "decision_ns": 1700000154000000000,
+      "side": "BUY",
+      "entry_price": "49846.0",
+      "exit_price": "49739.0",
+      "net_return": "-166.756350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49845.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-156",
+      "decision_ns": 1700000156000000000,
+      "side": "BUY",
+      "entry_price": "49806.0",
+      "exit_price": "49769.0",
+      "net_return": "-96.746850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49805.0,
+        "momentum_10": -15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-158",
+      "decision_ns": 1700000158000000000,
+      "side": "BUY",
+      "entry_price": "49756.0",
+      "exit_price": "49809.0",
+      "net_return": "-6.736350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49755.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-160",
+      "decision_ns": 1700000160000000000,
+      "side": "BUY",
+      "entry_price": "49756.0",
+      "exit_price": "49849.0",
+      "net_return": "33.241650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49755.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-162",
+      "decision_ns": 1700000162000000000,
+      "side": "BUY",
+      "entry_price": "49796.0",
+      "exit_price": "49879.0",
+      "net_return": "23.199150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49795.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-164",
+      "decision_ns": 1700000164000000000,
+      "side": "BUY",
+      "entry_price": "49826.0",
+      "exit_price": "49919.0",
+      "net_return": "33.157650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49825.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-166",
+      "decision_ns": 1700000166000000000,
+      "side": "SELL",
+      "entry_price": "49864.0",
+      "exit_price": "49961.0",
+      "net_return": "-146.917350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49865.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-168",
+      "decision_ns": 1700000168000000000,
+      "side": "SELL",
+      "entry_price": "49904.0",
+      "exit_price": "49991.0",
+      "net_return": "-136.951850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49905.0,
+        "momentum_10": 25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-170",
+      "decision_ns": 1700000170000000000,
+      "side": "SELL",
+      "entry_price": "49934.0",
+      "exit_price": "50031.0",
+      "net_return": "-146.987350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49935.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-172",
+      "decision_ns": 1700000172000000000,
+      "side": "SELL",
+      "entry_price": "49974.0",
+      "exit_price": "50071.0",
+      "net_return": "-147.027350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49975.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-174",
+      "decision_ns": 1700000174000000000,
+      "side": "SELL",
+      "entry_price": "50014.0",
+      "exit_price": "50101.0",
+      "net_return": "-137.061850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50015.0,
+        "momentum_10": 25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-176",
+      "decision_ns": 1700000176000000000,
+      "side": "SELL",
+      "entry_price": "50044.0",
+      "exit_price": "50061.0",
+      "net_return": "-67.053350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50045.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-178",
+      "decision_ns": 1700000178000000000,
+      "side": "SELL",
+      "entry_price": "50084.0",
+      "exit_price": "50021.0",
+      "net_return": "12.950650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50085.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-180",
+      "decision_ns": 1700000180000000000,
+      "side": "BUY",
+      "entry_price": "50086.0",
+      "exit_price": "49969.0",
+      "net_return": "-177.038850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50085.0,
+        "momentum_10": -15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-182",
+      "decision_ns": 1700000182000000000,
+      "side": "BUY",
+      "entry_price": "50036.0",
+      "exit_price": "49929.0",
+      "net_return": "-166.984350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50035.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-184",
+      "decision_ns": 1700000184000000000,
+      "side": "BUY",
+      "entry_price": "49996.0",
+      "exit_price": "49889.0",
+      "net_return": "-166.936350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49995.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-186",
+      "decision_ns": 1700000186000000000,
+      "side": "BUY",
+      "entry_price": "49956.0",
+      "exit_price": "49839.0",
+      "net_return": "-176.882850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49955.0,
+        "momentum_10": -15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-188",
+      "decision_ns": 1700000188000000000,
+      "side": "BUY",
+      "entry_price": "49906.0",
+      "exit_price": "49799.0",
+      "net_return": "-166.828350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49905.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-190",
+      "decision_ns": 1700000190000000000,
+      "side": "BUY",
+      "entry_price": "49866.0",
+      "exit_price": "49759.0",
+      "net_return": "-166.780350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49865.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-192",
+      "decision_ns": 1700000192000000000,
+      "side": "BUY",
+      "entry_price": "49826.0",
+      "exit_price": "49709.0",
+      "net_return": "-176.726850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49825.0,
+        "momentum_10": -15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-194",
+      "decision_ns": 1700000194000000000,
+      "side": "BUY",
+      "entry_price": "49776.0",
+      "exit_price": "49669.0",
+      "net_return": "-166.672350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49775.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-196",
+      "decision_ns": 1700000196000000000,
+      "side": "SELL",
+      "entry_price": "49734.0",
+      "exit_price": "49711.0",
+      "net_return": "-26.721350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49735.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-198",
+      "decision_ns": 1700000198000000000,
+      "side": "SELL",
+      "entry_price": "49694.0",
+      "exit_price": "49741.0",
+      "net_return": "-96.719850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49695.0,
+        "momentum_10": -15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-200",
+      "decision_ns": 1700000200000000000,
+      "side": "SELL",
+      "entry_price": "49684.0",
+      "exit_price": "49781.0",
+      "net_return": "-146.737350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49685.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-202",
+      "decision_ns": 1700000202000000000,
+      "side": "SELL",
+      "entry_price": "49724.0",
+      "exit_price": "49821.0",
+      "net_return": "-146.777350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49725.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-204",
+      "decision_ns": 1700000204000000000,
+      "side": "SELL",
+      "entry_price": "49764.0",
+      "exit_price": "49851.0",
+      "net_return": "-136.811850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49765.0,
+        "momentum_10": 25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-206",
+      "decision_ns": 1700000206000000000,
+      "side": "SELL",
+      "entry_price": "49794.0",
+      "exit_price": "49891.0",
+      "net_return": "-146.847350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49795.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-208",
+      "decision_ns": 1700000208000000000,
+      "side": "SELL",
+      "entry_price": "49834.0",
+      "exit_price": "49931.0",
+      "net_return": "-146.887350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49835.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-210",
+      "decision_ns": 1700000210000000000,
+      "side": "BUY",
+      "entry_price": "49876.0",
+      "exit_price": "49959.0",
+      "net_return": "23.103150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49875.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-212",
+      "decision_ns": 1700000212000000000,
+      "side": "BUY",
+      "entry_price": "49906.0",
+      "exit_price": "49999.0",
+      "net_return": "33.061650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49905.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-214",
+      "decision_ns": 1700000214000000000,
+      "side": "BUY",
+      "entry_price": "49946.0",
+      "exit_price": "50039.0",
+      "net_return": "33.013650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49945.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-216",
+      "decision_ns": 1700000216000000000,
+      "side": "BUY",
+      "entry_price": "49986.0",
+      "exit_price": "49989.0",
+      "net_return": "-56.984850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49985.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-218",
+      "decision_ns": 1700000218000000000,
+      "side": "BUY",
+      "entry_price": "50016.0",
+      "exit_price": "49949.0",
+      "net_return": "-126.982350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50015.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-220",
+      "decision_ns": 1700000220000000000,
+      "side": "BUY",
+      "entry_price": "50016.0",
+      "exit_price": "49909.0",
+      "net_return": "-166.960350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 50015.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-222",
+      "decision_ns": 1700000222000000000,
+      "side": "BUY",
+      "entry_price": "49976.0",
+      "exit_price": "49859.0",
+      "net_return": "-176.906850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49975.0,
+        "momentum_10": -15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-224",
+      "decision_ns": 1700000224000000000,
+      "side": "BUY",
+      "entry_price": "49926.0",
+      "exit_price": "49819.0",
+      "net_return": "-166.852350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49925.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-226",
+      "decision_ns": 1700000226000000000,
+      "side": "SELL",
+      "entry_price": "49884.0",
+      "exit_price": "49781.0",
+      "net_return": "53.172650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49885.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-228",
+      "decision_ns": 1700000228000000000,
+      "side": "SELL",
+      "entry_price": "49844.0",
+      "exit_price": "49731.0",
+      "net_return": "63.218150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49845.0,
+        "momentum_10": -15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-230",
+      "decision_ns": 1700000230000000000,
+      "side": "SELL",
+      "entry_price": "49794.0",
+      "exit_price": "49691.0",
+      "net_return": "53.262650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49795.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-232",
+      "decision_ns": 1700000232000000000,
+      "side": "SELL",
+      "entry_price": "49754.0",
+      "exit_price": "49651.0",
+      "net_return": "53.302650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49755.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-234",
+      "decision_ns": 1700000234000000000,
+      "side": "SELL",
+      "entry_price": "49714.0",
+      "exit_price": "49601.0",
+      "net_return": "63.348150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49715.0,
+        "momentum_10": -15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-236",
+      "decision_ns": 1700000236000000000,
+      "side": "SELL",
+      "entry_price": "49664.0",
+      "exit_price": "49641.0",
+      "net_return": "-26.651350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49665.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-238",
+      "decision_ns": 1700000238000000000,
+      "side": "SELL",
+      "entry_price": "49624.0",
+      "exit_price": "49681.0",
+      "net_return": "-106.655350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49625.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-240",
+      "decision_ns": 1700000240000000000,
+      "side": "BUY",
+      "entry_price": "49626.0",
+      "exit_price": "49709.0",
+      "net_return": "23.403150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49625.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-242",
+      "decision_ns": 1700000242000000000,
+      "side": "BUY",
+      "entry_price": "49656.0",
+      "exit_price": "49749.0",
+      "net_return": "33.361650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49655.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-244",
+      "decision_ns": 1700000244000000000,
+      "side": "BUY",
+      "entry_price": "49696.0",
+      "exit_price": "49789.0",
+      "net_return": "33.313650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49695.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-246",
+      "decision_ns": 1700000246000000000,
+      "side": "BUY",
+      "entry_price": "49736.0",
+      "exit_price": "49819.0",
+      "net_return": "23.271150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49735.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-248",
+      "decision_ns": 1700000248000000000,
+      "side": "BUY",
+      "entry_price": "49766.0",
+      "exit_price": "49859.0",
+      "net_return": "33.229650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49765.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-250",
+      "decision_ns": 1700000250000000000,
+      "side": "BUY",
+      "entry_price": "49806.0",
+      "exit_price": "49899.0",
+      "net_return": "33.181650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49805.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-252",
+      "decision_ns": 1700000252000000000,
+      "side": "BUY",
+      "entry_price": "49846.0",
+      "exit_price": "49929.0",
+      "net_return": "23.139150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49845.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-254",
+      "decision_ns": 1700000254000000000,
+      "side": "BUY",
+      "entry_price": "49876.0",
+      "exit_price": "49969.0",
+      "net_return": "33.097650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49875.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-256",
+      "decision_ns": 1700000256000000000,
+      "side": "SELL",
+      "entry_price": "49914.0",
+      "exit_price": "49931.0",
+      "net_return": "-66.923350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49915.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-258",
+      "decision_ns": 1700000258000000000,
+      "side": "SELL",
+      "entry_price": "49954.0",
+      "exit_price": "49881.0",
+      "net_return": "23.086150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49955.0,
+        "momentum_10": 25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-260",
+      "decision_ns": 1700000260000000000,
+      "side": "SELL",
+      "entry_price": "49944.0",
+      "exit_price": "49841.0",
+      "net_return": "53.112650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49945.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-262",
+      "decision_ns": 1700000262000000000,
+      "side": "SELL",
+      "entry_price": "49904.0",
+      "exit_price": "49801.0",
+      "net_return": "53.152650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49905.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-264",
+      "decision_ns": 1700000264000000000,
+      "side": "SELL",
+      "entry_price": "49864.0",
+      "exit_price": "49751.0",
+      "net_return": "63.198150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49865.0,
+        "momentum_10": -15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-266",
+      "decision_ns": 1700000266000000000,
+      "side": "SELL",
+      "entry_price": "49814.0",
+      "exit_price": "49711.0",
+      "net_return": "53.242650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49815.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-268",
+      "decision_ns": 1700000268000000000,
+      "side": "SELL",
+      "entry_price": "49774.0",
+      "exit_price": "49671.0",
+      "net_return": "53.282650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49775.0,
+        "momentum_10": -25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-270",
+      "decision_ns": 1700000270000000000,
+      "side": "BUY",
+      "entry_price": "49736.0",
+      "exit_price": "49619.0",
+      "net_return": "-176.618850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49735.0,
+        "momentum_10": -15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-272",
+      "decision_ns": 1700000272000000000,
+      "side": "BUY",
+      "entry_price": "49686.0",
+      "exit_price": "49579.0",
+      "net_return": "-166.564350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49685.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-274",
+      "decision_ns": 1700000274000000000,
+      "side": "BUY",
+      "entry_price": "49646.0",
+      "exit_price": "49539.0",
+      "net_return": "-166.516350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49645.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-276",
+      "decision_ns": 1700000276000000000,
+      "side": "BUY",
+      "entry_price": "49606.0",
+      "exit_price": "49569.0",
+      "net_return": "-96.506850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49605.0,
+        "momentum_10": -15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-278",
+      "decision_ns": 1700000278000000000,
+      "side": "BUY",
+      "entry_price": "49556.0",
+      "exit_price": "49609.0",
+      "net_return": "-6.496350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49555.0,
+        "momentum_10": -25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-280",
+      "decision_ns": 1700000280000000000,
+      "side": "BUY",
+      "entry_price": "49556.0",
+      "exit_price": "49649.0",
+      "net_return": "33.481650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49555.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-282",
+      "decision_ns": 1700000282000000000,
+      "side": "BUY",
+      "entry_price": "49596.0",
+      "exit_price": "49679.0",
+      "net_return": "23.439150",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49595.0,
+        "momentum_10": 25.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-284",
+      "decision_ns": 1700000284000000000,
+      "side": "BUY",
+      "entry_price": "49626.0",
+      "exit_price": "49719.0",
+      "net_return": "33.397650",
+      "is_profitable": true,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49625.0,
+        "momentum_10": 15.0,
+        "volume_signed": 50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-286",
+      "decision_ns": 1700000286000000000,
+      "side": "SELL",
+      "entry_price": "49664.0",
+      "exit_price": "49761.0",
+      "net_return": "-146.717350",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49665.0,
+        "momentum_10": 15.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    },
+    {
+      "candidate_id": "cand-288",
+      "decision_ns": 1700000288000000000,
+      "side": "SELL",
+      "entry_price": "49704.0",
+      "exit_price": "49791.0",
+      "net_return": "-136.751850",
+      "is_profitable": false,
+      "features": {
+        "spread_bps": 0.4,
+        "mid": 49705.0,
+        "momentum_10": 25.0,
+        "volume_signed": -50.0
+      },
+      "dropped_reason": null
+    }
+  ]
+}

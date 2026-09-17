@@ -6,6 +6,7 @@ No retention/deletion schedule or key-recovery policy is implemented here.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -13,6 +14,7 @@ import re
 import shutil
 import sqlite3
 import tempfile
+import time
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -379,3 +381,85 @@ def restore_backup(
     finally:
         if temporary.exists():
             shutil.rmtree(temporary)
+
+
+@dataclass(frozen=True)
+class RetentionPolicy:
+    """Storage retention configuration per §16.3."""
+
+    logs_max_days: int = 14
+    unpinned_market_segments_max_days: int = 30
+    pinned_identifiers: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class DeletionPreview:
+    """Preview of files scheduled for deletion and storage to be reclaimed (§16.3)."""
+
+    candidates_to_delete: tuple[Path, ...]
+    bytes_to_reclaim: int
+    pinned_files_preserved: tuple[Path, ...]
+
+
+def preview_retention_cleanup(
+    base_directory: Path,
+    policy: RetentionPolicy | None = None,
+    now_epoch_sec: float | None = None,
+) -> DeletionPreview:
+    """Calculates storage projections and lists files scheduled for deletion (§16.3)."""
+    pol = policy or RetentionPolicy()
+    base = Path(base_directory).resolve()
+    now = now_epoch_sec if now_epoch_sec is not None else time.time()
+
+    candidates: list[Path] = []
+    preserved: list[Path] = []
+    reclaim_bytes = 0
+
+    log_cutoff = now - (pol.logs_max_days * 86400)
+    market_cutoff = now - (pol.unpinned_market_segments_max_days * 86400)
+
+    # Check logs directory
+    logs_dir = base / "logs"
+    if logs_dir.exists():
+        for path in logs_dir.glob("**/*"):
+            if path.is_file():
+                if any(pinned in path.name for pinned in pol.pinned_identifiers):
+                    preserved.append(path)
+                elif path.stat().st_mtime < log_cutoff:
+                    candidates.append(path)
+                    reclaim_bytes += path.stat().st_size
+                else:
+                    preserved.append(path)
+
+    # Check unpinned raw / market data directory
+    raw_dir = base / "raw"
+    if raw_dir.exists():
+        for path in raw_dir.glob("**/*"):
+            if path.is_file():
+                if any(pinned in path.name for pinned in pol.pinned_identifiers):
+                    preserved.append(path)
+                elif path.stat().st_mtime < market_cutoff:
+                    candidates.append(path)
+                    reclaim_bytes += path.stat().st_size
+                else:
+                    preserved.append(path)
+
+    return DeletionPreview(
+        candidates_to_delete=tuple(candidates),
+        bytes_to_reclaim=reclaim_bytes,
+        pinned_files_preserved=tuple(preserved),
+    )
+
+
+def apply_retention_cleanup(
+    base_directory: Path,
+    policy: RetentionPolicy | None = None,
+    now_epoch_sec: float | None = None,
+) -> DeletionPreview:
+    """Applies retention cleanup, deleting only unpinned candidate files (§16.3)."""
+    preview = preview_retention_cleanup(base_directory, policy, now_epoch_sec)
+    for path in preview.candidates_to_delete:
+        with contextlib.suppress(OSError):
+            path.unlink(missing_ok=True)
+    return preview
+

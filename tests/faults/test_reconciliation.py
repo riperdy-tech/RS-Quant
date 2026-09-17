@@ -453,6 +453,10 @@ def test_round3_invalid_native_controls_replace_stale_protection(tmp_path, chang
     ],
 )
 def test_round3_malformed_private_order_quarantines_before_router(tmp_path, changes):
+    _assert_private_quarantine(tmp_path, changes=changes)
+
+
+def _assert_private_quarantine(tmp_path, *, changes=None, message_factory=None):
     import json
     from decimal import Decimal
 
@@ -497,16 +501,17 @@ def test_round3_malformed_private_order_quarantines_before_router(tmp_path, chan
                 "stopLoss": "90",
                 "slTriggerBy": "mark",
                 "slOrderType": "market",
-                **changes,
+                **(changes or {}),
             }
             row = {
                 key: value
                 for key, value in row.items()
                 if value is not None or key not in {"qty", "price"}
             }
-            await account.socket.queue.put(
-                json.dumps({"arg": {"instType": "UTA", "topic": "order"}, "data": [row]})
-            )
+            message = {"arg": {"instType": "UTA", "topic": "order"}, "data": [row]}
+            if message_factory:
+                message = message_factory(message)
+            await account.socket.queue.put(json.dumps(message))
             await asyncio.wait_for(account.adapter.private.changed.wait(), 1)
             events = account.adapter.drain_private()
             assert len(events) == 1 and events[0].event_type == "DataGap"
@@ -526,6 +531,147 @@ def test_round3_malformed_private_order_quarantines_before_router(tmp_path, chan
         finally:
             if ownership:
                 ownership.close()
+            await account.close()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "part,shape",
+    [
+        (part, shape)
+        for part in ("envelope", "arg", "data", "row")
+        for shape in ([], None, 42, "row", True, {})
+        if not (part == "data" and shape == [])
+    ],
+)
+def test_round4_private_json_shapes_quarantine_before_router(tmp_path, part, shape):
+    def malformed(message):
+        if part == "envelope":
+            return shape
+        return {**message, part if part != "row" else "data": [shape] if part == "row" else shape}
+
+    _assert_private_quarantine(tmp_path, message_factory=malformed)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"symbol": []},
+        {"category": {}},
+        {"orderId": "\ud800"},
+        {"clientOid": "\udfff"},
+        {"execType": []},
+        {"orderStatus": {}},
+        {"updatedTime": []},
+        {"qty": "sNaN"},
+    ],
+)
+def test_round4_private_nested_values_quarantine_before_router(tmp_path, changes):
+    _assert_private_quarantine(tmp_path, changes=changes)
+
+
+@pytest.mark.parametrize("field", ["arg", "data", "topic", "instType"])
+def test_round4_private_missing_envelope_fields_quarantine_before_router(tmp_path, field):
+    def malformed(message):
+        target = message["arg"] if field in {"topic", "instType"} else message
+        del target[field]
+        return message
+
+    _assert_private_quarantine(tmp_path, message_factory=malformed)
+
+
+@pytest.mark.parametrize("field", ["topic", "instType"])
+@pytest.mark.parametrize("value", [None, [], {}, 42, "unknown", "\ud800"])
+def test_round4_private_invalid_topic_product_quarantine_before_router(tmp_path, field, value):
+    def malformed(message):
+        message["arg"][field] = value
+        return message
+
+    _assert_private_quarantine(tmp_path, message_factory=malformed)
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        [{"orderId": "stop-1", "posSide": []}],
+        [{"orderId": "stop-1", "posSide": float("inf")}],
+        [{"orderId": "stop-1", "posSide": "\ud800"}],
+        [{"orderId": "stop-1", "extra": {"nested": [float("inf"), "\ud800"]}}],
+    ],
+)
+def test_round4_malformed_bound_leg_poisons_valid_leg_and_replays(tmp_path, rows):
+    from tests.support.bitget_case import recovery_case
+
+    result = asyncio.run(recovery_case(tmp_path, second_extra_stop_rows=rows))
+    _assert_poisoned_recovery(result)
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        [],
+        None,
+        42,
+        "row",
+        True,
+        {},
+        {"orderId": "\ud800"},
+        {"orderId": "foreign", "extra": {"nested": [float("inf"), "\ud800"]}},
+    ],
+)
+def test_round4_unidentified_native_rows_are_audited_without_ownership(tmp_path, row):
+    from tests.support.bitget_case import recovery_case
+
+    result = asyncio.run(recovery_case(tmp_path, second_stop_rows=[row]))
+    _assert_poisoned_recovery(result)
+    assert "FOREIGN_OR_UNVERIFIED_PROTECTION" in result["reasons"]
+
+
+def _assert_poisoned_recovery(result):
+    assert result["first_protection"]["group"]["state"]["status"] == "PROTECTED"
+    assert not result["converged"] and result["cursor_unchanged"]
+    assert result["protection"]["group"]["state"]["status"] != "PROTECTED"
+    assert "BOUNDED_REDUCE_ONLY_EXIT" in result["protection"]["group"]["actions"]
+    reviews = [e for e in result["new_protection_events"] if e.event_type == "ProtectionReview"]
+    assert reviews and all(e.raw_ref for e in reviews)
+    observations = [
+        e for e in result["new_protection_events"] if e.event_type == "VenueObservation"
+    ]
+    assert observations and all(e.raw_ref for e in observations)
+    assert result["replayed_protection"] == result["recorded_protection"]
+    assert result["replayed_latches"] == result["recorded_latches"]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        [],
+        None,
+        42,
+        "row",
+        {"arg": [], "data": []},
+        {"arg": {"instType": "usdt-futures", "topic": "publicTrade"}, "data": [None]},
+        {"arg": {"instType": "usdt-futures", "topic": 42}, "data": [{}]},
+        {
+            "arg": {"instType": "usdt-futures", "topic": "publicTrade"},
+            "data": [{"symbol": "BTCUSDT", "i": "\ud800", "p": "100", "v": "0.001", "S": []}],
+        },
+    ],
+)
+def test_round4_public_json_shapes_emit_raw_linked_gap(tmp_path, message):
+    import json
+
+    from tests.support.bitget_case import RecoveryAccount
+
+    async def run():
+        account = RecoveryAccount(tmp_path)
+        try:
+            await account.adapter.connect_public()
+            await account.socket.queue.put(json.dumps(message))
+            event = await asyncio.wait_for(account.adapter.receive(), 1)
+            assert event.event_type == "DataGap" and event.raw_ref
+        finally:
             await account.close()
 
     asyncio.run(run())

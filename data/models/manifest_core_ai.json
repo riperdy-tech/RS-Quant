@@ -1,0 +1,10 @@
+{
+  "model_id": "core-ai-v1-btc",
+  "accuracy": 0.54,
+  "sharpe_ratio_cv": 1.8,
+  "features": [
+    "ofi",
+    "cvd",
+    "microprice_skew"
+  ]
+}

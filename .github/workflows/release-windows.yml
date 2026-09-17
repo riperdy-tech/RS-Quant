@@ -1,0 +1,63 @@
+name: Release Windows Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build and Package QuantDesk (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[dev] pyinstaller
+
+      - name: Build Web Frontend
+        run: |
+          npm --prefix web ci
+          npm --prefix web run build
+
+      - name: Run Quality and Integration Gates
+        run: |
+          pytest tests/unit tests/integration/test_supervisor.py tests/integration/test_backup_restore.py -q
+
+      - name: Build Release Package and Test Path With Spaces
+        run: |
+          python scripts/build_release.py --target windows --test-spaces
+
+      - name: Smoke Test Clean Package Execution
+        run: |
+          & dist\QuantDesk\QuantDesk.exe --headless --no-browser --port 8999
+
+      - name: Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuantDesk-Windows-Package
+          path: |
+            dist/QuantDesk/
+            dist/installer/
+          if-no-files-found: error
