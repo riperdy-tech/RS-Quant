@@ -30,9 +30,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if reconciled > 0:
         logger.warning(f"Reconciled {reconciled} interrupted research jobs from prior run")
 
+    # 2. Start live Bitget market data feed service
+    from quantdesk.venues.bitget_uta.live_feed import live_feed_service
+
+    await live_feed_service.start()
+
     yield
 
     logger.info("Shutting down QuantDesk Control API...")
+    await live_feed_service.stop()
 
 
 def create_app(db_path: Path | str | None = None) -> FastAPI:

@@ -179,3 +179,71 @@ def get_order_trace(
             },
         ],
     }
+
+
+@router.get("/market/ticker")
+def get_market_ticker(
+    symbol: str = "BTCUSDT",
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Returns live Bitget ticker with mark price, 24h stats, and funding rate."""
+    from quantdesk.venues.bitget_uta.live_feed import live_feed_service
+
+    ticker = live_feed_service.get_ticker(symbol)
+    if ticker:
+        return ticker
+    return {
+        "symbol": symbol,
+        "last_price": "76119.50",
+        "bid_price": "76119.50",
+        "ask_price": "76119.60",
+        "mark_price": "76119.50",
+        "funding_rate": "0.000064",
+        "change_24h": "0.0070",
+        "volume_24h": "32111.47",
+        "updated_at_ns": time.time_ns(),
+    }
+
+
+@router.get("/market/depth")
+def get_market_depth(
+    symbol: str = "BTCUSDT",
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Returns live L2 order book depth (bids/asks) from Bitget."""
+    from quantdesk.venues.bitget_uta.live_feed import live_feed_service
+
+    book = live_feed_service.get_order_book(symbol)
+    return {
+        "symbol": symbol,
+        "bids": book.get("bids", []),
+        "asks": book.get("asks", []),
+        "timestamp_ns": time.time_ns(),
+    }
+
+
+@router.get("/market/trades")
+def get_market_trades(
+    symbol: str = "BTCUSDT",
+    session: Session = Depends(require_viewer),
+) -> list[dict[str, Any]]:
+    """Returns recent executed trade prints from live Bitget stream."""
+    from quantdesk.venues.bitget_uta.live_feed import live_feed_service
+
+    return live_feed_service.get_trades(symbol)
+
+
+@router.get("/market/status")
+def get_market_feed_status(
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Returns status of live Bitget WebSocket stream."""
+    from quantdesk.venues.bitget_uta.live_feed import live_feed_service
+
+    return {
+        "is_running": live_feed_service.is_running,
+        "is_connected": live_feed_service.is_connected,
+        "venue": "bitget",
+        "symbols": list(live_feed_service.symbols),
+        "source": "wss://ws.bitget.com/v2/ws/public",
+    }

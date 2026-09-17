@@ -128,6 +128,37 @@ export const api = {
     }>;
   }>(`/api/v1/orders/${encodeURIComponent(orderId)}/trace`),
 
+  // Live Market Data (Bitget UTA Feed)
+  getMarketTicker: (symbol: string = 'BTCUSDT') =>
+    request<any>(`/api/v1/market/ticker?symbol=${encodeURIComponent(symbol)}`),
+  getMarketDepth: (symbol: string = 'BTCUSDT') =>
+    request<{
+      symbol: string;
+      bids: Array<[string, string]>;
+      asks: Array<[string, string]>;
+      timestamp_ns: number;
+    }>(`/api/v1/market/depth?symbol=${encodeURIComponent(symbol)}`),
+  getMarketTrades: (symbol: string = 'BTCUSDT') =>
+    request<
+      Array<{
+        trade_id: string;
+        symbol: string;
+        price: string;
+        size: string;
+        side: string;
+        ts_ms: string;
+        time_ns: number;
+      }>
+    >(`/api/v1/market/trades?symbol=${encodeURIComponent(symbol)}`),
+  getMarketFeedStatus: () =>
+    request<{
+      is_running: boolean;
+      is_connected: boolean;
+      venue: string;
+      symbols: string[];
+      source: string;
+    }>('/api/v1/market/status'),
+
   // Commands
   createCommandPreview: (req: CommandPreviewRequest) => request<{
     preview_id: string;
