@@ -14,8 +14,10 @@ class ImbalanceScalper(Strategy):
     def __init__(self, instrument_id: str = "BTCUSDT", strategy_id: str = "imbalance-scalper-v1"):
         self.instrument_id = instrument_id
         self.strategy_id = strategy_id
-        self.cooldown_ns = 1_000_000_000  # 1-second cooldown after exit
-        self.max_hold_ns = 10_000_000_000  # 10 seconds maximum hold
+        self.cooldown_ns = 1_000_000_000  # 1-second internal loop cooldown
+        self.max_hold_ns = 300_000_000_000  # 300 seconds (5 minutes) maximum hold
+        self.threshold = 0.35
+        self.atr_target_multiplier = 3.5
         self.last_signal: Side | None = None
         self.last_exit_time_ns: int | None = None
 
@@ -102,10 +104,11 @@ class ImbalanceScalper(Strategy):
             return ()
 
         # 3. Entry condition evaluation (§12.3)
+        thresh = getattr(self, "threshold", 0.35)
         side: Side | None = None
-        if depth5_imb > 0.30 and micro > mid and vol_1s > 0:
+        if depth5_imb > thresh and micro > mid and vol_1s > 0:
             side = Side.BUY
-        elif depth5_imb < -0.30 and micro < mid and vol_1s < 0:
+        elif depth5_imb < -thresh and micro < mid and vol_1s < 0:
             side = Side.SELL
 
         # Edge-triggered entry
@@ -113,8 +116,9 @@ class ImbalanceScalper(Strategy):
             self.last_signal = side
             mid_dec = Decimal(str(mid))
             atr_dec = Decimal(str(atr14))
+            mult = Decimal(str(getattr(self, "atr_target_multiplier", 3.5)))
             stop_dist = Decimal("1.5") * atr_dec
-            target_dist = Decimal("1.0") * atr_dec
+            target_dist = mult * atr_dec
 
             # Setup position expectation
             self.position_lots = Decimal("1")

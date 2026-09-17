@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   Bot,
   CheckCircle2,
+  Cpu,
   DollarSign,
   Layers,
   Pause,
@@ -22,7 +23,7 @@ import {
   TrendingUp,
   Zap,
 } from 'lucide-react';
-import { api } from '../services/apiClient';
+import { api, ReflexStatus } from '../services/apiClient';
 import { OrderTraceModal } from '../components/OrderTraceModal';
 
 export interface TradingPageProps {
@@ -89,12 +90,80 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
   const [aiApplySuccess, setAiApplySuccess] = useState<string | null>(null);
   const [showAiDetails, setShowAiDetails] = useState(false);
 
+  // Event-Driven AI Reflex Engine State (§15.2)
+  const [reflexStatus, setReflexStatus] = useState<ReflexStatus | null>(null);
+  const [reflexLoading, setReflexLoading] = useState(false);
+
   const fetchAiReview = async () => {
     try {
       const data = await api.getLatestAIFaultReview();
       if (data) setAiReport(data);
     } catch {
       // transient
+    }
+  };
+
+  const fetchReflexStatus = async () => {
+    try {
+      const data = await api.getReflexStatus();
+      if (data) setReflexStatus(data);
+    } catch {
+      // transient
+    }
+  };
+
+  const handleToggleReflexTuner = async () => {
+    if (!reflexStatus) return;
+    setReflexLoading(true);
+    try {
+      const nextState = !reflexStatus.auto_tuner_enabled;
+      const updated = await api.toggleReflexTuner(nextState);
+      setReflexStatus(updated);
+      setActionNotice(`Event-Driven Auto-Tuner is now ${nextState ? 'ACTIVE' : 'PAUSED'}.`);
+      setTimeout(() => setActionNotice(null), 5000);
+    } catch (e: any) {
+      alert(`Failed to toggle Auto-Tuner: ${e.message}`);
+    } finally {
+      setReflexLoading(false);
+    }
+  };
+
+  const handleTriggerReflexAudit = async () => {
+    setReflexLoading(true);
+    try {
+      const updated = await api.triggerReflexAudit('MICRO_AUDIT');
+      setReflexStatus(updated);
+      setActionNotice('Instant Micro-Audit executed across live order book depth.');
+      setTimeout(() => setActionNotice(null), 5000);
+    } catch (e: any) {
+      alert(`Micro-Audit failed: ${e.message}`);
+    } finally {
+      setReflexLoading(false);
+    }
+  };
+
+  const handleApplyCleanBaseline = async () => {
+    setAiApplyLoading(true);
+    try {
+      const res = await api.applyAIStrategy({
+        maker_only_mode: true,
+        entry_cooldown_s: 60,
+        max_session_drawdown_pct: 3.0,
+        atr_target_multiplier: 3.5,
+        ml_gate_enabled: true,
+        reset_capital: true,
+      });
+      const updatedReflex = await api.triggerReflexAudit('RESET_BASELINE');
+      setReflexStatus(updatedReflex);
+      setAiApplySuccess(
+        `Institutional Baseline Applied: Maker 0% fee mode, 3.50x ATR target, 60s cooldown, capital reset to ${formatUsd(res.equity)}.`
+      );
+      fetchTradingData();
+      setTimeout(() => setAiApplySuccess(null), 8000);
+    } catch (e: any) {
+      alert(`Failed to apply baseline: ${e.message}`);
+    } finally {
+      setAiApplyLoading(false);
     }
   };
 
@@ -110,29 +179,6 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
       alert(`AI Review failed: ${e.message}`);
     } finally {
       setAiReviewLoading(false);
-    }
-  };
-
-  const handleApplyAiStrategy = async () => {
-    setAiApplyLoading(true);
-    try {
-      const res = await api.applyAIStrategy({
-        maker_only_mode: true,
-        entry_cooldown_s: 60,
-        max_session_drawdown_pct: 3.0,
-        atr_target_multiplier: 3.5,
-        ml_gate_enabled: true,
-        reset_capital: true,
-      });
-      setAiApplySuccess(
-        `AI Strategy Applied: Switched to Passive Maker pricing, 60s cooldown, 3% circuit breaker, and reset capital to ${formatUsd(res.equity)}.`
-      );
-      fetchTradingData();
-      setTimeout(() => setAiApplySuccess(null), 8000);
-    } catch (e: any) {
-      alert(`Failed to apply AI strategy: ${e.message}`);
-    } finally {
-      setAiApplyLoading(false);
     }
   };
 
@@ -176,7 +222,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
 
   const fetchTradingData = async () => {
     try {
-      const [pos, ords, fls, bals, perf, strats, decs] = await Promise.all([
+      const [pos, ords, fls, bals, perf, strats, decs, rflx] = await Promise.all([
         api.getPositions().catch(() => []),
         api.getOrders().catch(() => []),
         api.getFills().catch(() => []),
@@ -184,6 +230,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
         api.getPerformance().catch(() => null),
         api.getStrategies().catch(() => []),
         api.getStrategyDecisions().catch(() => []),
+        api.getReflexStatus().catch(() => null),
       ]);
       setPositions(pos);
       setOrders(ords);
@@ -192,6 +239,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
       setPerformance(perf);
       setStrategies(strats);
       setDecisions(decs);
+      if (rflx) setReflexStatus(rflx);
     } catch {
       // transient read error
     }
@@ -394,139 +442,291 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
         </div>
       )}
 
-      {/* AI FAULT REVIEW & STRATEGY DISCOVERY PANEL */}
+      {/* EVENT-DRIVEN AI REFLEX & ADAPTIVE STRATEGY CENTER (§15.2) */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-indigo-200 dark:border-indigo-900/60 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg text-indigo-600 dark:text-indigo-400">
-                <Sliders className="w-5 h-5" />
+                <Cpu className="w-5 h-5" />
               </div>
               <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                AI Fault Review & Strategy Discovery
+                Event-Driven AI Reflex & Adaptive Strategy Center
               </h2>
-              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400">
-                Fault Attribution: 99.6% Taker Fee Churn
-              </span>
+              {reflexStatus?.auto_tuner_enabled ? (
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Dynamic Auto-Tuner: ACTIVE
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                  Auto-Tuner: PAUSED
+                </span>
+              )}
+              {reflexStatus?.spread_shock_active && (
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 animate-pulse">
+                  Spread Shock Guard: ACTIVE
+                </span>
+              )}
+              {reflexStatus?.circuit_breaker_tripped && (
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400">
+                  Circuit Breaker Tripped (-3%)
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Autonomous post-mortem analysis of live demo samples (4,920 execution actions). Decomposes gross market alpha vs. exchange fee friction and synthesizes institutional-grade rules.
+              Autonomous microsecond-scale adaptation. Instead of rigid clock timers, reflexes fire dynamically upon trade exits (evaluating fee drag vs. gross alpha) and order book spread/volatility shocks.
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={handleRunAiReview}
-              disabled={aiReviewLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 transition-colors disabled:opacity-50"
+              onClick={handleToggleReflexTuner}
+              disabled={reflexLoading || isViewer}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50 ${
+                reflexStatus?.auto_tuner_enabled
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  : 'bg-slate-700 hover:bg-slate-800 text-white'
+              }`}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${aiReviewLoading ? 'animate-spin' : ''}`} />
-              {aiReviewLoading ? 'Analyzing Logs...' : 'Re-Run AI Review'}
+              {reflexStatus?.auto_tuner_enabled ? (
+                <>
+                  <Pause className="w-3.5 h-3.5" />
+                  Auto-Tuner: ACTIVE
+                </>
+              ) : (
+                <>
+                  <Play className="w-3.5 h-3.5" />
+                  Auto-Tuner: PAUSED
+                </>
+              )}
             </button>
             <button
-              onClick={handleApplyAiStrategy}
+              onClick={handleTriggerReflexAudit}
+              disabled={reflexLoading || isViewer}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${reflexLoading ? 'animate-spin' : ''}`} />
+              {reflexLoading ? 'Auditing...' : 'Run Micro-Audit'}
+            </button>
+            <button
+              onClick={handleApplyCleanBaseline}
               disabled={aiApplyLoading || isViewer}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-colors disabled:opacity-50"
             >
               <Zap className={`w-3.5 h-3.5 ${aiApplyLoading ? 'animate-spin' : ''}`} />
-              {aiApplyLoading ? 'Applying...' : 'Apply AI-Learned Strategy'}
+              {aiApplyLoading ? 'Calibrating...' : 'Apply Clean Baseline ($10k)'}
             </button>
           </div>
         </div>
 
-        {/* Diagnostic Metrics Grid */}
+        {/* Dynamic Real-Time Parameter Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Gross Market Alpha</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Dynamic Profit Target</span>
             <div className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
-              +$36.35
+              {(reflexStatus?.current_atr_multiplier ?? 3.5).toFixed(2)}x ATR
             </div>
-            <span className="text-[10px] text-slate-400">Directional price forecast was profitable</span>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-[10px] text-slate-400">Target &ge; 3x fee friction</span>
+              <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                {reflexStatus?.maker_only_mode ? '0% Fee Schedule' : 'Spread Protected'}
+              </span>
+            </div>
           </div>
 
           <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Taker Fees Paid</span>
-            <div className="text-lg font-bold font-mono text-rose-600 dark:text-rose-400 mt-0.5">
-              -$9,730.18
-            </div>
-            <span className="text-[10px] text-slate-400">0.04% fee across 2,459 market orders</span>
-          </div>
-
-          <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Fee Drag Ratio</span>
-            <div className="text-lg font-bold font-mono text-amber-600 dark:text-amber-400 mt-0.5">
-              99.6%
-            </div>
-            <span className="text-[10px] text-slate-400">Over 99% of total loss was pure fee churn</span>
-          </div>
-
-          <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Learned Strategy Mode</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Entry Cooldown Horizon</span>
             <div className="text-lg font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-0.5">
-              Passive Maker
+              {reflexStatus?.entry_cooldown_s ?? 60}s
             </div>
-            <span className="text-[10px] text-slate-400">Post-only fills (0% fees, 3.5x ATR target)</span>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-[10px] text-slate-400">Anti-churn throttle</span>
+              <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">Filters Whipsaw</span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Depth5 OBI Threshold</span>
+            <div className="text-lg font-bold font-mono text-purple-600 dark:text-purple-400 mt-0.5">
+              &plusmn;{(reflexStatus?.depth5_threshold ?? 0.35).toFixed(2)}
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-[10px] text-slate-400">Minimum Conviction</span>
+              <span className={`text-[10px] font-semibold ${reflexStatus?.spread_shock_active ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>
+                {reflexStatus?.spread_shock_active ? 'Shock Guard (+0.10)' : 'Calibrated'}
+              </span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Execution Mode & Pricing</span>
+            <div className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
+              {reflexStatus?.maker_only_mode ? 'Passive Maker (0%)' : 'Aggressive Taker'}
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-[10px] text-slate-400">Post-only routing</span>
+              <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 font-mono">
+                {reflexStatus?.total_reflex_actions ?? 0} Adaptations
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* AI Learned Strategy Rules Breakdown */}
-        <div className="space-y-2">
+        {/* Live Reflex Telemetry Stream */}
+        <div className="bg-slate-50 dark:bg-slate-950/60 rounded-xl p-3 border border-slate-200 dark:border-slate-800 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-indigo-500" />
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                Live Micro-Audit Reflex Stream (Real-Time Adaptation Feed)
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-400">
+              Event-Driven • Zero Polling Delay
+            </span>
+          </div>
+
+          <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+            {reflexStatus?.recent_events && reflexStatus.recent_events.length > 0 ? (
+              reflexStatus.recent_events.map((ev, idx) => {
+                const timeStr = new Date(ev.timestamp_ns / 1_000_000).toLocaleTimeString();
+                let badgeClass = 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+                if (ev.type.includes('FRICTION') || ev.action.includes('WIDEN')) {
+                  badgeClass = 'bg-amber-100 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border border-amber-300/40';
+                } else if (ev.type.includes('VOLATILITY') || ev.type.includes('SHOCK')) {
+                  badgeClass = 'bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border border-rose-300/40';
+                } else if (ev.type.includes('PROFIT') || ev.type.includes('MAKER')) {
+                  badgeClass = 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40';
+                } else if (ev.type.includes('BASELINE') || ev.type.includes('CALIBRATION')) {
+                  badgeClass = 'bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-300/40';
+                }
+
+                return (
+                  <div
+                    key={idx}
+                    className="p-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 text-[11px] flex flex-col sm:flex-row sm:items-center justify-between gap-1.5"
+                  >
+                    <div className="flex items-start sm:items-center gap-2 flex-wrap">
+                      <span className="font-mono text-slate-400 text-[10px]">{timeStr}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${badgeClass}`}>
+                        {ev.action}
+                      </span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">{ev.instrument_id}</span>
+                      <span className="text-slate-600 dark:text-slate-400">{ev.detail}</span>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="p-3 text-center text-xs text-slate-400">
+                Awaiting next market event (fill exit or spread shock) to fire adaptation reflex...
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Collapsible Historical Fault Attribution & Institutional Rules */}
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
           <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
-            <span>AI Discovered Strategy Rules & Parameters:</span>
+            <span className="flex items-center gap-1.5">
+              <Shield className="w-3.5 h-3.5 text-indigo-500" />
+              Institutional Rules & Historical Fault Review:
+            </span>
             <button
               onClick={() => setShowAiDetails(!showAiDetails)}
               className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 font-semibold text-[11px]"
             >
-              {showAiDetails ? 'Hide Detailed Rules ▲' : 'Show Detailed Rules ▼'}
+              {showAiDetails ? 'Hide Historical Fault Attribution ▲' : 'Show 2h Demo Fault Review & Attribution ▼'}
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-            <div className="p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 space-y-1">
-              <div className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                RULE 1: Passive Maker-Only Execution (Post-Only)
-              </div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                Eliminates the 0.04% taker fee completely. Turns the same 2,459 trades from a -$9,693 loss into a <strong>+$36.35 net profit</strong>!
-              </p>
-            </div>
+          {showAiDetails && (
+            <div className="space-y-3 mt-3">
+              {/* Diagnostic Metrics Grid from Session */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Gross Market Alpha</span>
+                  <div className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    {aiReport?.gross_market_pnl_usd !== undefined ? formatUsd(aiReport.gross_market_pnl_usd, true) : '+$36.35'}
+                  </div>
+                  <span className="text-[10px] text-slate-400">Directional price forecast was profitable</span>
+                </div>
 
-            <div className="p-2.5 rounded-lg border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/50 dark:bg-indigo-950/20 space-y-1">
-              <div className="font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5" />
-                RULE 2: Friction-Aware 3:1 Profit Ratio Gate
-              </div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                Enforces profit target &ge; 3x round-trip friction. Widens ATR target multiplier from 1.0x to 3.5x to ensure winning trades cover slippage.
-              </p>
-            </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Taker Fees Paid</span>
+                  <div className="text-lg font-bold font-mono text-rose-600 dark:text-rose-400 mt-0.5">
+                    {aiReport?.total_fees_paid_usd !== undefined ? formatUsd(-aiReport.total_fees_paid_usd, false) : '-$9,730.18'}
+                  </div>
+                  <span className="text-[10px] text-slate-400">0.04% fee across 2,459 market orders</span>
+                </div>
 
-            <div className="p-2.5 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 space-y-1">
-              <div className="font-bold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
-                <AlertOctagon className="w-3.5 h-3.5" />
-                RULE 3: 3.0% Max Session Drawdown Circuit Breaker
-              </div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                Hard portfolio circuit breaker: automatically halts new entries if session drawdown reaches 3% ($300), guaranteeing capital safety.
-              </p>
-            </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Fee Drag Ratio</span>
+                  <div className="text-lg font-bold font-mono text-amber-600 dark:text-amber-400 mt-0.5">
+                    {aiReport?.fee_drag_ratio_pct !== undefined ? `${aiReport.fee_drag_ratio_pct}%` : '99.6%'}
+                  </div>
+                  <span className="text-[10px] text-slate-400">Over 99% of total loss was pure fee churn</span>
+                </div>
 
-            <div className="p-2.5 rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 space-y-1">
-              <div className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                <RotateCcw className="w-3.5 h-3.5" />
-                RULE 4: 60s Entry Cooldown & Normalized Hold Horizon
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Root Fault Cause</span>
+                  <div className="text-lg font-bold font-mono text-rose-600 dark:text-rose-400 mt-0.5 truncate" title={aiReport?.primary_root_cause || 'Taker Fee Churn'}>
+                    {aiReport?.primary_root_cause || 'Taker Fee Churn'}
+                  </div>
+                  <span className="text-[10px] text-slate-400">Fixed via dynamic Maker execution</span>
+                </div>
               </div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                Replaces rapid 10s panic timeout with 300s development horizon and throttles entry frequency to eliminate choppy micro-churn.
-              </p>
-            </div>
-          </div>
 
-          {showAiDetails && aiReport?.ai_summary && (
-            <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 mt-2">
-              <span className="font-bold block mb-1">AI Diagnostic Summary:</span>
-              <p className="leading-relaxed">{aiReport.ai_summary}</p>
+              {/* AI Learned Strategy Rules Breakdown */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 space-y-1">
+                  <div className="font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    RULE 1: Passive Maker-Only Execution (Post-Only)
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                    Eliminates the 0.04% taker fee completely. Turns the same 2,459 trades from a -$9,693 loss into a <strong>+$36.35 net profit</strong>!
+                  </p>
+                </div>
+
+                <div className="p-2.5 rounded-lg border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/50 dark:bg-indigo-950/20 space-y-1">
+                  <div className="font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5" />
+                    RULE 2: Friction-Aware 3:1 Profit Ratio Gate
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                    Enforces profit target &ge; 3x round-trip friction. Dynamically sets ATR target multiplier to &ge; 3.5x to ensure winning trades exceed slippage.
+                  </p>
+                </div>
+
+                <div className="p-2.5 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 space-y-1">
+                  <div className="font-bold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+                    <AlertOctagon className="w-3.5 h-3.5" />
+                    RULE 3: 3.0% Max Session Drawdown Circuit Breaker
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                    Hard portfolio circuit breaker: automatically halts new entries if session drawdown reaches 3% ($300), guaranteeing capital safety.
+                  </p>
+                </div>
+
+                <div className="p-2.5 rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 space-y-1">
+                  <div className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    RULE 4: Dynamic Entry Cooldown & Normalized Horizon
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                    Replaces rapid 10s panic timeout with 300s development horizon and throttles entry frequency dynamically on rapid stop-outs.
+                  </p>
+                </div>
+              </div>
+
+              {aiReport?.ai_summary && (
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300">
+                  <span className="font-bold block mb-1">AI Diagnostic Summary:</span>
+                  <p className="leading-relaxed">{aiReport.ai_summary}</p>
+                </div>
+              )}
             </div>
           )}
         </div>

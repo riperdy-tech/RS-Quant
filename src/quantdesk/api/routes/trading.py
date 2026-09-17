@@ -235,3 +235,30 @@ def get_market_feed_status(
         "symbols": list(live_feed_service.symbols),
         "source": "wss://ws.bitget.com/v2/ws/public",
     }
+
+
+@router.get("/trading/reflex-status")
+def get_reflex_status(
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Returns dynamic telemetry on the Event-Driven Reflex Engine (§15.2)."""
+    return autonomous_live_engine.get_reflex_status()
+
+
+@router.post("/trading/reflex-toggle")
+def toggle_reflex_tuner(
+    enabled: bool = True,
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Toggles dynamic event-driven auto-tuning active or paused."""
+    return autonomous_live_engine.toggle_reflex_tuner(enabled)
+
+
+@router.post("/trading/reflex-trigger")
+def trigger_reflex_audit(
+    action_type: str = "MICRO_AUDIT",
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Manually triggers an instantaneous micro-audit reflex or baseline calibration."""
+    return autonomous_live_engine.manual_trigger_reflex(action_type)
+

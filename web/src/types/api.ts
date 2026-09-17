@@ -97,3 +97,25 @@ export interface SSEEventEnvelope {
   update_time_ns: number;
   payload: Record<string, any>;
 }
+
+export interface ReflexEvent {
+  timestamp_ns: number;
+  type: string;
+  instrument_id: string;
+  detail: string;
+  action: string;
+}
+
+export interface ReflexStatus {
+  auto_tuner_enabled: boolean;
+  maker_only_mode: boolean;
+  current_atr_multiplier: number;
+  entry_cooldown_s: number;
+  depth5_threshold: number;
+  circuit_breaker_pct: number;
+  circuit_breaker_tripped: boolean;
+  total_reflex_actions: number;
+  spread_shock_active: boolean;
+  recent_events: ReflexEvent[];
+}
+

@@ -6,6 +6,8 @@ import {
   DatasetImportRequest,
   LoginRequest,
   PositionItem,
+  ReflexEvent,
+  ReflexStatus,
   SystemStatus,
   TrainingJobRequest,
 } from '../types/api';
@@ -353,4 +355,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(config || {}),
     }),
+
+  // Event-Driven AI Reflex Engine (§15.2)
+  getReflexStatus: () => request<ReflexStatus>('/api/v1/trading/reflex-status'),
+  toggleReflexTuner: (enabled: boolean) =>
+    request<ReflexStatus>(`/api/v1/trading/reflex-toggle?enabled=${enabled}`, {
+      method: 'POST',
+    }),
+  triggerReflexAudit: (actionType: string = 'MICRO_AUDIT') =>
+    request<ReflexStatus>(`/api/v1/trading/reflex-trigger?action_type=${encodeURIComponent(actionType)}`, {
+      method: 'POST',
+    }),
 };
+
+export type { ReflexEvent, ReflexStatus };
+

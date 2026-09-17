@@ -344,6 +344,34 @@ Authoritative plan: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
   - Path With Spaces Test: `python scripts/build_release.py --target windows --test-spaces` -> **PASS**
   - Total Python Automated Tests: **670 passed** across the entire repository.
 
+## Post-Acceptance Enhancement: Event-Driven AI Reflex Engine & Live Telemetry UI (COMPLETE)
+
+- Root Cause Analysis:
+  - Quantitative post-mortem on 2-hour live demo log (4,920 execution actions across BTC and ETH).
+  - Alpha decomposition proved positive gross market alpha (+$36.35) consumed by 2,459 market order taker fees (-$9,730.18), creating a 99.6% fee drag ratio.
+- Implemented Event-Driven Reflex Engine (`src/quantdesk/strategies/live_runner.py`):
+  - Post-Trade Micro-Audit Reflex: fires immediately upon fill settlement / position exit.
+    - If taker fee drag detected: widens `atr_target_multiplier` (minimum 3:1 reward-to-fee ratio), enforces `maker_only_mode`, and records `ADAPTIVE_FRICTION_WIDEN`.
+    - If rapid stop-out / chop occurs (< 45s): throttles `entry_cooldown_s` (up to 180s), raises `depth5_imbalance_threshold`, and records `VOLATILITY_CHOP_GUARD`.
+    - If winning trade confirmed: relaxes cooldown safely and records `PROFIT_CONFIRMATION`.
+  - Microstructure Spread Shock Reflex: checks Level 2 book spread on every order book snapshot. If `spread_bps > 2.50`, temporarily elevates entry threshold to prevent adverse selection, relaxing back when spread <= 1.50 bps.
+  - Zero-clock-delay event driven architecture (not a rigid periodic cron/timer).
+- API Routes (`src/quantdesk/api/routes/trading.py`):
+  - `GET /api/v1/trading/reflex-status`
+  - `POST /api/v1/trading/reflex-toggle`
+  - `POST /api/v1/trading/reflex-trigger`
+- UI Overhaul (`web/src/pages/TradingPage.tsx`):
+  - Replaced static/hardcoded cards with dynamic, reactive Event-Driven AI Reflex & Adaptive Strategy Center.
+  - Real-time binding of dynamic profit target, entry cooldown, depth5 threshold, and execution mode.
+  - Live microsecond-scale adaptation stream showing recent reflex actions, rationale, and timestamps.
+  - Interactive buttons: Auto-Tuner Toggle (Active/Paused), Run Micro-Audit, Apply Clean Baseline ($10k).
+  - Collapsible historical fault review and synthesized institutional rules drawer.
+- Verification & Test Execution:
+  - Unit Tests: `tests/unit/test_reflex_engine.py` (7 tests passed).
+  - All unit tests: 300 passed (`pytest tests/unit`).
+  - Web production build: `npm --prefix web run build` clean (Exit code 0).
+
+
 
 
 
