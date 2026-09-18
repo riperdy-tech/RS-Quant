@@ -25,7 +25,7 @@ def test_llm_client_initialization_defaults():
 
 def test_llm_client_set_provider():
     client = LLMResearchClient()
-    client.set_provider("deepseek", api_key="sk-test-deepseek-key-12345", model="deepseek-chat")
+    client.set_provider("deepseek", api_key="sk-test-deepseek-key-12345", model="deepseek-chat", persist=False)
     assert client.provider == LLMProvider.DEEPSEEK
     assert client.deepseek_api_key == "sk-test-deepseek-key-12345"
     assert client.deepseek_model == "deepseek-chat"
@@ -35,13 +35,14 @@ def test_llm_client_set_provider():
     assert status["deepseek"]["configured"] is True
     assert "sk-tes" in status["deepseek"]["key_preview"]
 
-    client.set_provider("gemini", api_key="AIzaSy-fake-gemini-key-9999", model="gemini-2.0-flash")
+    client.set_provider("gemini", api_key="AIzaSy-fake-gemini-key-9999", model="gemini-2.0-flash", persist=False)
     assert client.provider == LLMProvider.GEMINI
     assert client.gemini_api_key == "AIzaSy-fake-gemini-key-9999"
     assert client.gemini_model == "gemini-2.0-flash"
 
-    client.set_provider("offline")
+    client.set_provider("offline", persist=False)
     assert client.provider == LLMProvider.OFFLINE
+
 
 
 def test_parameter_bounds_sanitization_and_clamping():

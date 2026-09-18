@@ -480,13 +480,17 @@ export const CalendarPage: React.FC = () => {
               <span className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                 <Cpu className="w-4 h-4 text-purple-600" /> Tier 3 Loss Attribution & Sandbox
               </span>
-              <button
-                onClick={handleTriggerResearch}
-                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1 transition-colors"
-              >
-                <Play className="w-3 h-3" />
-                Run Cycle
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">Auto-Runs in Background</span>
+                <button
+                  onClick={handleTriggerResearch}
+                  title="Trigger on-demand sandbox validation cycle now"
+                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold rounded-lg flex items-center gap-1 transition-colors shadow-sm"
+                >
+                  <Play className="w-3 h-3" />
+                  Run Cycle
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2 text-xs">
@@ -520,8 +524,8 @@ export const CalendarPage: React.FC = () => {
                   ? 'bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300'
                   : 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
               }`}>
-                {llmConfig?.active_provider === 'deepseek' && 'ONLINE (DeepSeek)'}
-                {llmConfig?.active_provider === 'gemini' && 'ONLINE (Gemini)'}
+                {llmConfig?.active_provider === 'deepseek' && 'ONLINE (DeepSeek Active)'}
+                {llmConfig?.active_provider === 'gemini' && 'ONLINE (Gemini Active)'}
                 {(!llmConfig?.active_provider || llmConfig?.active_provider === 'offline') && 'OFFLINE (Rule Engine)'}
               </span>
             </div>
@@ -571,10 +575,16 @@ export const CalendarPage: React.FC = () => {
                     <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1">
                       <Key className="w-3 h-3 text-slate-400" /> DeepSeek API Key
                     </label>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      {llmConfig?.deepseek?.configured
-                        ? `Active: ${llmConfig.deepseek.key_preview}`
-                        : 'Not Configured'}
+                    <span className="text-[10px] font-mono">
+                      {llmConfig?.deepseek?.configured ? (
+                        llmConfig?.active_provider === 'deepseek' ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">● Active ({llmConfig.deepseek.key_preview})</span>
+                        ) : (
+                          <span className="text-amber-600 dark:text-amber-400 font-semibold">Saved ({llmConfig.deepseek.key_preview}) — Inactive</span>
+                        )
+                      ) : (
+                        <span className="text-slate-400">Not Configured</span>
+                      )}
                     </span>
                   </div>
                   <input
@@ -621,10 +631,16 @@ export const CalendarPage: React.FC = () => {
                     <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1">
                       <Key className="w-3 h-3 text-slate-400" /> Gemini API Key
                     </label>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      {llmConfig?.gemini?.configured
-                        ? `Active: ${llmConfig.gemini.key_preview}`
-                        : 'Not Configured'}
+                    <span className="text-[10px] font-mono">
+                      {llmConfig?.gemini?.configured ? (
+                        llmConfig?.active_provider === 'gemini' ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">● Active ({llmConfig.gemini.key_preview})</span>
+                        ) : (
+                          <span className="text-amber-600 dark:text-amber-400 font-semibold">Saved ({llmConfig.gemini.key_preview}) — Inactive</span>
+                        )
+                      ) : (
+                        <span className="text-slate-400">Not Configured</span>
+                      )}
                     </span>
                   </div>
                   <input

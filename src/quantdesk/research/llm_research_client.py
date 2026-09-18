@@ -108,6 +108,7 @@ class LLMResearchClient:
         provider: str,
         api_key: str | None = None,
         model: str | None = None,
+        persist: bool = True,
     ) -> None:
         """Dynamically switches active LLM provider, credentials, and model target."""
         prov = provider.strip().lower()
@@ -116,26 +117,31 @@ class LLMResearchClient:
             if api_key is not None:
                 self.deepseek_api_key = api_key.strip()
                 os.environ["DEEPSEEK_API_KEY"] = self.deepseek_api_key
-                _persist_to_env("DEEPSEEK_API_KEY", self.deepseek_api_key)
+                if persist:
+                    _persist_to_env("DEEPSEEK_API_KEY", self.deepseek_api_key)
             if model:
                 self.deepseek_model = model.strip()
                 os.environ["DEEPSEEK_MODEL"] = self.deepseek_model
-                _persist_to_env("DEEPSEEK_MODEL", self.deepseek_model)
+                if persist:
+                    _persist_to_env("DEEPSEEK_MODEL", self.deepseek_model)
         elif prov == "gemini":
             self.provider = LLMProvider.GEMINI
             if api_key is not None:
                 self.gemini_api_key = api_key.strip()
                 os.environ["GEMINI_API_KEY"] = self.gemini_api_key
-                _persist_to_env("GEMINI_API_KEY", self.gemini_api_key)
+                if persist:
+                    _persist_to_env("GEMINI_API_KEY", self.gemini_api_key)
             if model:
                 self.gemini_model = model.strip()
                 os.environ["GEMINI_MODEL"] = self.gemini_model
-                _persist_to_env("GEMINI_MODEL", self.gemini_model)
+                if persist:
+                    _persist_to_env("GEMINI_MODEL", self.gemini_model)
         else:
             self.provider = LLMProvider.OFFLINE
 
         os.environ["AI_RESEARCH_PROVIDER"] = self.provider.value
-        _persist_to_env("AI_RESEARCH_PROVIDER", self.provider.value)
+        if persist:
+            _persist_to_env("AI_RESEARCH_PROVIDER", self.provider.value)
         logger.info(
             "LLM Research Client updated: provider=%s, deepseek_configured=%s, gemini_configured=%s",
             self.provider.value,
