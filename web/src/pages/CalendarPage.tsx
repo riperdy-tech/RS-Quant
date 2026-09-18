@@ -54,7 +54,7 @@ export const CalendarPage: React.FC = () => {
   const [activeTabProvider, setActiveTabProvider] = useState<'deepseek' | 'gemini' | 'offline'>('deepseek');
   const [deepseekKeyInput, setDeepseekKeyInput] = useState('');
   const [geminiKeyInput, setGeminiKeyInput] = useState('');
-  const [deepseekModel, setDeepseekModel] = useState('deepseek-chat');
+  const [deepseekModel, setDeepseekModel] = useState('deepseek-flash');
   const [geminiModel, setGeminiModel] = useState('gemini-1.5-flash');
   const [isSavingLLM, setIsSavingLLM] = useState(false);
   const [llmFeedback, setLlmFeedback] = useState<string | null>(null);
@@ -595,8 +595,10 @@ export const CalendarPage: React.FC = () => {
                     onChange={(e) => setDeepseekModel(e.target.value)}
                     className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
-                    <option value="deepseek-chat">deepseek-chat (V3 / V4.1 Flash)</option>
-                    <option value="deepseek-reasoner">deepseek-reasoner (R1 Quantitative)</option>
+                    <option value="deepseek-flash">deepseek-flash (DeepSeek-V4.1-Flash - Paid/Flash Recommended)</option>
+                    <option value="deepseek-chat">deepseek-chat (DeepSeek-V3 / General Chat)</option>
+                    <option value="deepseek-reasoner">deepseek-reasoner (DeepSeek-R1 Quantitative Reasoning)</option>
+                    <option value="deepseek-v4-pro">deepseek-v4-pro (DeepSeek-V4 Pro Flagship)</option>
                   </select>
                 </div>
 

@@ -18,8 +18,9 @@ def test_llm_client_initialization_defaults():
     client = LLMResearchClient()
     status = client.get_status()
     assert status["active_provider"] in ("deepseek", "gemini", "offline")
-    assert "deepseek" in status
+    assert status["deepseek"]["model"] == "deepseek-flash"
     assert "gemini" in status
+
 
 
 def test_llm_client_set_provider():

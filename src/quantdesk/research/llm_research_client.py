@@ -55,7 +55,7 @@ class LLMResearchClient:
         self,
         provider: str | None = None,
         deepseek_api_key: str | None = None,
-        deepseek_model: str = "deepseek-chat",
+        deepseek_model: str = "deepseek-flash",
         gemini_api_key: str | None = None,
         gemini_model: str = "gemini-1.5-flash",
     ) -> None:
