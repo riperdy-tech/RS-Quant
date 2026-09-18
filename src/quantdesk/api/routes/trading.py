@@ -91,6 +91,25 @@ def get_strategy_telemetry(
     return autonomous_live_engine.get_telemetry(symbol)
 
 
+@router.get("/strategies/ensemble-status")
+def get_ensemble_status(
+    symbol: str = "BTCUSDT",
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Returns Curated 12-Factor Multi-Timeframe Strategy status, 2H bars, and indicators."""
+    return autonomous_live_engine.get_ensemble_status(symbol)
+
+
+@router.get("/trading/agentic-status")
+def get_agentic_status(
+    symbol: str = "BTCUSDT",
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Returns deep telemetry on the Unified Agentic Alpha Engine, weights, and episodic memory."""
+    return autonomous_live_engine.get_agentic_status(symbol)
+
+
+
 @router.get("/strategies/decisions")
 def get_strategy_decisions(
     session: Session = Depends(require_viewer),
@@ -264,5 +283,25 @@ def trigger_reflex_audit(
 ) -> dict[str, Any]:
     """Manually triggers an instantaneous micro-audit reflex or baseline calibration for symbol."""
     return autonomous_live_engine.manual_trigger_reflex(action_type, symbol)
+
+
+@router.get("/trading/macro-radar")
+def get_macro_radar(
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Returns real-time Fed Net Liquidity, Tether Dominance, and Whale Net Flow convergence radar."""
+    return autonomous_live_engine.get_macro_radar()
+
+
+@router.post("/trading/macro-radar/refresh")
+def refresh_macro_radar(
+    walcl: float | None = None,
+    tga: float | None = None,
+    rrp: float | None = None,
+    usdt_d: float | None = None,
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Refreshes or dynamically recalibrates Macro Convergence Radar parameters."""
+    return autonomous_live_engine.refresh_macro_radar(walcl=walcl, tga=tga, rrp=rrp, usdt_d=usdt_d)
 
 

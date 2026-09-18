@@ -13,6 +13,12 @@ from quantdesk.features.orderflow import (
     l1_imbalance,
     microprice,
 )
+from quantdesk.features.ensemble_features import (
+    CuratedEnsembleExtractor,
+    EnsembleBarState,
+    RegimeVelocity,
+    SqueezeColor,
+)
 from quantdesk.features.technicals import (
     ATR,
     EMA,
@@ -26,10 +32,15 @@ from quantdesk.features.technicals import (
 __all__ = [
     "ATR",
     "CVD",
+    "CuratedEnsembleExtractor",
     "EMA",
+    "EnsembleBarState",
     "L1OFI",
     "RSI",
+    "RegimeVelocity",
     "SMA",
+    "SqueezeColor",
+    "Supertrend",
     "VWAP",
     "BollingerBands",
     "FeatureEngine",
@@ -37,7 +48,6 @@ __all__ = [
     "FeatureValue",
     "IncrementalFeatureEngine",
     "RankedMLOFI",
-    "Supertrend",
     "TradeCluster",
     "depth_imbalance",
     "l1_imbalance",

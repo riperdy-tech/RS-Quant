@@ -26,7 +26,7 @@ export function App() {
     venue: 'bitget',
     account_alias: 'paper-demo',
     engine_state: 'RUNNING',
-    active_strategies: ['imbalance-btc', 'momentum-btc'],
+    active_strategies: ['unified-btc', 'unified-eth'],
     unresolved_incidents: 0,
     service_health: 'HEALTHY',
   });

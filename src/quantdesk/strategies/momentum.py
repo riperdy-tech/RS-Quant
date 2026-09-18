@@ -42,6 +42,19 @@ class MomentumBreakout(Strategy):
             close_dec = Decimal(str(close))
             exit_reason: str | None = None
 
+            # Dynamic Chandelier trailing stop ratchet (§15 & Pine Script)
+            # Only ratchet stop price once trade has moved in our favor past entry price
+            ch_long = features.get("chandelier_long_stop")
+            ch_short = features.get("chandelier_short_stop")
+            if self.position_side == Side.BUY and ch_long and self.entry_price:
+                ch_dec = Decimal(str(round(float(ch_long), 2)))
+                if ch_dec > self.entry_price and ch_dec < close_dec:
+                    self.stop_price = max(self.stop_price or ch_dec, ch_dec)
+            elif self.position_side == Side.SELL and ch_short and self.entry_price:
+                ch_dec = Decimal(str(round(float(ch_short), 2)))
+                if ch_dec < self.entry_price and ch_dec > close_dec:
+                    self.stop_price = min(self.stop_price or ch_dec, ch_dec)
+
             if self.position_side == Side.BUY:
                 if self.stop_price and close_dec <= self.stop_price:
                     exit_reason = "stop_loss_hit"
@@ -88,27 +101,44 @@ class MomentumBreakout(Strategy):
         if self.position_lots > 0:
             return ()
 
-        if any(v is None for v in [close, high_20, low_20, ema10, ema30, atr14]):
+        if close is None:
             return ()
 
-        if atr14 <= 0:
-            self.last_signal = None
-            return ()
-
-        # 3. Entry condition evaluation (§12.3: close > prior 20 high, EMA10 > EMA30)
+        # 3. Entry condition evaluation: Squeeze Momentum + McGinley Dynamic or Donchian Breakout
         side: Side | None = None
-        if close > high_20 and ema10 > ema30:
+        squeeze_color = features.get("squeeze_color")
+        mcginley = features.get("mcginley_value")
+
+        # Bullish momentum breakout:
+        is_squeeze_long = (squeeze_color == "BLUE") and (mcginley is None or close > mcginley)
+        is_donchian_long = (
+            high_20 is not None
+            and close > high_20
+            and (ema10 is None or ema30 is None or ema10 > ema30)
+        )
+
+        # Bearish momentum breakout:
+        is_squeeze_short = (squeeze_color == "RED") and (mcginley is None or close < mcginley)
+        is_donchian_short = (
+            low_20 is not None
+            and close < low_20
+            and (ema10 is None or ema30 is None or ema10 < ema30)
+        )
+
+        if is_squeeze_long or is_donchian_long:
             side = Side.BUY
-        elif close < low_20 and ema10 < ema30:
+        elif is_squeeze_short or is_donchian_short:
             side = Side.SELL
 
         # Edge-triggered entry
         if side and side != self.last_signal:
             self.last_signal = side
             close_dec = Decimal(str(close))
-            atr_dec = Decimal(str(atr14))
+            atr_val = atr14 if (atr14 is not None and atr14 > 0) else (float(close) * 0.001)
+            atr_dec = Decimal(str(round(atr_val, 2)))
             stop_dist = Decimal("1.5") * atr_dec
-            target_dist = Decimal("2.0") * atr_dec
+            min_target_dist = close_dec * Decimal("0.008")  # At least 80 bps
+            target_dist = max(Decimal("3.0") * atr_dec, min_target_dist)
 
             self.position_lots = Decimal("1")
             self.position_side = side

@@ -1,0 +1,636 @@
+//@version=5
+indicator("ETH/BTC Ratio + Fed Net Liquidity [Warning System]", shorttitle="ETH/BTC + Fed Liq", overlay=false)
+
+// =========================
+// [중요] 데이터 소스 및 심볼 설정
+// =========================
+dataSource = input.string("바이낸스", "Data Source", options=["Old고래", "바이낸스"], tooltip="바이낸스 사용 시 설정에서 정확한 심볼(OI, LSR)을 입력해야 합니다.")
+
+// =========================
+// View mode
+// =========================
+view = input.string("Both", "View", options=["ETH only", "BTC only", "Both"])
+
+// =========================
+// Symbols (Bitfinex - Standard)
+// =========================
+bfEthLong  = input.symbol("BITFINEX:ETHUSDLONGS",  "Bitfinex ETH Longs", group="Bitfinex Symbols")
+bfEthShort = input.symbol("BITFINEX:ETHUSDSHORTS", "Bitfinex ETH Shorts", group="Bitfinex Symbols")
+bfBtcLong  = input.symbol("BITFINEX:BTCUSDLONGS",  "Bitfinex BTC Longs", group="Bitfinex Symbols")
+bfBtcShort = input.symbol("BITFINEX:BTCUSDSHORTS", "Bitfinex BTC Shorts", group="Bitfinex Symbols")
+
+// =========================
+// Symbols (Binance - User Input)
+// =========================
+bnEthOI    = input.symbol("BINANCE:ETHUSDT", "Binance ETH OI (Change Me!)", group="Binance Symbols", tooltip="예: BINANCE:ETHUSDT.P_OI")
+bnEthRatio = input.symbol("BINANCE:ETHUSDT", "Binance ETH L/S Ratio (Change Me!)", group="Binance Symbols", tooltip="예: BINANCE:ETHUSDT.P_LSR") 
+bnBtcOI    = input.symbol("BINANCE:BTCUSDT", "Binance BTC OI (Change Me!)", group="Binance Symbols", tooltip="예: BINANCE:BTCUSDT.P_OI")
+bnBtcRatio = input.symbol("BINANCE:BTCUSDT", "Binance BTC L/S Ratio (Change Me!)", group="Binance Symbols", tooltip="예: BINANCE:BTCUSDT.P_LSR")
+
+// =========================
+// MACD lengths
+// =========================
+fastLen   = input.int(12, "Fast EMA",   minval=1)
+slowLen   = input.int(26, "Slow EMA",   minval=1)
+signalLen = input.int(9,  "Signal EMA", minval=1)
+
+// =========================
+// Scale & Style (Main)
+// =========================
+scaleMode     = input.string("Z-score (rolling)", "Scale mode (Lines)", options=["Raw", "Z-score (rolling)", "MinMax (rolling)"])
+scaleLookback = input.int(200, "Scale lookback", minval=20)
+amplitude     = input.float(2.0, "Line Amplitude", step=0.5)
+ethMult = input.float(1.0, "ETH Multiplier")
+btcMult = input.float(1.0, "BTC Multiplier")
+ethHistShade = input.int(65, "ETH Hist Shade", minval=0, maxval=100)
+
+// Auto-scale
+autoEthHist     = input.bool(true, "Auto-scale ETH Hist")
+autoLookback    = input.int(200, "Lookback", minval=20)
+targetPeak      = input.float(80.0, "Target Peak")
+minAutoMult     = input.float(0.5, "Min Mult")
+maxAutoMult     = input.float(10.0, "Max Mult")
+
+autoBtcLine     = input.bool(true, "Auto-scale BTC Line")
+autoBtcLookback = input.int(200, "BTC Lookback", minval=20)
+btcTargetPeak   = input.float(50.0, "BTC Target Peak")
+btcMinAutoMult  = input.float(0.5, "BTC Min Mult")
+btcMaxAutoMult  = input.float(10.0, "BTC Max Mult")
+
+// =========================
+// Decomposition / Net Flow
+// =========================
+showDecomp  = input.bool(true, "Show Decomposition Bars", group="Decomposition")
+useNetFlow  = input.bool(true, "Show Net Flow (Single Bar)", group="Decomposition", tooltip="롱/숏 상쇄 후 '순수 흐름'만 표시")
+
+decompAsset = input.string("ETH only", "Asset", options=["ETH only", "BTC only", "Both"], group="Decomposition")
+decompScaleMode     = input.string("Z-score (rolling)", "Scale mode (Decomp)", options=["Raw", "Z-score (rolling)", "MinMax (rolling)"], group="Decomposition")
+decompScaleLookback = input.int(200, "Scale lookback (Decomp)", minval=20, group="Decomposition")
+decompAmplitude     = input.float(15, "Bar Amplitude", step=0.5, group="Decomposition")
+decompMult          = input.float(1.0, "Bar Multiplier", step=0.1, group="Decomposition")
+alertThresh         = input.float(30.0, "Color Change Threshold", group="Decomposition")
+
+// =========================
+// USDT.D Settings
+// =========================
+showUsdt      = input.bool(true, "Show USDT.D", group="USDT.D")
+symUsdt       = input.symbol("CRYPTOCAP:USDT.D", "Symbol", group="USDT.D")
+usdtWidth     = input.int(2, "Width", group="USDT.D")
+usdtSmoothing = input.bool(true, "Smoothing", group="USDT.D")
+usdtSmoothLen = input.int(5, "Smooth Len", minval=1, group="USDT.D")
+usdtScaleMode = input.string("Z-score (rolling)", "Scale Mode", options=["Raw", "Z-score (rolling)", "MinMax (rolling)"], group="USDT.D")
+usdtLookback  = input.int(200, "Lookback", minval=20, group="USDT.D")
+usdtMult      = input.float(2.0, "Multiplier", step=0.1, group="USDT.D")
+
+autoUsdtLine     = input.bool(true, "Auto-scale USDT.D", group="USDT.D")
+autoUsdtLookback = input.int(200, "USDT.D Lookback", minval=20, group="USDT.D")
+usdtTargetPeak   = input.float(80.0, "Target Peak", step=0.5, group="USDT.D")
+usdtMinAutoMult  = input.float(0.5, "Min Mult", step=0.1, group="USDT.D")
+usdtMaxAutoMult  = input.float(10.0, "Max Mult", step=0.5, group="USDT.D")
+usdtAutoStrength = input.float(1., "Auto Strength", minval=0.0, maxval=1.0, step=0.05, group="USDT.D")
+
+// =========================
+// Fed Net Liquidity Settings
+// =========================
+showFedLiq      = input.bool(true, "Show Fed Liquidity (Line & Label)", group="Fed Net Liquidity")
+showFedLiqBg    = input.bool(true, "Show Trend Background", group="Fed Net Liquidity")
+
+fedLiqScaleMode = input.string("MinMax (rolling)", "Scale Mode", options=["Raw", "MinMax (rolling)"], group="Fed Net Liquidity")
+fedLiqLookback  = input.int(200, "Lookback", minval=20, group="Fed Net Liquidity")
+fedLiqMult      = input.float(4.0, "Multiplier (Amplitude)", step=0.5, group="Fed Net Liquidity")
+
+autoFedLiq      = input.bool(true, "Auto-scale Fed Liq", group="Fed Net Liquidity")
+autoFedLiqLookback = input.int(200, "Auto Lookback", minval=20, group="Fed Net Liquidity")
+fedLiqTargetPeak   = input.float(80.0, "Target Peak", step=0.5, group="Fed Net Liquidity")
+fedLiqMinAutoMult  = input.float(0.5, "Min Mult", step=0.1, group="Fed Net Liquidity")
+fedLiqMaxAutoMult  = input.float(10.0, "Max Mult", step=0.5, group="Fed Net Liquidity")
+fedLiqAutoStrength = input.float(1.0, "Auto Strength", minval=0.0, maxval=1.0, step=0.05, group="Fed Net Liquidity")
+
+// 네온 색상
+neonColor = input.color(#00E5FF, "Neon Color", group="Fed Net Liquidity")
+
+// =========================
+// Functions
+// =========================
+f_ratio_scaled(longClose, shortClose) =>
+    r = longClose / math.max(shortClose, 1e-10)
+    math.log(math.max(r, 1e-10))
+
+f_macd_hist(src) =>
+    macdLine = ta.ema(src, fastLen) - ta.ema(src, slowLen)
+    signal   = ta.ema(macdLine, signalLen)
+    macdLine - signal
+
+f_scale_generic(x, mode, len) =>
+    float out = na
+    if mode == "Raw"
+        out := x
+    else if mode == "Z-score (rolling)"
+        mu = ta.sma(x, len)
+        sd = ta.stdev(x, len)
+        out := (x - mu) / math.max(sd, 1e-10)
+    else
+        // MinMax (rolling)
+        lo = ta.lowest(x, len)
+        hi = ta.highest(x, len)
+        out := (x - lo) / math.max(hi - lo, 1e-10) * 2.0 - 1.0
+    out
+
+f_hist_color(h) =>
+    bool up = h >= 0
+    bool rising = h > h[1]
+    color c = color.gray
+    if up and rising
+        c := color.lime
+    else if up and not rising
+        c := color.rgb(211, 199, 63)
+    else if (not up) and (not rising)
+        c := color.red
+    else
+        c := color.maroon
+    c
+
+// 원본 색상 정의
+cTeal    = color.rgb(0, 170, 160)
+cDarkRed = color.rgb(255, 0, 0)
+decompColorAlpha = 0
+
+f_long_decomp_color(dL) =>
+    dL >= 0 ? color.new(cTeal, decompColorAlpha) : color.new(cDarkRed, decompColorAlpha)
+f_short_decomp_color(dS) =>
+    dS >= 0 ? color.new(cDarkRed, decompColorAlpha) : color.new(cTeal, decompColorAlpha)
+
+// Net Flow 색상 함수
+f_net_color_original(val, thresh) =>
+    bool rising = val > val[1]
+    bool big = math.abs(val) >= thresh
+    color c = big ? (rising ? color.new(color.lime, 0) : color.new(color.red, 0)) : (rising ? color.new(cTeal, 0) : color.new(cDarkRed, 0))
+    c
+
+// =========================
+// Fetch Data
+// =========================
+_bfEthL = request.security(bfEthLong,  timeframe.period, close, barmerge.gaps_off, barmerge.lookahead_off)
+_bfEthS = request.security(bfEthShort, timeframe.period, close, barmerge.gaps_off, barmerge.lookahead_off)
+_bfBtcL = request.security(bfBtcLong,  timeframe.period, close, barmerge.gaps_off, barmerge.lookahead_off)
+_bfBtcS = request.security(bfBtcShort, timeframe.period, close, barmerge.gaps_off, barmerge.lookahead_off)
+
+_bnEthOI = request.security(bnEthOI, timeframe.period, close, barmerge.gaps_off, barmerge.lookahead_off)
+_bnEthLS = request.security(bnEthRatio, timeframe.period, close, barmerge.gaps_off, barmerge.lookahead_off)
+_bnBtcOI = request.security(bnBtcOI, timeframe.period, close, barmerge.gaps_off, barmerge.lookahead_off)
+_bnBtcLS = request.security(bnBtcRatio, timeframe.period, close, barmerge.gaps_off, barmerge.lookahead_off)
+
+_bnEthL_calc = _bnEthOI * _bnEthLS / (_bnEthLS + 1.0)
+_bnEthS_calc = _bnEthOI / (_bnEthLS + 1.0)
+_bnBtcL_calc = _bnBtcOI * _bnBtcLS / (_bnBtcLS + 1.0)
+_bnBtcS_calc = _bnBtcOI / (_bnBtcLS + 1.0)
+
+ethLong  = dataSource == "Old고래" ? _bfEthL : _bnEthL_calc
+ethShort = dataSource == "Old고래" ? _bfEthS : _bnEthS_calc
+btcLong  = dataSource == "Old고래" ? _bfBtcL : _bnBtcL_calc
+btcShort = dataSource == "Old고래" ? _bfBtcS : _bnBtcS_calc
+
+usdtClose = request.security(symUsdt, timeframe.period, close, barmerge.gaps_off, barmerge.lookahead_off, ignore_invalid_symbol=true)
+
+fed_assets = request.security("FRED:WALCL", "D", close)
+tga        = request.security("FRED:WTREGEN", "D", close)
+rrp        = request.security("FRED:RRPONTSYD", "D", close)
+
+// =========================
+// Logic
+// =========================
+ethRatio = f_ratio_scaled(ethLong, ethShort)
+btcRatio = f_ratio_scaled(btcLong, btcShort)
+
+ethHistRaw = f_macd_hist(ethRatio)
+btcHistRaw = f_macd_hist(btcRatio)
+
+ethDL = ethLong - ethLong[1]
+ethDS = ethShort - ethShort[1]
+btcDL = btcLong - btcLong[1]
+btcDS = btcShort - btcShort[1]
+
+ethNetRaw = ethDL - ethDS
+btcNetRaw = btcDL - btcDS
+
+ethHistScaled = f_scale_generic(ethHistRaw, scaleMode, scaleLookback)
+btcHistScaled = f_scale_generic(btcHistRaw, scaleMode, scaleLookback)
+
+ethDLS_scaled = f_scale_generic(ethDL, decompScaleMode, decompScaleLookback)
+ethDSS_scaled = f_scale_generic(ethDS, decompScaleMode, decompScaleLookback)
+ethNetS = f_scale_generic(ethNetRaw, decompScaleMode, decompScaleLookback)
+
+btcDLS_scaled = f_scale_generic(btcDL, decompScaleMode, decompScaleLookback)
+btcDSS_scaled = f_scale_generic(btcDS, decompScaleMode, decompScaleLookback)
+btcNetS = f_scale_generic(btcNetRaw, decompScaleMode, decompScaleLookback)
+
+ethPeak = math.max(math.abs(ta.highest(ethHistScaled, autoLookback)), math.abs(ta.lowest(ethHistScaled, autoLookback)))
+btcPeak = math.max(math.abs(ta.highest(btcHistScaled, autoBtcLookback)), math.abs(ta.lowest(btcHistScaled, autoBtcLookback)))
+
+ethAutoMult = 1.0
+if autoEthHist
+    rawE = targetPeak / math.max(ethPeak, 1e-10)
+    ethAutoMult := math.min(math.max(rawE, minAutoMult), maxAutoMult)
+
+btcAutoMult = 1.0
+if autoBtcLine
+    rawB = btcTargetPeak / math.max(btcPeak, 1e-10)
+    btcAutoMult := math.min(math.max(rawB, btcMinAutoMult), btcMaxAutoMult)
+
+ethHistVal = ethHistScaled * amplitude * ethMult * ethAutoMult
+btcHistVal = btcHistScaled * amplitude * btcMult * btcAutoMult
+
+ethDLS = ethDLS_scaled * decompAmplitude * decompMult
+ethDSS = ethDSS_scaled * decompAmplitude * decompMult
+ethNetS_final = ethNetS * decompAmplitude * decompMult
+
+btcDLS = btcDLS_scaled * decompAmplitude * decompMult
+btcDSS = btcDSS_scaled * decompAmplitude * decompMult
+btcNetS_final = btcNetS * decompAmplitude * decompMult
+
+isBTC = decompAsset == "BTC only"
+
+mainDL  = isBTC ? btcDL : ethDL
+mainDS  = isBTC ? btcDS : ethDS
+mainDLS = isBTC ? btcDLS : ethDLS
+mainDSS = isBTC ? btcDSS : ethDSS
+mainNetS = isBTC ? btcNetS_final : ethNetS_final
+
+mainHist = isBTC ? btcHistVal : ethHistVal
+secLine  = isBTC ? ethHistVal : btcHistVal
+
+cNetMain = f_net_color_original(mainNetS, alertThresh)
+
+mainBarFinal = useNetFlow ? mainNetS : na
+mainBarLong  = useNetFlow ? na : mainDLS
+mainBarShort = useNetFlow ? na : -math.abs(mainDSS)
+
+showMain = (isBTC and (view == "BTC only" or view == "Both")) or (not isBTC and (view == "ETH only" or view == "Both"))
+showSec  = (isBTC and (view == "ETH only" or view == "Both")) or (not isBTC and (view == "BTC only" or view == "Both"))
+
+usdtBaseRaw   = f_scale_generic(usdtClose, usdtScaleMode, usdtLookback)
+usdtBase      = usdtSmoothing ? ta.ema(usdtBaseRaw, usdtSmoothLen) : usdtBaseRaw
+usdtPeakAbs   = math.max(math.abs(ta.highest(usdtBase, autoUsdtLookback)), math.abs(ta.lowest(usdtBase, autoUsdtLookback)))
+usdtAutoMult  = 1.0
+if autoUsdtLine
+    rawU = usdtTargetPeak / math.max(usdtPeakAbs, 1e-10)
+    usdtAutoMult := math.min(math.max(rawU, usdtMinAutoMult), usdtMaxAutoMult)
+    usdtAutoMult := 1.0 + (usdtAutoMult - 1.0) * usdtAutoStrength
+usdtScaled = usdtBase * usdtMult * usdtAutoMult
+
+// Fed Net Liquidity Scaling (Neon & Amplified)
+net_liquidity = fed_assets - (tga + rrp)
+smooth_liq_raw = ta.sma(net_liquidity, 20)
+
+fedLiqBaseRaw = f_scale_generic(smooth_liq_raw, fedLiqScaleMode, fedLiqLookback)
+fedLiqPeakAbs = math.max(math.abs(ta.highest(fedLiqBaseRaw, autoFedLiqLookback)), math.abs(ta.lowest(fedLiqBaseRaw, autoFedLiqLookback)))
+fedLiqAutoMult = 1.0
+if autoFedLiq
+    rawL = fedLiqTargetPeak / math.max(fedLiqPeakAbs, 1e-10)
+    fedLiqAutoMult := math.min(math.max(rawL, fedLiqMinAutoMult), fedLiqMaxAutoMult)
+    fedLiqAutoMult := 1.0 + (fedLiqAutoMult - 1.0) * fedLiqAutoStrength
+
+// 증폭된 Multiplier 적용
+fedLiqScaled = fedLiqBaseRaw * fedLiqMult * fedLiqAutoMult
+
+// =========================
+// [개선] Trend-based Direction Detection with Strength
+// =========================
+
+// 타임프레임 자동 감지 설정
+auto_timeframe_settings = input.bool(true, "Auto Timeframe Settings", group="Warning System", tooltip="타임프레임에 따라 자동으로 최적 설정 적용")
+
+// 수동 설정 (자동 OFF 시 사용)
+manual_trend_length = input.int(3, "Manual Trend Length", minval=2, maxval=20, group="Warning System")
+manual_liq_threshold = input.float(0.1, "Manual Liq Threshold (%)", minval=0.01, maxval=2.0, step=0.01, group="Warning System")
+
+// 타임프레임별 최적 설정 함수
+f_get_optimal_settings() =>
+    int optimal_length = 3
+    float optimal_threshold = 0.1
+    
+    // 현재 타임프레임 분 단위로 변환
+    tf_minutes = timeframe.in_seconds() / 60
+    
+    if tf_minutes <= 1
+        // 1분봉 - 유동성은 거의 변화 없으므로 매우 높은 임계값
+        optimal_length := 10
+        optimal_threshold := 0.3
+    else if tf_minutes <= 5
+        // 5분봉 이하
+        optimal_length := 8
+        optimal_threshold := 0.25
+    else if tf_minutes <= 15
+        // 15분봉
+        optimal_length := 7
+        optimal_threshold := 0.2
+    else if tf_minutes <= 60
+        // 1시간봉
+        optimal_length := 6
+        optimal_threshold := 0.15
+    else if tf_minutes <= 120
+        // 2시간봉
+        optimal_length := 5
+        optimal_threshold := 0.12
+    else if tf_minutes <= 240
+        // 4시간봉
+        optimal_length := 4
+        optimal_threshold := 0.08
+    else if tf_minutes <= 1440
+        // 일봉 - Fed 데이터 주 업데이트에 적합
+        optimal_length := 3
+        optimal_threshold := 0.05
+    else if tf_minutes <= 10080
+        // 주봉
+        optimal_length := 2
+        optimal_threshold := 0.03
+    else
+        // 월봉 이상
+        optimal_length := 2
+        optimal_threshold := 0.02
+    
+    [optimal_length, optimal_threshold]
+
+// 설정 적용
+[auto_length, auto_threshold] = f_get_optimal_settings()
+trend_length = auto_timeframe_settings ? auto_length : manual_trend_length
+liq_change_threshold = auto_timeframe_settings ? auto_threshold : manual_liq_threshold
+
+// 강도 계산 설정
+enable_strength = input.bool(true, "Show Warning Strength", group="Warning System")
+strength_lookback = input.int(50, "Strength Lookback Period", minval=20, maxval=200, group="Warning System", tooltip="강도 계산을 위한 과거 데이터 범위")
+
+// =========================
+// [핵심] 데이터 업데이트 주기 기반 비교
+// =========================
+
+// 1. USDT.D 추세 판단 (타임프레임 기반 - 빠르게 변함)
+usdt_change_sum = 0.0
+for i = 1 to trend_length
+    usdt_change_sum := usdt_change_sum + (usdtBase[i-1] - usdtBase[i])
+
+usdt_avg_change = usdt_change_sum / trend_length
+trend_usdt_up = usdt_avg_change > 0
+
+// 2. 유동성 추세 판단 (실제 업데이트 주기 기반 - 일별/주별)
+// Fed 데이터는 일별 업데이트이므로 최소 1일 이상의 변화를 확인해야 함
+
+// 현재 타임프레임을 일 단위로 변환
+tf_in_days = timeframe.in_seconds() / 86400.0  // 86400초 = 1일
+
+// 최소 비교 기간: 일별 데이터이므로 최소 1일, Pine Script 최대 제한 5000바
+// 타임프레임에 따라 적절한 lookback 계산
+liq_lookback_bars = 1
+
+if tf_in_days >= 7.0
+    // 주봉 이상: 1~2주 전과 비교
+    liq_lookback_bars := 2
+else if tf_in_days >= 1.0
+    // 일봉: 3~5일 전과 비교
+    liq_lookback_bars := 3
+else if tf_in_days >= 0.16667
+    // 4시간봉 이상: 약 2일에 해당하는 캔들 수
+    liq_lookback_bars := math.round(2.0 / tf_in_days)
+else if tf_in_days >= 0.04167
+    // 1시간봉: 약 2일에 해당하는 캔들 수 (48바)
+    liq_lookback_bars := math.round(2.0 / tf_in_days)
+else if tf_in_days >= 0.01042
+    // 15분봉: 약 2일에 해당하는 캔들 수 (192바)
+    liq_lookback_bars := math.round(2.0 / tf_in_days)
+else if tf_in_days >= 0.00347
+    // 5분봉: 약 2일에 해당하는 캔들 수 (576바)
+    liq_lookback_bars := math.round(2.0 / tf_in_days)
+else
+    // 1분봉 등: 약 2일에 해당하는 캔들 수 (2880바)
+    liq_lookback_bars := math.round(2.0 / tf_in_days)
+
+// Pine Script 최대 제한(5000) 적용
+liq_lookback_bars := math.min(liq_lookback_bars, 5000)
+
+// 실제 변화 계산 (충분한 기간 비교)
+liq_current = smooth_liq_raw
+liq_past = smooth_liq_raw[liq_lookback_bars]
+
+// 변화율 계산
+liq_pct_change = (liq_current - liq_past) / math.abs(liq_past) * 100
+liq_abs_change = liq_current - liq_past
+
+// 임계값 비교 (타임프레임별 자동 설정값 사용)
+liq_has_meaningful_change = math.abs(liq_pct_change) >= liq_change_threshold
+
+// 추세 방향 결정
+var bool trend_liq_up = true
+trend_liq_up := liq_has_meaningful_change ? (liq_abs_change > 0) : trend_liq_up[1]
+
+is_liq_bullish = trend_liq_up
+
+// 3. 경고 조건 정의
+warn_bearish = trend_usdt_up and not trend_liq_up
+warn_bullish = not trend_usdt_up and trend_liq_up
+
+// =========================
+// [신규] Warning Strength Calculation
+// =========================
+
+// USDT.D 변화율의 표준편차
+usdt_stdev = ta.stdev(usdtBase, strength_lookback)
+liq_stdev = ta.stdev(smooth_liq_raw, strength_lookback)
+
+// 정규화된 변화율
+usdt_strength_raw = usdt_avg_change / math.max(usdt_stdev, 1e-10)
+
+// 유동성 강도는 실제 변화가 있을 때만 계산
+liq_strength_raw = liq_has_meaningful_change ? (liq_abs_change / math.max(liq_stdev, 1e-10)) : 0
+
+// 강도 계산 (0~100 스케일)
+usdt_strength_abs = math.min(math.abs(usdt_strength_raw) * 20, 100)
+liq_strength_abs = math.min(math.abs(liq_strength_raw) * 20, 100)
+
+// 복합 강도 계산 (유동성 변화 없으면 USDT.D만으로 강도 계산)
+bearish_strength = warn_bearish ? (liq_has_meaningful_change ? math.min((usdt_strength_abs + liq_strength_abs) / 2, 100) : usdt_strength_abs * 0.7) : 0
+bullish_strength = warn_bullish ? (liq_has_meaningful_change ? math.min((usdt_strength_abs + liq_strength_abs) / 2, 100) : usdt_strength_abs * 0.7) : 0
+
+warning_strength = bullish_strength - bearish_strength
+
+// 강도 레벨 분류 함수
+f_strength_level(strength) =>
+    string level = ""
+    if strength < 20
+        level := "약함"
+    else if strength < 40
+        level := "보통"
+    else if strength < 60
+        level := "강함"
+    else if strength < 80
+        level := "매우강함"
+    else
+        level := "극심"
+    level
+
+// =========================
+// Plotting
+// =========================
+
+bgcolor(showFedLiqBg ? (is_liq_bullish ? color.new(color.green, 95) : color.new(color.red, 95)) : na, title="Liquidity Trend Background")
+
+// [1] Main MACD Hist
+plot(showMain ? mainHist : na, "Main MACD Hist", style=plot.style_columns, color=color.new(f_hist_color(mainHist), ethHistShade), linewidth=2)
+
+// [2] Main Contribution Bars
+plot(showMain ? mainBarFinal : na, "Main Net Flow", style=plot.style_histogram, color=cNetMain, linewidth=3)
+plot(showMain ? mainBarLong : na,  "Main Long Raw",  style=plot.style_histogram, color=(math.abs(nz(mainBarLong)) >= alertThresh ? (mainDL >= 0 ? color.new(color.lime, 0) : color.new(color.red, 0)) : f_long_decomp_color(mainDL)), linewidth=3)
+plot(showMain ? mainBarShort : na, "Main Short Raw", style=plot.style_histogram, color=(math.abs(nz(mainBarShort)) >= alertThresh ? (mainDS >= 0 ? color.new(color.red, 0) : color.new(color.lime, 0)) : f_short_decomp_color(mainDS)), linewidth=3)
+
+// [3] Secondary Line (Orange)
+plot(showSec ? secLine : na, "Secondary Line", color=color.new(color.orange, 0), linewidth=2)
+
+// [4] USDT.D Line (Magenta)
+plot(showUsdt ? usdtScaled : na, "USDT.D Line", color=color.new(color.rgb(223, 78, 239), view == "Both" ? 15 : 0), linewidth=usdtWidth)
+
+// [5] Fed Net Liquidity Line (Neon Effect)
+// Glow Layer 1 (Wide, High transparency)
+plot(showFedLiq ? fedLiqScaled : na, "Fed Liq Glow 1", color=color.new(neonColor, 85), linewidth=10)
+// Glow Layer 2 (Medium, Medium transparency)
+plot(showFedLiq ? fedLiqScaled : na, "Fed Liq Glow 2", color=color.new(neonColor, 50), linewidth=4)
+// Core Layer (Thin, Bright)
+plot(showFedLiq ? fedLiqScaled : na, "Fed Liq Core", color=neonColor, linewidth=1)
+
+plot(0, "Zero", color=color.yellow)
+
+// =========================
+// Labels
+// =========================
+var label lblUsdt = na
+var label lblSec = na
+var label lblLiq = na 
+
+if barstate.islast
+    if showUsdt
+        if not na(lblUsdt)
+            label.delete(lblUsdt)
+        lblUsdt := label.new(
+             x=bar_index + 20, 
+             y=usdtScaled, 
+             text="USDT.D : " + str.tostring(usdtClose, "#.##") + "%", 
+             xloc=xloc.bar_index, 
+             yloc=yloc.price, 
+             color=color.new(color.white, 100), 
+             style=label.style_none, 
+             textcolor=color.rgb(223, 78, 239),
+             size=size.normal)
+
+    if not na(secLine) and showSec
+        if not na(lblSec)
+            label.delete(lblSec)
+        secName = isBTC ? "ETH" : "BTC"
+        lblSec := label.new(
+             x=bar_index + 7, 
+             y=secLine, 
+             text=secName, 
+             xloc=xloc.bar_index, 
+             yloc=yloc.price, 
+             color=color.new(color.white, 100), 
+             style=label.style_none, 
+             textcolor=color.orange, 
+             size=size.normal)
+    
+    if showFedLiq
+        if not na(lblLiq)
+            label.delete(lblLiq)
+        lblLiq := label.new(
+             x=bar_index + 14,
+             y=fedLiqScaled,
+             text="Fed Liq",
+             xloc=xloc.bar_index,
+             yloc=yloc.price,
+             color=color.new(color.white, 100),
+             style=label.style_none,
+             textcolor=neonColor,
+             size=size.normal)
+    else
+        label.delete(lblLiq)
+
+// =========================
+// Alerts
+// =========================
+alertcondition(math.abs(mainNetS) > alertThresh, title="Main Net Flow Alert", message="Main Net Flow Spiked!")
+
+bull_start = is_liq_bullish and not is_liq_bullish[1] 
+bear_start = not is_liq_bullish and is_liq_bullish[1] 
+
+alertcondition(bull_start, title="유동성 증가 (Risk-On)", message="Fed Net Liquidity is INCREASING! 🟢 (Risk-On)")
+alertcondition(bear_start, title="유동성 감소 (Risk-Off)", message="Fed Net Liquidity is DECREASING! 🔴 (Risk-Off)")
+
+// [추가된 알람] Market Convergence Warning
+alertcondition(warn_bearish, title="⚠️ 하락 경고 (Price Drop Warning)", message="⚠️ WARNING: USDT.D Rising & Liquidity Falling! (Price Drop Risk)")
+alertcondition(warn_bullish, title="🚀 상승 신호 (Price Rise Signal)", message="🚀 SIGNAL: USDT.D Falling & Liquidity Rising! (Price Rise Potential)")
+
+
+// =========================
+// [개선] Warning Status Table - Compact Version with Strength
+// =========================
+var table warnTable = table.new(position.bottom_right, 1, 2)  // 1열 2행으로 변경
+if barstate.islast
+    // 상단 행: 권장 안내
+    table.cell(warnTable, 0, 0, "2시간 타임 이상 분석 추천", 
+         bgcolor=color.new(color.blue, 80), 
+         text_color=color.new(color.white, 20), 
+         text_size=size.tiny)
+    
+    // 하단 행: 경고 상태
+    string txt = "중립"
+    color txtColor = color.gray
+    color bgColor = color.new(color.black, 70)
+    
+    if warn_bearish
+        strength_val = bearish_strength
+        strength_label = f_strength_level(strength_val)
+        
+        txt := "⚠️ 하락경고\n"
+        txt := txt + "테더: ⬆️ 연준: ⬇️\n"
+        if enable_strength
+            txt := txt + "━━━━━━━\n"
+            txt := txt + str.tostring(strength_val, "#") + " | " + strength_label
+        
+        // 강도에 따른 배경색
+        if strength_val >= 60
+            bgColor := color.new(color.red, 50)
+        else if strength_val >= 40
+            bgColor := color.new(color.red, 65)
+        else
+            bgColor := color.new(color.red, 75)
+        txtColor := color.white
+        
+    else if warn_bullish
+        strength_val = bullish_strength
+        strength_label = f_strength_level(strength_val)
+        
+        txt := "🚀 상승신호\n"
+        txt := txt + "테더: ⬇️ 연준: ⬆️\n"
+        if enable_strength
+            txt := txt + "━━━━━━━\n"
+            txt := txt + str.tostring(strength_val, "#") + " | " + strength_label
+        
+        // 강도에 따른 배경색
+        if strength_val >= 60
+            bgColor := color.new(color.green, 50)
+        else if strength_val >= 40
+            bgColor := color.new(color.green, 65)
+        else
+            bgColor := color.new(color.green, 75)
+        txtColor := color.white
+    
+    table.cell(warnTable, 0, 1, txt, 
+         bgcolor=bgColor, 
+         text_color=txtColor, 
+         text_size=size.small)
+
+// =========================
+// Data Source Label
+// =========================
+var table dsTable = table.new(position.top_center, 1, 1)
+if barstate.islast
+    string ds_text = "Data Source: " + dataSource
+    if auto_timeframe_settings
+        ds_text := ds_text + " | TF: " + timeframe.period + " (USDT.D:" + str.tostring(trend_length) + ", Liq:" + str.tostring(liq_lookback_bars) + "bars/" + str.tostring(liq_change_threshold, "#.##") + "%)"
+    table.cell(dsTable, 0, 0, text=ds_text, text_color=color.gray, text_size=size.small)

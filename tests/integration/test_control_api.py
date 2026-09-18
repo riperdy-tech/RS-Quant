@@ -174,6 +174,7 @@ def test_read_models_and_artifact_confinement():
     assert client.get("/api/v1/balances", headers=headers).status_code == 200
     assert client.get("/api/v1/risk", headers=headers).status_code == 200
     assert client.get("/api/v1/strategies", headers=headers).status_code == 200
+    assert client.get("/api/v1/strategies/ensemble-status", headers=headers).status_code == 200
     assert client.get("/api/v1/orders/ord-1/trace", headers=headers).status_code == 200
 
     # Path traversal attack on artifact download (§15.4)

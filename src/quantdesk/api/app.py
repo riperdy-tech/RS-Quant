@@ -31,7 +31,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning(f"Reconciled {reconciled} interrupted research jobs from prior run")
 
     # 2. Start live Bitget market data feed service
+    from quantdesk.strategies.live_runner import autonomous_live_engine
     from quantdesk.venues.bitget_uta.live_feed import live_feed_service
+
+    # Pre-seed 2H historical candles for curated 12-factor ensemble strategy
+    autonomous_live_engine.bootstrap_ensemble_history()
 
     await live_feed_service.start()
 

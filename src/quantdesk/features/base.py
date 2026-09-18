@@ -86,6 +86,13 @@ class IncrementalFeatureEngine:
         self.prior_highs: deque[float] = deque(maxlen=20)
         self.prior_lows: deque[float] = deque(maxlen=20)
 
+        # Rolling bar buffer for short-term Pine Script alpha factors (15s / 1m bars)
+        self.bar_opens: deque[float] = deque(maxlen=40)
+        self.bar_highs: deque[float] = deque(maxlen=40)
+        self.bar_lows: deque[float] = deque(maxlen=40)
+        self.bar_closes: deque[float] = deque(maxlen=40)
+        self.bar_volumes: deque[float] = deque(maxlen=40)
+
         # Orderflow
         self.cvd = CVD()
         self.l1_ofi = L1OFI()
@@ -159,6 +166,11 @@ class IncrementalFeatureEngine:
                     else:
                         self.sweep_candidate = None
 
+                cutoff = available_ns - 1_500_000_000
+                while self.rolling_1s_trades and self.rolling_1s_trades[0][0] < cutoff:
+                    self.rolling_1s_trades.popleft()
+                vol_1s_current = sum(v for _, v in self.rolling_1s_trades)
+
                 book_features: list[tuple[str, float | str | None]] = [
                     ("mid", mid_val),
                     ("spread_bps", spread),
@@ -168,6 +180,7 @@ class IncrementalFeatureEngine:
                     ("depth20_imbalance", d20),
                     ("l1_ofi", ofi_val),
                     ("mlofi", mlofi_val),
+                    ("volume_1s_signed", vol_1s_current),
                 ]
                 if sweep_recovery_side:
                     book_features.extend([
@@ -209,14 +222,11 @@ class IncrementalFeatureEngine:
                         warmup_met=False,
                         validity_epoch=self.validity_epoch,
                     )
+                    updated.append(self._features[name])
 
         elif event.event_type == "Trade":
-            price = float(payload_dict.get("price_ticks", payload_dict.get("price", 0)))
-            size = float(
-                payload_dict.get(
-                    "size_lots", payload_dict.get("lots", payload_dict.get("size", 0))
-                )
-            )
+            price = float(payload_dict.get("price", 0))
+            size = float(payload_dict.get("size", payload_dict.get("lots", 0)))
             aggressor = payload_dict.get(
                 "aggressor_side", payload_dict.get("aggressor", "BUY")
             )
@@ -273,6 +283,13 @@ class IncrementalFeatureEngine:
             high_p = float(payload_dict.get("high_ticks", payload_dict.get("high", open_p)))
             low_p = float(payload_dict.get("low_ticks", payload_dict.get("low", open_p)))
             close_p = float(payload_dict.get("close_ticks", payload_dict.get("close", open_p)))
+            vol_p = float(payload_dict.get("volume", payload_dict.get("volume_ticks", 10.0)))
+
+            self.bar_opens.append(open_p)
+            self.bar_highs.append(high_p)
+            self.bar_lows.append(low_p)
+            self.bar_closes.append(close_p)
+            self.bar_volumes.append(vol_p)
 
             atr_val = self.atr14.update(high_p, low_p, close_p)
             ema10_val = self.ema10.update(close_p)
@@ -286,6 +303,34 @@ class IncrementalFeatureEngine:
             self.prior_highs.append(high_p)
             self.prior_lows.append(low_p)
 
+            # Short-term Pine Script alpha factors (Squeeze Momentum, McGinley, Chandelier)
+            sq_val, sq_color = 0.0, "BLUE"
+            mcg_val = close_p
+            ch_long = high_p - 2.0 * (atr_val or 1.0)
+            ch_short = low_p + 2.0 * (atr_val or 1.0)
+
+            if len(self.bar_closes) >= 10:
+                import numpy as np
+                from quantdesk.features.ensemble_features import (
+                    calculate_chandelier_exit,
+                    calculate_mcginley_dynamic,
+                    calculate_squeeze_momentum,
+                )
+                c_arr = np.array(self.bar_closes, dtype=float)
+                h_arr = np.array(self.bar_highs, dtype=float)
+                l_arr = np.array(self.bar_lows, dtype=float)
+
+                sq_vals, sq_cols = calculate_squeeze_momentum(c_arr, h_arr, l_arr)
+                sq_val = float(sq_vals[-1])
+                sq_color = sq_cols[-1].value
+
+                mcg_arr, _ = calculate_mcginley_dynamic(c_arr)
+                mcg_val = float(mcg_arr[-1])
+
+                ch_l, ch_s, _, _ = calculate_chandelier_exit(h_arr, l_arr, c_arr, length=min(14, len(c_arr)), mult=2.0)
+                ch_long = float(ch_l[-1])
+                ch_short = float(ch_s[-1])
+
             for name, val in [
                 ("close", close_p),
                 ("atr14", atr_val),
@@ -297,11 +342,67 @@ class IncrementalFeatureEngine:
                 ("bollinger_upper", bb_upper),
                 ("high_20_prior", high_20),
                 ("low_20_prior", low_20),
+                ("squeeze_val", sq_val),
+                ("squeeze_color", sq_color),
+                ("mcginley_value", mcg_val),
+                ("chandelier_long_stop", ch_long),
+                ("chandelier_short_stop", ch_short),
             ]:
                 fv = FeatureValue(
                     name=name,
                     value=val,
                     missing_reason="WARMING_UP" if val is None else None,
+                    definition_version="v1",
+                    instrument_id=self.instrument_id,
+                    source_watermark_ns=self._watermark_ns,
+                    dependency_available_ns=available_ns,
+                    computed_ns=available_ns,
+                    warmup_met=val is not None,
+                    validity_epoch=self.validity_epoch,
+                )
+                self._features[name] = fv
+                updated.append(fv)
+
+        elif event.event_type == "MacroLiquidityUpdated":
+            macro_items = [
+                ("macro_fed_liq_zscore", payload_dict.get("macro_fed_liq_zscore")),
+                ("macro_fed_liq_trend", payload_dict.get("macro_fed_liq_trend")),
+                ("macro_usdt_d_zscore", payload_dict.get("macro_usdt_d_zscore")),
+                ("macro_usdt_d_slope", payload_dict.get("macro_usdt_d_slope")),
+                ("macro_warning_strength", payload_dict.get("macro_warning_strength")),
+                ("macro_regime", payload_dict.get("macro_regime")),
+                ("warn_bearish", payload_dict.get("warn_bearish")),
+                ("warn_bullish", payload_dict.get("warn_bullish")),
+            ]
+            for name, val in macro_items:
+                fv = FeatureValue(
+                    name=name,
+                    value=val,
+                    missing_reason=None if val is not None else "NO_MACRO_DATA",
+                    definition_version="v1",
+                    instrument_id=self.instrument_id,
+                    source_watermark_ns=self._watermark_ns,
+                    dependency_available_ns=available_ns,
+                    computed_ns=available_ns,
+                    warmup_met=val is not None,
+                    validity_epoch=self.validity_epoch,
+                )
+                self._features[name] = fv
+                updated.append(fv)
+
+        elif event.event_type == "WhalePositioningUpdated":
+            whale_items = [
+                ("whale_ls_ratio_ln", payload_dict.get("whale_ls_ratio_ln")),
+                ("whale_ls_macd_hist", payload_dict.get("whale_ls_macd_hist")),
+                ("whale_net_flow_zscore", payload_dict.get("whale_net_flow_zscore")),
+                ("whale_net_flow_direction", payload_dict.get("whale_net_flow_direction")),
+                ("whale_is_spike", payload_dict.get("whale_is_spike")),
+            ]
+            for name, val in whale_items:
+                fv = FeatureValue(
+                    name=name,
+                    value=val,
+                    missing_reason=None if val is not None else "NO_POSITIONING_DATA",
                     definition_version="v1",
                     instrument_id=self.instrument_id,
                     source_watermark_ns=self._watermark_ns,

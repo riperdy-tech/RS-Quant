@@ -1,16 +1,21 @@
 import {
+  AgenticStatus,
   BacktestJobRequest,
   BootstrapRequest,
   CommandPreviewRequest,
   CommandSubmissionRequest,
   DatasetImportRequest,
   LoginRequest,
+  MacroRadarData,
+  MacroReport,
   PositionItem,
   ReflexEvent,
   ReflexStatus,
   SystemStatus,
   TrainingJobRequest,
+  WhalePositioning,
 } from '../types/api';
+
 
 function getCookie(name: string): string | null {
   const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
@@ -83,6 +88,23 @@ export const api = {
         body: JSON.stringify(creds || { api_key: '', secret_key: '', passphrase: '' }),
       }
     ),
+  getTradingCapitalConfig: () =>
+    request<{
+      capital_usdt: string;
+      leverage: string;
+      margin_per_leg: string;
+      notional_per_leg: string;
+    }>('/api/v1/settings/trading-capital'),
+  saveTradingCapitalConfig: (payload: { capital_usdt: number; leverage: number }) =>
+    request<{
+      capital_usdt: string;
+      leverage: string;
+      margin_per_leg: string;
+      notional_per_leg: string;
+    }>('/api/v1/settings/trading-capital', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 
   // Auth
   bootstrap: (req: BootstrapRequest) => request<{ status: string; username: string; role: string; csrf_token: string }>('/api/v1/auth/bootstrap', {
@@ -158,7 +180,10 @@ export const api = {
       atr14: number | null;
       timestamp_ns: number;
     }>(`/api/v1/strategies/telemetry?symbol=${encodeURIComponent(symbol)}`),
+  getAgenticStatus: (symbol: string = 'BTCUSDT') =>
+    request<AgenticStatus>(`/api/v1/trading/agentic-status?symbol=${encodeURIComponent(symbol)}`),
   getStrategyDecisions: () =>
+
     request<
       Array<{
         decision_id: string;
@@ -192,7 +217,7 @@ export const api = {
     request<{ status: string; engine_state: string; positions: string }>('/api/v1/trading/emergency-stop', {
       method: 'POST',
     }),
-  triggerDiagnosticSignal: (strategyId: string = 'imbalance-btc', symbol: string = 'BTCUSDT', side: string = 'BUY') =>
+  triggerDiagnosticSignal: (strategyId: string = 'unified-btc', symbol: string = 'BTCUSDT', side: string = 'BUY') =>
     request<{ status: string; strategy_id: string; symbol: string; side: string }>(
       `/api/v1/strategies/trigger-diagnostic?strategy_id=${encodeURIComponent(strategyId)}&symbol=${encodeURIComponent(symbol)}&side=${encodeURIComponent(side)}`,
       { method: 'POST' }
@@ -376,7 +401,19 @@ export const api = {
         method: 'POST',
       }
     ),
+
+  // Macro Net Liquidity, Tether Dominance & Whale Positioning Radar
+  getMacroRadar: () => request<MacroRadarData>('/api/v1/trading/macro-radar'),
+  refreshMacroRadar: (params?: { walcl?: number; tga?: number; rrp?: number; usdt_d?: number }) =>
+    request<MacroRadarData>(
+      `/api/v1/trading/macro-radar/refresh${
+        params?.walcl ? `?walcl=${params.walcl}` : ''
+      }${params?.usdt_d ? `&usdt_d=${params.usdt_d}` : ''}`,
+      {
+        method: 'POST',
+      }
+    ),
 };
 
-export type { ReflexEvent, ReflexStatus };
+export type { MacroRadarData, MacroReport, ReflexEvent, ReflexStatus, WhalePositioning };
 

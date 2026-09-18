@@ -156,3 +156,21 @@ def test_reflex_independent_per_instrument_legs():
     assert btc_status_after["depth5_threshold"] == 0.35
     assert btc_status_after["current_atr_multiplier"] == 3.5
 
+
+def test_curated_ensemble_in_live_engine():
+    # Verify curated ensembles exist in engine
+    assert "BTCUSDT" in autonomous_live_engine.curated_ensembles
+    assert "ETHUSDT" in autonomous_live_engine.curated_ensembles
+
+    # Verify get_strategies includes curated strategies
+    strats = autonomous_live_engine.get_strategies()
+    strat_ids = [s["strategy_id"] for s in strats]
+    assert "curated-btc" in strat_ids
+    assert "curated-eth" in strat_ids
+
+    # Verify get_ensemble_status returns proper keys
+    status = autonomous_live_engine.get_ensemble_status("BTCUSDT")
+    assert status["symbol"] == "BTCUSDT"
+    assert status["macro_timeframe"] == "2H"
+    assert "forming_bar" in status
+

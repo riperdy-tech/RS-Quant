@@ -1,0 +1,3336 @@
+//by LCH
+
+//@version=5
+
+
+// ===== Helpers (moved up to avoid forward-reference issues) =====
+round_qty(q, dec) =>
+    // qty를 거래소/심볼 수량 규칙에 맞게 내림 처리 + 최소수량(step) 보정
+    // - stock/futures: 정수 수량 내림 + 최소 1
+    // - 그 외(crypto/forex/cfd 등): 소수점 dec 자리 내림 + 최소 step(10^-dec)
+    if na(q) or (q <= 0)
+        na
+    else
+        needsInteger = (syminfo.type == "stock") or (syminfo.type == "futures")
+        float factor = math.pow(10.0, math.max(dec, 0))
+        float step = needsInteger ? 1.0 : (factor > 1 ? (1.0 / factor) : 1.0)
+
+        float rq = na
+        if needsInteger
+            rq := math.floor(q)
+            rq := rq < 1 ? 1 : rq
+        else
+            rq := factor > 1 ? math.floor(q * factor) / factor : q
+            rq := rq < step ? step : rq
+
+        rq
+
+strategy(title="CH종합", shorttitle="CH종합", overlay=true, pyramiding=0, process_orders_on_close=true, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.1, margin_long=0, margin_short=0, max_bars_back=2000, max_labels_count=500, max_boxes_count=500, max_lines_count=500)
+
+// =========================================================
+// Trading Time Range
+// =========================================================
+time_group = "🕐 Trading Time Range"
+start_time = input.time(timestamp("2010-01-01T00:00:00+09:00"), title="자동매매 시작", group=time_group)
+end_time = input.time(timestamp("2050-01-01T00:00:00+09:00"), title="자동매매 종료", group=time_group)
+
+// Time validation
+in_date_range = true
+if not na(start_time) and not na(end_time)
+    in_date_range := time >= start_time and time <= end_time
+
+// =========================================================
+// Display (UI only)
+// =========================================================
+score_display_group = "✅ Display"
+show_candle_score = input.bool(true, title = "📌 캔들 아래 점수(숫자) 표시", group = score_display_group, tooltip = "끄면 차트에 표시되는 캔들 아래 숫자(점수) 라벨만 숨깁니다. 점수 계산(rounded_score/raw_score)과 이를 사용하는 내부 로직은 그대로 유지됩니다.")
+
+
+// =========================================================
+// Strategy Settings
+// =========================================================
+strategy_group = "✅ Strategy"
+enable_long_trades  = input.bool(true,  title="Enable Long",  group=strategy_group)
+enable_short_trades = input.bool(true,  title="Enable Short", group=strategy_group)
+close_on_opposite   = input.bool(true,  title="Close on Opposite Signal", group=strategy_group, tooltip="If enabled, a new Long will close any Short first (and vice versa).")
+
+// =========================================================
+// Leverage & Entry Size (ported from BB_Breakout)
+// =========================================================
+entry_size_group = "🟧🟥🟦🟪 Entry Size"
+leverage_input = input.int(0, title="레버리지(0=거래소 설정값)", minval=0, maxval=125, group=entry_size_group, tooltip="0으로 하면 거래소(또는 포지션) 설정 레버리지를 사용합니다. 백테스트에서는 포지션 금액(매수력) 계산에만 반영됩니다.")
+
+exchange_decimal = input.int(2, "거래소 최소 수량 소수점갯수(Coin마다 다름) ", minval=0, step=1, inline="ex2", group=entry_size_group)
+profit_balance = input.bool(true, "복리로 투자?", group=entry_size_group)
+sumcapital = profit_balance ? strategy.initial_capital + strategy.netprofit : strategy.initial_capital
+
+long_size = input.float(100, "Long Entry Size ", step=0.1, inline="up", group=entry_size_group)
+long_type = input.string("Percent ", "", options=["Cash ", "Percent "], inline="up", group=entry_size_group)
+short_size = input.float(100, "Short Entry Size ", step=0.1, inline="dn", group=entry_size_group)
+short_type = input.string("Percent ", "", options=["Cash ", "Percent "], inline="dn", group=entry_size_group)
+
+long_per_size = sumcapital * long_size / 100
+short_per_size = sumcapital * short_size / 100
+
+long_size_type(user_input_style) =>
+    user_input_style == "Cash " ? long_size * sumcapital : user_input_style == "Percent " ? long_per_size : na
+short_size_type(user_input_style) =>
+    user_input_style == "Cash " ? short_size * sumcapital : user_input_style == "Percent " ? short_per_size : na
+
+
+lev_factor = leverage_input <= 0 ? 1.0 : leverage_input
+
+
+// Entry Size 모드에서 사용할 qty 계산 (Long/Short 별도)
+calc_entry_qty(isLong, entryPrice) =>
+    float cashAlloc = na
+    if isLong
+        cashAlloc := long_size_type(long_type)
+    else
+        cashAlloc := short_size_type(short_type)
+
+    cashAlloc := cashAlloc * lev_factor
+    float rawQ = (not na(cashAlloc)) and entryPrice > 0 ? (cashAlloc / entryPrice) : na
+    round_qty(rawQ, exchange_decimal)
+
+
+use_signal_edge     = input.bool(true,  title="Trigger Only On Signal Change", group=strategy_group, tooltip="Prevents repeated entries on consecutive bars where the condition remains true.")
+show_debug_signals = input.bool(false, title="Debug: Plot Long/Short signals", group=strategy_group, tooltip="Shows L/S markers at the top when the final longSignal/shortSignal is true.")
+
+// Score labels are UI-only and can quickly exhaust max_labels_count.
+// To avoid conflicts with other Switch Board labels, we keep a bounded queue of score labels only.
+score_labels_keep = 200  // keep last N score labels (UI only)
+var score_labels = array.new_label()
+
+clear_score_labels() =>
+    int n = array.size(score_labels)
+    if n > 0
+        for i = 0 to n - 1
+            label.delete(array.get(score_labels, i))
+        array.clear(score_labels)
+
+ma(_source, _length, _type) =>
+    switch _type
+        "SMA" => ta.sma(_source, _length)
+        "EMA" => ta.ema(_source, _length)
+        "RMA" => ta.rma(_source, _length)
+        "WMA" => ta.wma(_source, _length)
+        "VWMA" => ta.vwma(_source, _length)
+
+alarm(_osc, _message) =>
+    alert(syminfo.ticker + " " + _osc + " : " + _message + ", price (" + str.tostring(close, format.mintick) + ")")
+
+// =========================================================
+// (Moved Up) Strategy Filters & TP/SL Inputs
+// - UI(옵션) 정렬을 위해 Entry Size와 "롱/숏 신호 판별 Filters" 사이로 이동
+// - 계산/진입 로직은 그대로 두고, input() 선언만 상단으로 이동
+// =========================================================
+
+tpsl_group_gen = "🟧🟥🟦🟪 TP/SL General"
+tpsl_group_tp  = "🟧🟥🟦🟪 Take Profit"
+tpsl_group_sl  = "🟧🟥🟦🟪 Stop Loss"
+
+tpsl_atrLength = input.int(defval = 14, title = "ATR Length", minval = 1, group = tpsl_group_gen)
+
+// TAKE PROFIT
+// =========================================================
+tpsl_longTP_trailingEnabled  = input.bool(defval = false, title = "TO %", inline = "TrailingL", group = tpsl_group_tp)
+tpsl_longTP_distancePerc     = input.float(defval = 0.5, title = "", minval = 0.01, maxval = 100, step = 0.05, inline = "TrailingL", group = tpsl_group_tp) / 100
+tpsl_shortTP_trailingEnabled = input.bool(defval = false, title = "TO %", inline = "TrailingS", group = tpsl_group_tp)
+tpsl_shortTP_distancePerc    = input.float(defval = 0.5, title = " ", minval = 0.01, maxval = 100, step = 0.05, inline = "TrailingS", group = tpsl_group_tp) / 100
+
+tpsl_longTP_method  = input.string(defval = "BOTH", title = "Method", options = ["PERC", "ATR", "BOTH"], inline = "Method", group = tpsl_group_tp)
+tpsl_shortTP_method = input.string(defval = "BOTH", title = "Method", options = ["PERC", "ATR", "BOTH"], inline = "Method", group = tpsl_group_tp)
+
+tpsl_longTP_qtyPerc  = input.float(defval = 0, title = "Qty % (Locked)", minval = 0.0, maxval = 0.0, step = 1.0, inline = "Qty", group = tpsl_group_tp, tooltip="부분청산 원천 차단: 0으로 고정")
+tpsl_shortTP_qtyPerc = input.float(defval = 0, title = "Qty % (Locked)", minval = 0.0, maxval = 0.0, step = 1.0, inline = "Qty", group = tpsl_group_tp, tooltip="부분청산 원천 차단: 0으로 고정")
+
+tpsl_longTP_perc  = input.float(defval = 8.0, title = "Profit", minval = 0.05, step = 0.05, inline = "TPP", group = tpsl_group_tp) / 100
+tpsl_shortTP_perc = input.float(defval = 8.25, title = "Profit", minval = 0.05, step = 0.05, inline = "TPP", group = tpsl_group_tp) / 100
+
+tpsl_longTP_atrMul  = input.float(defval = 1.0, title = "Multiplier", minval = 0.1, step = 0.1, inline = "TPA", group = tpsl_group_tp)
+tpsl_shortTP_atrMul = input.float(defval = 1.0, title = "Multiplier", minval = 0.1, step = 0.1, inline = "TPA", group = tpsl_group_tp)
+
+// STOP LOSS
+// =========================================================
+tpsl_slTrailingMode = input.string(defval = "OFF", title = "Enable Trailing", options = ["TP", "ON", "OFF"], inline = "SLTR", group = tpsl_group_sl)
+tpsl_slTrailSrc     = input.string(defval = "WICK", title = "", options = ["CLOSE", "WICK"], inline = "SLTR", group = tpsl_group_sl)
+
+tpsl_longBE  = input.bool(defval = false, title = "Long Break Even",  inline = "BE", group = tpsl_group_sl)
+tpsl_shortBE = input.bool(defval = false, title = "Short Break Even", inline = "BE", group = tpsl_group_sl)
+
+tpsl_longSL_method  = input.string(defval = "BOTH", title = "Method", options = ["LINE", "PERC", "ATR", "BOTH"], inline = "SLM", group = tpsl_group_sl)
+tpsl_shortSL_method = input.string(defval = "BOTH", title = "Method", options = ["LINE", "PERC", "ATR", "BOTH"], inline = "SLM", group = tpsl_group_sl)
+
+tpsl_longSL_perc  = input.float(defval = 2.3, title = "Stop Loss", minval = 0.05, maxval = 100, step = 0.05, inline = "SLP", group = tpsl_group_sl) / 100
+tpsl_shortSL_perc = input.float(defval = 3.5, title = "Stop Loss", minval = 0.05, maxval = 100, step = 0.05, inline = "SLP", group = tpsl_group_sl) / 100
+
+tpsl_longSL_atrMul  = input.float(defval = 2.0, title = "Multiplier", minval = 0.1, step = 0.1, inline = "SLA", group = tpsl_group_sl)
+tpsl_shortSL_atrMul = input.float(defval = 2.0, title = "Multiplier", minval = 0.1, step = 0.1, inline = "SLA", group = tpsl_group_sl)
+
+// ===== Filters (imported from BB_Breakout) =====
+// Autonomous Recursive Moving Average
+enable_long_arma = input(false, "Enable Long     ", inline="ara1", group="🟧🟥🟦🟪 Autonomous Recursive Moving Average")
+enable_short_arma = input(false, "Enable Short ", inline="ara1", group="🟧🟥🟦🟪 Autonomous Recursive Moving Average")
+
+ara_length = input.int(13, title="Length ", group="🟧🟥🟦🟪 Autonomous Recursive Moving Average", inline="ara2")
+gamma = input.float(3.0, title="Gamma ", step=0.1, group="🟧🟥🟦🟪 Autonomous Recursive Moving Average", inline="ara2")
+
+arma_ma = 0.
+mad = 0.
+
+src_ = close
+arma_ma := nz(mad[1], src_)
+arma_d = ta.cum(math.abs(src_[ara_length] - arma_ma)) / bar_index * gamma
+mad := ta.sma(ta.sma(src_ > nz(mad[1], src_) + arma_d ? src_ + arma_d : src_ < nz(mad[1], src_) - arma_d ? src_ - arma_d : nz(mad[1], src_), ara_length), ara_length)
+
+arma_long_condt = enable_long_arma ? close > mad : true
+arma_short_condt = enable_short_arma ? close < mad : true
+
+plot(mad, title="ARA", color=enable_long_arma or enable_short_arma ? color.new(color.orange, 20) : na, style=plot.style_line, linewidth=2)
+
+
+// Define the settings for the Volatility Filter
+lvolatilityFilterInput = input.bool(true, title="Enable Long     ", group="🟧🟥🟦🟪 Volatility Filter", inline="Vol1")
+lvolatilityFilterStDevLength = input(5, title="StdDev ", group="🟧🟥🟦🟪 Volatility Filter", inline="Vol2")
+lvolatilityStDevMaLength = input(6, title="MA  ", group="🟧🟥🟦🟪 Volatility Filter", inline="Vol3")
+
+svolatilityFilterInput = input.bool(true, title="Enable Short", group="🟧🟥🟦🟪 Volatility Filter", inline="Vol1")
+svolatilityFilterStDevLength = input(6, title="StdDev ", group="🟧🟥🟦🟪 Volatility Filter", inline="Vol2")
+svolatilityStDevMaLength = input(2, title="MA  ", group="🟧🟥🟦🟪 Volatility Filter", inline="Vol3")
+
+// Calculate and view Volatility Filter
+lstdDevClose = ta.stdev(close, lvolatilityFilterStDevLength)
+lvolatilityCondition = lvolatilityFilterInput ? lstdDevClose > ta.sma(lstdDevClose, lvolatilityStDevMaLength) : true
+
+sstdDevClose = ta.stdev(close, svolatilityFilterStDevLength)
+svolatilityCondition = svolatilityFilterInput ? sstdDevClose > ta.sma(sstdDevClose, svolatilityStDevMaLength) : true
+
+
+// Historical Volatility Filter
+enable_long_vol = input(false, "Enable Long     ", inline="vol1", group="🟧🟥🟦🟪 Historical Volatility Filter")
+enable_short_vol = input(false, "Enable Short ",  inline="vol1", group="🟧🟥🟦🟪 Historical Volatility Filter")
+HVlength = input.int(2, "Length ", minval=1, inline="vol2", group="🟧🟥🟦🟪 Historical Volatility Filter")
+HVthreshold = input.int(1, "Threshold ", minval=1, inline="vol2", group="🟧🟥🟦🟪 Historical Volatility Filter")
+HVper = timeframe.isintraday or timeframe.isdaily and timeframe.multiplier == 1 ? 1 : 7
+hv_HV = 100 * ta.stdev(math.log(close / close[1]), HVlength) * math.sqrt(365 / HVper)
+
+HV_long_condt = enable_long_vol ? (hv_HV - hv_HV[1]) > HVthreshold : true
+HV_short_condt = enable_short_vol ? (hv_HV - hv_HV[1]) > HVthreshold : true
+
+
+// ADX Filter
+enable_long_adx = input(false, "Enable Long     ", inline="adx1", group="🟧🟥🟦🟪 ADX Filter")
+enable_short_adx = input(false, "Enable Short ", inline="adx1", group="🟧🟥🟦🟪 ADX Filter")
+long_adxlen = input.int(14, "Length ", minval=1, inline="adx2", group="🟧🟥🟦🟪 ADX Filter")
+short_adxlen = input.int(14, "Length ", minval=1, inline="adx2", group="🟧🟥🟦🟪 ADX Filter")
+
+TrueRange = math.max(math.max(high - low, math.abs(high - nz(close[1]))), math.abs(low - nz(close[1])))
+DirectionalMovementPlus = high - nz(high[1]) > nz(low[1]) - low ? math.max(high - nz(high[1]), 0) : 0
+DirectionalMovementMinus = nz(low[1]) - low > high - nz(high[1]) ? math.max(nz(low[1]) - low, 0) : 0
+
+long_SmoothedTrueRange = 0.0
+long_SmoothedTrueRange := nz(long_SmoothedTrueRange[1]) - nz(long_SmoothedTrueRange[1]) / long_adxlen + TrueRange
+
+long_SmoothedDirectionalMovementPlus = 0.0
+long_SmoothedDirectionalMovementPlus := nz(long_SmoothedDirectionalMovementPlus[1]) - nz(long_SmoothedDirectionalMovementPlus[1]) / long_adxlen + DirectionalMovementPlus
+
+long_SmoothedDirectionalMovementMinus = 0.0
+long_SmoothedDirectionalMovementMinus := nz(long_SmoothedDirectionalMovementMinus[1]) - nz(long_SmoothedDirectionalMovementMinus[1]) / long_adxlen + DirectionalMovementMinus
+
+long_DIPlus = long_SmoothedDirectionalMovementPlus / long_SmoothedTrueRange * 100
+long_DIMinus = long_SmoothedDirectionalMovementMinus / long_SmoothedTrueRange * 100
+long_DX = math.abs(long_DIPlus - long_DIMinus) / (long_DIPlus + long_DIMinus) * 100
+long_ADX = ta.sma(long_DX, long_adxlen)
+
+short_SmoothedTrueRange = 0.0
+short_SmoothedTrueRange := nz(short_SmoothedTrueRange[1]) - nz(short_SmoothedTrueRange[1]) / short_adxlen + TrueRange
+
+short_SmoothedDirectionalMovementPlus = 0.0
+short_SmoothedDirectionalMovementPlus := nz(short_SmoothedDirectionalMovementPlus[1]) - nz(short_SmoothedDirectionalMovementPlus[1]) / short_adxlen + DirectionalMovementPlus
+
+short_SmoothedDirectionalMovementMinus = 0.0
+short_SmoothedDirectionalMovementMinus := nz(short_SmoothedDirectionalMovementMinus[1]) - nz(short_SmoothedDirectionalMovementMinus[1]) / short_adxlen + DirectionalMovementMinus
+
+short_DIPlus = short_SmoothedDirectionalMovementPlus / short_SmoothedTrueRange * 100
+short_DIMinus = short_SmoothedDirectionalMovementMinus / short_SmoothedTrueRange * 100
+short_DX = math.abs(short_DIPlus - short_DIMinus) / (short_DIPlus + short_DIMinus) * 100
+short_ADX = ta.sma(short_DX, short_adxlen)
+
+adx_long_condt = enable_long_adx ? long_DIPlus > long_DIPlus[1] and long_DIPlus > long_DIMinus : true
+adx_short_condt = enable_short_adx ? short_DIMinus > short_DIMinus[1] and short_DIPlus < short_DIMinus : true
+
+/// volume osc
+enable_vosc_long = input.bool(false, title="Enable Long     ", group="🟧🟥🟦🟪 Volume OSC", inline="vosc1")
+enable_vosc_short = input.bool(false, title="Enable Short", group="🟧🟥🟦🟪 Volume OSC", inline="vosc1", tooltip="볼륨 오실레이터 - 단기 거래량 이동평균과 장기 거래량 이동평균의 차이가 OSC변수 이상이면 진입한다")
+slen_vosc_long = input.int(5, minval=1, title = "롱 단기 기간", group="🟧🟥🟦🟪 Volume OSC", inline="vosc2")
+slen_vosc_short = input.int(5, minval=1, title = "숏 단기 기간", group="🟧🟥🟦🟪 Volume OSC", inline="vosc2")
+longlen_vosc_long = input.int(10, minval=1, title = "롱 장기 기간", group="🟧🟥🟦🟪 Volume OSC", inline="vosc3")
+longlen_vosc_short = input.int(10, minval=1, title = "숏 장기 기간", group="🟧🟥🟦🟪 Volume OSC", inline="vosc3")
+vosc_var_long = input.float(0, minval=0, step = 0.5, title = "OSC 롱 변수", group="🟧🟥🟦🟪 Volume OSC", inline="vosc4")
+vosc_var_short = input.float(0, minval=0, step = 0.5, title = "OSC 숏 변수", group="🟧🟥🟦🟪 Volume OSC", inline="vosc4")
+
+sema_vosc_long = ta.ema(volume, slen_vosc_long)
+lema_vosc_long = ta.ema(volume, longlen_vosc_long)
+osc_long = 100 * (sema_vosc_long - lema_vosc_long) / lema_vosc_long
+osc_long_cond = enable_vosc_long ? osc_long > vosc_var_long : true
+
+sema_vosc_short = ta.ema(volume, slen_vosc_short)
+lema_vosc_short = ta.ema(volume, longlen_vosc_short)
+osc_short = 100 * (sema_vosc_short - lema_vosc_short) / lema_vosc_short
+osc_short_cond = enable_vosc_short ? osc_short > vosc_var_short : true
+
+
+// ai trend
+// ~~ Tooltips {
+ait_t1 ="PriceValue selects the method of aitf_price computation. \n\nSets the smoothing period for the PriceValue. \n\nAdjusting these settings will change the input values for the K-Nearest Neighbors algorithm, influencing how the trend is calculated."
+ait_t2 = "TargetValue specifies the target to evaluate. \n\nSets the smoothing period for the TargetValue."
+ait_t3 ="numberOfClosestValues sets the number of closest values that are considered when calculating the KNN Moving Average. Adjusting this number will affect the sensitivity of the trend line, with a higher value leading to a smoother line and a lower value resulting in a line that is more responsive to recent aitf_price changes."
+ait_t4 ="smoothingPeriod sets the period for the moving average applied to the KNN classifier. Adjusting the smoothing period will affect how rapidly the trend line responds to aitf_price changes, with a larger smoothing period leading to a smoother line that may lag recent aitf_price movements, and a smaller smoothing period resulting in a line that more closely tracks recent changes."
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
+
+// ~~ Inputs {
+ait_enable_long = input.bool(false, title = "Enable Long     ", group="🟧🟥🟦🟪 AI Trend Filter", inline="ait_onoff")
+ait_enable_short = input.bool(false, title = "Enable Short", group="🟧🟥🟦🟪 AI Trend Filter", inline="ait_onoff")
+PriceValue   = input.string("hl2", options = ["hl2","VWAP", "sma", "wma", "ema", "hma"], group="🟧🟥🟦🟪 AI Trend Filter", inline="Value")
+maLen        = input.int(5, minval=2, maxval=200, title="", group="🟧🟥🟦🟪 AI Trend Filter", inline="Value", tooltip=ait_t1)
+TargetValue  = input.string("Price Action", options = ["Price Action","VWAP", "Volatility", "sma", "wma", "ema", "hma"], group="🟧🟥🟦🟪 AI Trend Filter", inline="Target")
+maLen_       = input.int(5, minval=2, maxval=200, title="", group="🟧🟥🟦🟪 AI Trend Filter", inline="Target", tooltip=ait_t2)
+// Input parameters for the KNN Moving Average
+aitf_numberOfClosestValues = input.int(3, "Number of Closest Values", 2, 200, tooltip=ait_t3, group = "🟧🟥🟦🟪 AI Trend Filter") 
+aitf_smoothingPeriod       = input.int(4, "Smoothing Period", 2, 500, tooltip=ait_t4, group = "🟧🟥🟦🟪 AI Trend Filter") 
+aitf_windowSize            = math.max(aitf_numberOfClosestValues, 30) 
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
+
+// ~~ kNN Classifier {
+aitf_value_in = switch PriceValue
+    "hl2"  => ta.sma(hl2,maLen)
+    "VWAP" => ta.vwap(close[maLen])
+    "sma" => ta.sma(close,maLen)
+    "wma" => ta.wma(close,maLen)
+    "ema" => ta.ema(close,maLen)
+    "hma" => ta.hma(close,maLen)
+
+aitf_meanOfKClosest(value_,target_) => 
+    closestDistances = array.new_float(aitf_numberOfClosestValues, 1e10) 
+    closestValues    = array.new_float(aitf_numberOfClosestValues, 0.0) 
+    for i = 1 to aitf_windowSize 
+        value = value_[i] 
+        distance = math.abs(target_ - value) 
+        maxDistIndex = 0 
+        maxDistValue = closestDistances.get(0) 
+        for j = 1 to aitf_numberOfClosestValues - 1 
+            if array.get(closestDistances, j) > maxDistValue
+                maxDistIndex := j
+                maxDistValue := array.get(closestDistances, j)
+        if distance < maxDistValue 
+            array.set(closestDistances, maxDistIndex, distance)
+            array.set(closestValues, maxDistIndex, value)
+    closestValues.sum() / aitf_numberOfClosestValues 
+
+// Choose the target input based on user selection
+aitf_target_in = switch TargetValue
+    "Price Action"  => ta.rma(close,maLen_) 
+    "VWAP"          => ta.vwap(close[maLen_])
+    "Volatility"    => ta.atr(14)
+    "sma" => ta.sma(close,maLen_)
+    "wma" => ta.wma(close,maLen_)
+    "ema" => ta.ema(close,maLen_)
+    "hma" => ta.hma(close,maLen_)
+
+aitf_knnMA = aitf_meanOfKClosest(aitf_value_in,aitf_target_in)
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
+
+// ~~ kNN Prediction {
+// Function to calculate KNN Classifier
+aitf_price = math.avg(aitf_knnMA, close)
+aitf_c     = ta.rma(aitf_knnMA[1], aitf_smoothingPeriod) 
+aitf_o     = ta.rma(aitf_knnMA, aitf_smoothingPeriod)
+
+// Defines KNN function to perform classification
+aitf_knn(aitf_price) => 
+    Pos_count = 0 
+    Neg_count = 0 
+    min_distance = 10e10 
+    nearest_index = 0 
+    for j = 1 to 10 
+        distance = math.sqrt(math.pow(aitf_price[j] - aitf_price, 2)) 
+        if distance < min_distance 
+            min_distance := distance
+            nearest_index := j
+            Neg = aitf_c[nearest_index] > aitf_o[nearest_index] 
+            Pos = aitf_c[nearest_index] < aitf_o[nearest_index] 
+            if Pos 
+                Pos_count += 1
+            if Neg 
+                Neg_count += 1
+    output = Pos_count>Neg_count?1:-1 
+
+// Calls KNN function and smooths the prediction
+aitf_knn_prediction_raw = aitf_knn(aitf_price) 
+aitf_knn_prediction     = ta.wma(aitf_knn_prediction_raw, 3)
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
+
+// ~~ Plots {
+// Plots for display on the chart
+aitf_knnMA_          = ta.wma(aitf_knnMA,5)
+aitf_knnMA_col       = aitf_knnMA_>aitf_knnMA_[1]?color.lime:aitf_knnMA_<aitf_knnMA_[1]?color.red:color.orange
+aitf_Classifier_Line = plot(aitf_knnMA_,"Knn Classifier Line", aitf_knnMA_col)
+aitf_MAknn_          = ta.rma(aitf_knnMA, aitf_smoothingPeriod)
+plot(aitf_MAknn_,"Average Knn Classifier Line" ,color.teal) 
+green = aitf_knn_prediction < 0.5
+red   = aitf_knn_prediction > -0.5 
+bgcolor(ait_enable_long and red ? color.rgb(0, 230, 119, 90) : na)
+bgcolor(ait_enable_short and green ? color.rgb(255, 82, 82, 90) : na)
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
+
+// ~~ Alerts {
+knnMA_cross_Over_Ma      = ta.crossover(aitf_knnMA_,aitf_MAknn_)
+knnMA_cross_Under_Ma     = ta.crossunder(aitf_knnMA_,aitf_MAknn_)
+knnMA_cross_Over_Close   = ta.crossover(aitf_knnMA_,close)
+knnMA_cross_Under_Close  = ta.crossunder(aitf_knnMA_,close)
+knnMA_Switch_Up          = aitf_knnMA_[1]<aitf_knnMA_ and aitf_knnMA_[1]<=aitf_knnMA_[2]
+knnMA_Switch_Dn          = aitf_knnMA_[1]>aitf_knnMA_ and aitf_knnMA_[1]>=aitf_knnMA_[2]
+knnMA_Neutral            = aitf_knnMA_col==color.orange and aitf_knnMA_col[1]!=color.orange
+greenBG                  = green and not green[1]
+redBG                    = red and not red[1]
+
+ait_long_cond = ait_enable_long ? red : true 
+ait_short_cond = ait_enable_short ? green : true
+
+// ===== End Filters =====
+
+
+
+//Conditional Sampling EMA Function 
+Cond_EMA(x, cond, n) =>
+    var val = array.new_float(0)
+    var ema_val = array.new_float(1)
+    if bool(cond)
+        array.push(val, x)
+        if array.size(val) > 1
+            array.remove(val, 0)
+        if na(array.get(ema_val, 0))
+            array.fill(ema_val, array.get(val, 0))
+        array.set(ema_val, 0, (array.get(val, 0) - array.get(ema_val, 0)) * (2 / (n + 1)) + array.get(ema_val, 0))
+    EMA = array.get(ema_val, 0)
+    EMA
+
+//Conditional Sampling SMA Function
+Cond_SMA(x, cond, n) =>
+    var vals = array.new_float(0)
+    if bool(cond)
+        array.push(vals, x)
+        if array.size(vals) > n
+            array.remove(vals, 0)
+    SMA = array.avg(vals)
+    SMA
+
+//Standard Deviation Function
+Stdev(x, n) =>
+    math.sqrt(Cond_SMA(math.pow(x, 2), 1, n) - math.pow(Cond_SMA(x, 1, n), 2))
+
+//Range Size Function
+rng_size(x, scale, qty, n) =>
+    ATR = Cond_EMA(ta.tr(true), 1, n)
+    AC = Cond_EMA(math.abs(x - x[1]), 1, n)
+    SD = Stdev(x, n)
+    rng_size = scale == "Pips" ? qty * 0.0001 : scale == "Points" ? qty * syminfo.pointvalue : scale == "% of Price" ? close * qty / 100 : scale == "ATR" ? qty * ATR : scale == "Average Change" ? qty * AC : scale == "Standard Deviation" ? qty * SD : scale == "Ticks" ? qty * syminfo.mintick : qty
+    rng_size
+
+//Two Type Range Filter Function
+rng_filt(h, l, rng_, n, type, smooth, sn, av_rf, av_n) =>
+    rng_smooth = Cond_EMA(rng_, 1, sn)
+    r = smooth ? rng_smooth : rng_
+    var rfilt = array.new_float(2, (h + l) / 2)
+    array.set(rfilt, 1, array.get(rfilt, 0))
+    if type == "Type 1"
+        if h - r > array.get(rfilt, 1)
+            array.set(rfilt, 0, h - r)
+        if l + r < array.get(rfilt, 1)
+            array.set(rfilt, 0, l + r)
+    if type == "Type 2"
+        if h >= array.get(rfilt, 1) + r
+            array.set(rfilt, 0, array.get(rfilt, 1) + math.floor(math.abs(h - array.get(rfilt, 1)) / r) * r)
+        if l <= array.get(rfilt, 1) - r
+            array.set(rfilt, 0, array.get(rfilt, 1) - math.floor(math.abs(l - array.get(rfilt, 1)) / r) * r)
+    rng_filt1 = array.get(rfilt, 0)
+    hi_band1 = rng_filt1 + r
+    lo_band1 = rng_filt1 - r
+    rng_filt2 = Cond_EMA(rng_filt1, rng_filt1 != rng_filt1[1], av_n)
+    hi_band2 = Cond_EMA(hi_band1, rng_filt1 != rng_filt1[1], av_n)
+    lo_band2 = Cond_EMA(lo_band1, rng_filt1 != rng_filt1[1], av_n)
+    rng_filt = av_rf ? rng_filt2 : rng_filt1
+    hi_band = av_rf ? hi_band2 : hi_band1
+    lo_band = av_rf ? lo_band2 : lo_band1
+    [hi_band, lo_band, rng_filt]
+
+ma_function(source, length, type) =>
+
+
+    if type == "RMA"
+        ta.rma(source, length)
+    else if type == "SMA"
+        ta.sma(source, length)
+    else if type == "EMA"
+        ta.ema(source, length)
+    else if type == "WMA"
+        ta.wma(source, length)
+    else if type == "HMA"
+        if length < 2
+            ta.hma(source, 2)
+        else
+            ta.hma(source, length)
+    else
+        ta.vwma(source, length)
+
+
+// =========================================================
+// Long/Short 라벨 전용 옵션 (가장 마지막 필터: 스퀴즈 모멘텀)
+// =========================================================
+label_filter_group = "🟧🟥🟦🟪 롱/숏 신호 판별 Filters 🟧🟥🟦🟪"
+show_final_ls_labels = input.bool(true, title = "📌 최종 LONG/SHORT 라벨 표시", group = label_filter_group, tooltip = "Filters를 모두 통과한 최종 LONG/SHORT 라벨(plotshape)만 화면에 표시/숨김합니다.")
+breakout_len = input.int(defval = 17, title = "돌파/이탈 기준 봉수", minval = 2, group = label_filter_group, tooltip = "직전 N봉의 최고/최저(현재 봉 제외)를 기준으로 돌파/이탈을 판단합니다.")
+use_sqz_filter = input.bool(true, title = "스퀴즈 모멘텀 필터 사용", group = label_filter_group)
+use_sqz_offset_filter = input.bool(true, title = "스퀴즈 히스토그램 오프셋 필터 사용", group = label_filter_group, tooltip = "켜면 히스토그램이 ±오프셋 범위(-offset~+offset) 안일 때 LONG/SHORT 라벨을 제거합니다.")
+sqz_bbLen  = 20  // BB Length 고정
+sqz_bbMult = 2.0  // BB Mult 고정
+sqz_kcLen  = 20  // KC Length 고정
+sqz_kcMult = 1.5  // KC Mult 고정
+sqz_useTrueRange = true  // 항상 TrueRange 사용 (옵션 제거)
+sqz_hist_offset = input.float(defval = 20.0, title = "히스토그램 오프셋(±값 안 라벨 제거)", minval = 0.0, step = 0.1, group = label_filter_group, tooltip = "스퀴즈 모멘텀 히스토그램(sqz_val) 값이 -오프셋~+오프셋 범위면 LONG/SHORT 라벨을 출력하지 않습니다.")
+
+// --- 마지막 필터 추가: "점수(캔들 숫자)" 이전 N봉 평균 기반 라벨 제거 ---
+use_score_avg_filter = input.bool(true, title = "이전 N봉 점수 평균 필터 사용", group = label_filter_group, tooltip = "켜면 직전 N봉 rounded_score 평균으로 LONG/SHORT 라벨을 추가로 제거합니다(가장 마지막 필터).")
+score_avg_len = input.int(defval = 15, title = "이전 N봉 점수 평균 길이", minval = 1, group = label_filter_group, tooltip = "현재 라벨이 뜨는 봉의 직전 N봉(현재 봉 제외) rounded_score 평균을 계산합니다.")
+short_remove_avg_th = input.float(defval = 4.9, title = "숏 제거 기준: 평균 점수 ≥", minval = 0.0, maxval = 10.0, step = 0.1, group = label_filter_group, tooltip = "직전 N봉 평균 점수가 이 값 이상이면 SHORT 라벨을 제거합니다.")
+long_remove_avg_th  = input.float(defval = 4.2, title = "롱 제거 기준: 평균 점수 ≤", minval = 0.0, maxval = 10.0, step = 0.1, group = label_filter_group, tooltip = "직전 N봉 평균 점수가 이 값 이하이면 LONG 라벨을 제거합니다.")
+
+
+// --- 추가 마지막 필터: 연속 동일 라벨 제거 ---
+use_no_consecutive_label_filter = input.bool(true, title = "연속 동일 라벨 제거 필터 사용", group = label_filter_group, tooltip = "켜면 마지막으로 출력된 라벨과 같은 방향의 라벨은 반대 라벨이 나오기 전까지 제거합니다.")
+
+
+/////////////////////////////////////////////////////////////////////////
+// Switch Board (롱/숏 라벨 생성에 관여 안함)
+////////////////////////////////////////////////////////////////////////
+
+switchboard_group = "🟧🟥🟦🟪 Switch Board 🟧🟥🟦🟪"
+
+switch_rd = input.bool(false, "🐵 Range Detector : 횡보구간 식별", group = switchboard_group, inline = "Switch3")
+switch_supertrend = input.bool(false, "🦁 Supertrend : 슈퍼트랜드 추세선", group = switchboard_group, inline = "Switch4")
+switch_halftrend = input.bool(false, "🐶 Half Trend : 하프트랜드 추세선", group = switchboard_group, inline = "Switch5")
+switch_rangefilter = input.bool(false, "🐻 Range Filter : 레인지필터 추세", group = switchboard_group, inline = "Switch6")
+
+
+///////////////////////////////////////////////////////////////////////
+
+setup_group = "████████ Indicator Setup ████████"
+signalexpiry = input.int(defval = 3, title = "Signal Expiry Candle Count", group = setup_group, inline = "expiry", tooltip = "Number of candles to wait for all indicators to confirm a signal. Default is 3 which means if leading indicator print the signal, it will wait for max 3 more candles for rest of the indicators to print signal, if not then this setup is invalided and will have to wait for another signal form the leading indicator.")
+alternatesignal = input.bool(false, "Alternate Signal", group = setup_group, inline = "alternate")
+showsignal = input.bool(false, "Show Long/Short Signal", group = setup_group, inline = "showsignal", tooltip = "Option to turn on/off the Long/Short signal shown on the chart. by default it will print Long/ Short signal on the chart.")
+
+
+///////////////////////////////////////////////
+///// Signal filters
+/////////////////////////////////////////////
+leadingindicator = input.string(title = "Leading Indicator", defval = "Range Filter", options = ["Range Filter", "Rational Quadratic Kernel (RQK)", "Supertrend", "Half Trend", "True Strength Indicator (TSI)", "Trend Direction Force Index (TDFI)", "Trendline Breakout", "Range Detector", "Heiken-Ashi Candlestick Oscillator", "Donchian Trend Ribbon", "Stochastic", "RSI", "Rate of Change (ROC)", "VWAP", "CCI", "2 EMA Cross", "3 EMA Cross", "B-Xtrender", "Bull Bear Power Trend", "Detrended Price Oscillator (DPO)", "Chandelier Exit", "DMI (Adx)", "Parabolic SAR (PSAR)", "MACD", "SSL Channel", "Waddah Attar Explosion", "Chaikin Money Flow", "Vortex Index", "Schaff Trend Cycle (STC)", "Awesome Oscillator", "Volatility Oscillator", "Wolfpack Id", "QQE Mod", "Hull Suite"], group = "████████ Main Indicator (signal) ████████", inline = "li")
+
+confirmation_group = "████████ Confirmation Indicators (filter) ████████ "
+
+ema2_tooltip = "Generates Long signal if Fast EMA cross above Slow EMA.\n\n Generates Short signal when Fast EMA cross below the Slow EMA.\n\n Default values are 50 and 200. you can change that to meet your requirement."
+respect2ma = input.bool(false, "2 EMA Cross : ", group = confirmation_group, inline = "2ma")
+respect2maperiod_1 = input.int(defval = 50, title = "", group = confirmation_group, inline = "2ma")
+respect2maperiod_2 = input.int(defval = 200, title = "", group = confirmation_group, inline = "2ma", tooltip = ema2_tooltip)
+signal_type = input.string("Default", "Signal Type", group = confirmation_group, options = ["Default", "Lookback"], inline = "2ma")
+lookback_period = input.int(defval = 3, title = "Lookback Period", group = confirmation_group, minval = 1, tooltip = "Number of candles to look back for confirming the cross", inline = "2ma")
+
+ema3_tooltip = "Generates Long signal if first EMA (Fastest) cross above 2nd and 3rd EMA and 2nd EMA cross above 3rd EMA.\n\n Generates Short signal if first EMA (Fastest) cross below 2nd and 3rd EMA and 2nd EMA cross below 3rd EMA .\n\n Default values are 9,21 and 55. you can change that to meet your requirement."
+respect3ma = input.bool(false, "3 EMA Cross : ", group = confirmation_group, inline = "3ma", tooltip = ema3_tooltip)
+respect3maperiod_1 = input.int(defval = 9, title = "", group = confirmation_group, inline = "3ma", tooltip = ema3_tooltip)
+respect3maperiod_2 = input.int(defval = 21, title = "", group = confirmation_group, inline = "3ma", tooltip = ema3_tooltip)
+respect3maperiod_3 = input.int(defval = 55, title = "", group = confirmation_group, inline = "3ma", tooltip = ema3_tooltip)
+
+respectrf = input.bool(false, "Range Filter", group = confirmation_group, inline = "rf")
+rftype = input.string(title = "", defval = "Default", options = ["Default", "DW"], group = confirmation_group, inline = "rf")
+
+respectrqk = input.bool(false, "Rational Quadratic Kernel (RQK)", group = confirmation_group, inline = "rqk", tooltip = "Nadaraya Watson: Rational Quadratic Kernel (RQK)")
+
+respectst = input.bool(false, "SuperTrend", group = confirmation_group, inline = "st")
+
+respectht = input.bool(false, "Half Trend", group = confirmation_group, inline = "ht")
+
+respectdonchian = input.bool(false, "Donchian Trend Ribbon", group = confirmation_group, inline = "donchian")
+
+respectroc = input.bool(false, "Rate of Change (ROC)", group = confirmation_group, inline = "roc")
+
+respecttsi = input.bool(false, "True Strength Indicator (TSI)", group = confirmation_group, inline = "tsi")
+
+tsitooltip = "Signal Crossover:\n\n TSI crossover or greater than signal line for long, and TSI crossunder signal line for short.\n\n Zero Line Cross:\n\n TSI cross above zero line and signal line for long signal. Tsi Cross below zero and signal line for short signal."
+tsitype = input.string(title = "", defval = "Signal Cross", options = ["Signal Cross", "Zero line cross"], tooltip = tsitooltip, group = confirmation_group, inline = "tsi")
+
+respecttdfi = input.bool(false, "Trend Direction Force Index (TDFI)", group = confirmation_group, inline = "tdfi")
+
+respectmd = input.bool(false, "McGinley Dynamic", group = confirmation_group, inline = "md")
+
+respectdpo = input.bool(false, "Detrended Price Oscillator (DPO)", group = confirmation_group, inline = "dpo")
+
+
+respecttrendline_breakout = input.bool(false, "Trendline Breakout", group = confirmation_group, inline = "tb")
+
+respectrd = input.bool(false, "Range Detector", group = confirmation_group, inline = "rd", tooltip = "Range Detector:\n\n if used as leading indicator, it will be based on range breakout. \n\n If used as confirmation indicator, it will be used to filter entries within the active range area.")
+
+respecthacolt = input.bool(false, "Heiken-Ashi Candlestick Oscillator", group = confirmation_group, inline = "hacolt", tooltip = "Vervoort LongTerm Heiken-Ashi Candlestick Oscillator:\n\n If oscilliation is above 0 line, then long signal is issued and if below zero line, short signal is issued.")
+
+respectbx = input.bool(false, "B-Xtrender", group = confirmation_group, inline = "bx")
+bxtype = input.string(title = "", defval = "Short and Long term trend", options = ["Short and Long term trend", "Short Term trend"], group = confirmation_group, inline = "bx", tooltip = "Short term trend:\n\n===================== \n\n For buy signal the short term trend line must turn green, and for the sell signal, the short term trend line must turn red. \n\n Short and Long term trend: \n\n===================== \n\n For buy signal, the short term trend must change from red to green and long term trend cross above zero line, for Sell signal the short term trend must turn red and long term trend line cross down the zero line..")
+
+respectbbpt = input.bool(false, "Bull bear Power Trend", group = confirmation_group, inline = "bbpt")
+bbpttype = input.string(title = "", defval = "Follow Trend", options = ["Follow Trend", "Without Trend"], group = confirmation_group, inline = "bbpt", tooltip = "Follow Trend:\n\n===================== \n\n Buy signal will be validated if the BBPT trend line is above 2, and Sell signal will be validated if BBPT trend line is below -2. \n\n Without Trend: \n\n===================== \n\n Ignore the BBPT trend line.")
+
+respectvwap = input.bool(false, "VWAP", group = confirmation_group, inline = "vwap")
+
+bbtype = input.string(title = "", defval = "Entering Lower/Upper Band", options = ["Entering Lower/Upper Band", "Exiting Lower/Upper Band"], group = confirmation_group, inline = "bbosc")
+
+respectce = input.bool(false, "Chandelier Exit", group = confirmation_group, inline = "ce")
+
+respectcci = input.bool(false, "CCI", group = confirmation_group, inline = "cci")
+
+respectao = input.bool(false, "Awesome Oscillator", group = confirmation_group, inline = "ao")
+aotype = input.string(title = "", defval = "Zero Line Cross", options = ["Zero Line Cross", "AC Zero Line Cross", "AC Momentum Bar"], group = confirmation_group, inline = "ao", tooltip = "Zero Line Cross:\n\n If AO value cross the zero line up, Buy signal will be generated, and if AO value cross down the zero line, sell signal will be generated.")
+
+respectadx = input.bool(false, "DMI (ADx)", group = confirmation_group, inline = "adx")
+adxtype = input.string(title = "", defval = "Adx & +Di -Di", options = ["Adx Only", "Adx & +Di -Di", "Advance"], group = confirmation_group, inline = "adx", tooltip = "Adx Only:\n\n If Adx value is above the defined level. \n\n Adx & +Di -DI :\n\n When Adx value is above the defined level and croseeover between +di and -di. Di will determine the direction of the movement. \n\n Advance: ")
+
+respectsar = input.bool(false, "Parabolic SAR (PSAR)", group = confirmation_group, inline = "sar")
+
+respectwae = input.bool(false, "Waddah Attar Explosion", group = confirmation_group, inline = "wae")
+
+vo_tooltip = "Volatility Oscillator: \n\n ======================= \n\n If the spike line is above the upper line, buy signal is generated (or validated). \n\n If the spike line is below the lower line, sell signal is generated (or validated)."
+respectvo = input.bool(false, "Volatility Oscillator", group = confirmation_group, inline = "vo", tooltip = vo_tooltip)
+
+stochtooltip = "CrossOver:\n------------------\n\n CrossOver of K and D line at any level. \n\n CrossOver in OB & OS levels:\n\n Generate buy signal if crossover happens in oversold area and crossing up oversold level.\n\n Generate sell signal on crossover in overbought area and cross down upper level. \n------------------\n\n %K above/below %D\n------------------\n: Generate Buy signal or validate other signal if %K is above %D and opposite for Sell Signal."
+
+respectstochastic = input.bool(false, "Stochastic", group = confirmation_group, inline = "stoch")
+stochtype = input.string(title = "", defval = "CrossOver", options = ["CrossOver", "CrossOver in OB & OS levels", "%K above/below %D"], tooltip = stochtooltip, group = confirmation_group, inline = "stoch")
+rsi_tooltip = "RSI MA Cross:\n=============\n Generate buy signal when RSI cross up RSI MA line and sell signal when RSI cross down RSI MA line.\n\nRSI Exits OB/OS zones:\n==================\n Generate Buy signal when RSI crosses down the overbough zone and sell signal when RSI crosses up the oversold zone.\n\nRSI Level:\n==========\nGenerate buy signal if RSI cross above the specific level and sell signal when RSI crossdown the level.\n\n\n +++++\nYou can change the setting to define the OB/OS and MidLine Levels"
+
+respectrsi = input.bool(false, "RSI", group = confirmation_group, inline = "rsi")
+rsitype = input.string(title = "", defval = "RSI MA Cross", options = ["RSI MA Cross", "RSI Exits OB/OS zones", "RSI Level"], tooltip = rsi_tooltip, group = confirmation_group, inline = "rsi")
+
+rsima_tooltip = "RSI MA Direction:\n=============\n The buy and sell signal will respect the RSI MA direction. For buy signal, the RSI MA should be increasing or same compared to previous RSI MA. \n\n for SHORT, the RSI MA should be same or decreasing compared to last RSI MA"
+respectrsima = input.bool(false, "RSI MA Direction", group = confirmation_group, inline = "rsi2", tooltip = rsima_tooltip)
+
+rsilimit_tooltip = "RSI Limit:\n=============\n This is to allow you to set limit for the RSI value for long and short. default value for long is 40, which means if the RSI is 40 or above, only then BUY signal will be validated. \n\nfor short if RSI is 60 or less, only then sell signal willbe validated."
+respectrsilimit = input.bool(false, "RSI Limit : ", group = confirmation_group, inline = "rsi3", tooltip = rsilimit_tooltip)
+
+rsilimitup = input.int(40, title = "Long", inline = "rsi3", group = confirmation_group)
+rsilimitdown = input.int(60, title = "short", inline = "rsi3", group = confirmation_group)
+
+rsimalimit_tooltip = "RSI MA Limit:\n=============\n This is to allow you to set limit for the RSI MA value for long and short. default value for long is 40, which means if the RSI MA is 40 or above, only then BUY signal will be validated. \n\nfor short if RSI MA is 60 or less, only then sell signal willbe validated."
+respectrsimalimit = input.bool(false, "RSI MA Limit : ", group = confirmation_group, inline = "rsi4", tooltip = rsimalimit_tooltip)
+
+rsimalimitup = input.int(40, title = "Long", inline = "rsi4", group = confirmation_group)
+rsimalimitdown = input.int(60, title = "short", inline = "rsi4", group = confirmation_group)
+
+macdtooltip = "MACD Crossover:\n------------------\n\n CrossOver of MACD and the Signal line. Generates Long signal when MACD cross up Signal line and Short signal when MACD cross down Signal Line. . \n\n Zero line crossover:\n------------------\n\n Generate buy signal when MACD cross up the zero line and Sell signal when MACD cross down the zero line."
+respectmacd = input.bool(false, "MACD", group = confirmation_group, inline = "macd")
+macdtype = input.string(title = "", defval = "MACD Crossover", options = ["MACD Crossover", "Zero line crossover"], tooltip = macdtooltip, group = confirmation_group, inline = "macd")
+
+respectssl = input.bool(false, "SSL Channel", group = confirmation_group, inline = "ssl")
+
+respectstc = input.bool(false, "Schaff Trend Cycle (STC)", group = confirmation_group, inline = "stc")
+respectchaikin = input.bool(false, "Chaikin Money Flow", group = confirmation_group, inline = "chaikin")
+
+respectvol = input.bool(false, "Volume", group = confirmation_group, inline = "volume")
+volumetype = input.string(title = "", defval = "volume above MA", options = ["volume above MA", "Simple", "Delta"], group = confirmation_group, inline = "volume", tooltip = "Simple volume is comparing the up/down volme with previous candle. \nVolume delta will compare the delta or difference between up and down volume with previous candle.\nExample:\n up volume = 100 \n Down volume=-1100\n Delta = -1000\n Satisfy the bear flag condition if previous -ve delta is lower")
+
+respectwolf = input.bool(false, "Wolfpack Id", group = confirmation_group, inline = "wolf")
+
+respectqqe = input.bool(false, "QQE Mod", group = confirmation_group, inline = "qqe")
+qqetype = input.string(title = "", defval = "Line", options = ["Line", "Bar", "Line & Bar"], group = confirmation_group, inline = "qqe", tooltip = "Line: signal generated when QQE line is above or below 0. \nBar: when Blue bar is above 0 or Red bar below 0 \nLine & Bar: Both Bar and Line to be above(bullist) or below (bearish) 0")
+
+respecthull = input.bool(false, "Hull Suite", group = confirmation_group, inline = "hull")
+
+respectvi = input.bool(false, "Vortex Indicator", group = confirmation_group, inline = "vi")
+vitype = input.string(title = "", defval = "Simple", options = ["Simple", "Advance"], group = confirmation_group, inline = "vi", tooltip = "Simple\n Green Cross Red. Advance\n     vipcondition := vip > vim and vip > viupper and vip > vip[1] and vim < vim[1] and vim[1] <= vilower and vip[1] >= viupper vimcondition := vip < vim and vim > viupper and vim > vim[1] and vip < vip [1] and vip[1] <= vilower and vim [1] >= viupper ")
+
+
+// Range Filter
+//////////////////////////////////////////////////////////////////////////
+
+rf_group = "██████████ Range Filter ██████████"
+
+showrfline = input.bool(true, "Show RF line", group = rf_group)
+
+src = input.source(defval = close, title = "Source", group = rf_group, inline = "rf")
+
+per = input.int(defval = 100, minval = 1, title = "Period", group = rf_group, inline = "rf")
+
+
+mult = input.float(defval = 3.0, minval = 0.1, title = "Multiplier", group = rf_group, inline = "rf")
+
+// Smooth Average Range
+
+smoothrng(x, t, m) =>
+    wper = t * 2 - 1
+    avrng = ta.ema(math.abs(x - x[1]), t)
+    smoothrng = ta.ema(avrng, wper) * m
+    smoothrng
+smrng = smoothrng(src, per, mult)
+
+// Range Filter
+
+rngfilt(x, r) =>
+    rngfilt = x
+    rngfilt := x > nz(rngfilt[1]) ? x - r < nz(rngfilt[1]) ? nz(rngfilt[1]) : x - r : x + r > nz(rngfilt[1]) ? nz(rngfilt[1]) : x + r
+    rngfilt
+filt = rngfilt(src, smrng)
+
+// Filter Direction
+
+upward = 0.0
+upward := filt > filt[1] ? nz(upward[1]) + 1 : filt < filt[1] ? 0 : nz(upward[1])
+downward = 0.0
+downward := filt < filt[1] ? nz(downward[1]) + 1 : filt > filt[1] ? 0 : nz(downward[1])
+
+// Target Bands
+
+hband = filt + smrng
+lband = filt - smrng
+
+
+///////////////////////////////
+////// RF2
+///////////////////////////////
+
+f_type = input.string(defval = "Type 1", options = ["Type 1", "Type 2"], title = "Filter Type")
+
+mov_src = input.string(defval = "Close", options = ["Wicks", "Close"], title = "Movement Source")
+
+rng_qty = input.float(defval = 2.618, minval = 0.0000001, title = "Range Size")
+rng_scale = input.string(defval = "Average Change", options = ["Points", "Pips", "Ticks", "% of Price", "ATR", "Average Change", "Standard Deviation", "Absolute"], title = "Range Scale")
+
+rng_per = input.int(defval = 14, minval = 1, title = "Range Period (for ATR, Average Change, and Standard Deviation)")
+
+smooth_range = input(defval = true, title = "Smooth Range")
+smooth_per = input.int(defval = 27, minval = 1, title = "Smoothing Period")
+
+av_vals = input(defval = false, title = "Average Filter Changes")
+av_samples = input.int(defval = 2, minval = 1, title = "Number Of Changes To Average")
+
+
+//High And Low Values
+h_val = mov_src == "Wicks" ? high : close
+l_val = mov_src == "Wicks" ? low : close
+
+//Range Filter Values
+[h_band, l_band, filt2] = rng_filt(h_val, l_val, rng_size((h_val + l_val) / 2, rng_scale, rng_qty, rng_per), rng_per, f_type, smooth_range, smooth_per, av_vals, av_samples)
+
+//Direction Conditions
+var fdir2 = 0.0
+fdir2 := filt2 > filt2[1] ? 1 : filt2 < filt2[1] ? -1 : fdir2
+rfupward = fdir2 == 1 ? 1 : 0
+rfdownward = fdir2 == -1 ? 1 : 0
+
+//color and switchboard rf
+
+filtcolor = upward > 0 ? color.lime : downward > 0 ? color.red : color.orange
+
+filttype = string(na)
+if rftype == "Default"
+    filttype := "filt"
+    filttype
+else if rftype == "DW"
+    filttype := "filt2"
+    filttype
+
+filtplot = plot(switch_rangefilter and showrfline ? filt : na, color = filtcolor, linewidth = 2, title = "Range Filter")
+
+
+////////////////////////////////
+/// RQK
+////////////////////////////////
+
+rqkgroupname = "████████ Rational Quadratic Kernel (RQK) ████████"
+rqksrc = input.source(close, "Source", group = rqkgroupname)
+h2 = input.float(8., "Lookback Window", minval = 3., tooltip = "The number of bars used for the estimation. This is a sliding value that represents the most recent historical bars. Recommended range: 3-50", group = rqkgroupname)
+r = input.float(8., "Relative Weighting", step = 0.25, group = rqkgroupname, tooltip = "Relative weighting of time frames. As this value approaches zero, the longer time frames will exert more influence on the estimation. As this value approaches infinity, the behavior of the Rational Quadratic Kernel will become identical to the Gaussian kernel. Recommended range: 0.25-25")
+x_0 = input.int(25, "Start Regression at Bar", group = rqkgroupname, tooltip = "Bar index on which to start regression. The first bars of a chart are often highly volatile, and omission of these initial bars often leads to a better overall fit. Recommended range: 5-25")
+smoothColors = input.bool(false, "Smooth Colors", group = rqkgroupname, tooltip = "Uses a crossover based mechanism to determine colors. This often results in less color transitions overall.", inline = "1")
+lag = input.int(2, "Lag", group = rqkgroupname, tooltip = "Lag for crossover detection. Lower values result in earlier crossovers. Recommended range: 1-2", inline = "1")
+size = array.size(array.from(rqksrc)) // size of the data series
+
+kernel_regression(_rqksrc, _size, _h2) =>
+    float _currentWeight = 0.
+    float _cumulativeWeight = 0.
+    for i = 0 to _size + x_0 by 1
+        y = _rqksrc[i]
+        w = math.pow(1 + math.pow(i, 2) / (math.pow(_h2, 2) * 2 * r), -r)
+        _currentWeight := _currentWeight + y * w
+        _cumulativeWeight := _cumulativeWeight + w
+        _cumulativeWeight
+    _currentWeight / _cumulativeWeight
+
+var bool rqkuptrend = false
+var bool rqkdowntrend = false
+
+if respectrqk or leadingindicator == "Rational Quadratic Kernel (RQK)"
+    // Estimations
+    yhat1 = kernel_regression(rqksrc, size, h2)
+    yhat2 = kernel_regression(rqksrc, size, h2 - lag)
+
+    // Rates of Change
+    bool wasBearish = yhat1[2] > yhat1[1]
+    bool wasBullish = yhat1[2] < yhat1[1]
+    bool isBearish = yhat1[1] > yhat1
+    bool isBullish = yhat1[1] < yhat1
+    bool isBearishChange = isBearish and wasBullish
+    bool isBullishChange = isBullish and wasBearish
+
+    // Crossovers
+    bool isBullishCross = ta.crossover(yhat2, yhat1)
+    bool isBearishCross = ta.crossunder(yhat2, yhat1)
+    bool isBullishSmooth = yhat2 > yhat1
+    bool isBearishSmooth = yhat2 < yhat1
+
+    rqkuptrend := yhat1[1] < yhat1
+    rqkdowntrend := yhat1[1] > yhat1
+    rqkdowntrend
+
+
+/////////////////////////////
+////////// TSI
+/////////////////////////////
+
+tsi_group = "██████████ True Strength Indicator (TSI) ██████████"
+
+tsi_long_length = input(title = "Long Length", defval = 25, group = tsi_group)
+tsi_short_length = input(title = "Short Length", defval = 13, group = tsi_group)
+tsi_signal_length = input(title = "Signal Length", defval = 13, group = tsi_group)
+tsi_price = close
+tsi_double_smooth(src, long, short) =>
+    fist_smooth = ta.ema(src, long)
+    ta.ema(fist_smooth, short)
+tsi_pc = ta.change(tsi_price)
+tsi_double_smoothed_pc = tsi_double_smooth(tsi_pc, tsi_long_length, tsi_short_length)
+tsi_double_smoothed_abs_pc = tsi_double_smooth(math.abs(tsi_pc), tsi_long_length, tsi_short_length)
+tsi_value = 100 * (tsi_double_smoothed_pc / tsi_double_smoothed_abs_pc)
+
+var tsi_long = bool(na)
+var tsi_short = bool(na)
+tsi_signal = ta.ema(tsi_value, tsi_signal_length)
+
+if tsitype == "Signal Cross"
+    tsi_long := tsi_value > tsi_signal
+    tsi_short := tsi_value < tsi_signal
+    tsi_short
+else if tsitype == "Zero line cross"
+    tsi_long := tsi_value > tsi_signal and tsi_value > 0
+    tsi_short := tsi_value < tsi_signal and tsi_value < 0
+    tsi_short
+
+
+////////////////////////////////
+///// Super Trend
+//////////////////////////////
+
+sp_group = "██████████ SuperTrend ██████████"
+
+Periods = input(title = "ATR Period", defval = 10, group = sp_group)
+stsrc = input(hl2, title = "Source", group = sp_group)
+Multiplier = input.float(title = "ATR Multiplier", step = 0.1, defval = 3.0, group = sp_group)
+changeATR = input(title = "Change ATR Calculation Method ?", defval = true, group = sp_group)
+showsignals = input(title = "Show Buy/Sell Signals ?", defval = true, group = sp_group)
+highlighting = input(title = "Highlighter On/Off ?", defval = true, group = sp_group)
+
+statr2 = ta.sma(ta.tr, Periods)
+statr = changeATR ? ta.atr(Periods) : statr2
+stup = stsrc - Multiplier * statr
+up1 = nz(stup[1], stup)
+stup := close[1] > up1 ? math.max(stup, up1) : stup
+dn = stsrc + Multiplier * statr
+dn1 = nz(dn[1], dn)
+dn := close[1] < dn1 ? math.min(dn, dn1) : dn
+sttrend = 1
+sttrend := nz(sttrend[1], sttrend)
+sttrend := sttrend == -1 and close > dn1 ? 1 : sttrend == 1 and close < up1 ? -1 : sttrend
+upPlot = plot(sttrend == 1 and switch_supertrend ? stup : na, title = "Up Trend", style = plot.style_linebr, linewidth = 2, color = color.new(color.green, 0))
+stbuySignal = sttrend == 1 and sttrend[1] == -1
+plotshape(stbuySignal and switch_supertrend ? stup : na, title = "UpTrend Begins", location = location.absolute, style = shape.circle, size = size.tiny, color = color.new(color.green, 0))
+dnPlot = plot(sttrend != 1 and switch_supertrend ? dn : na, title = "Down Trend", style = plot.style_linebr, linewidth = 2, color = color.new(color.red, 0))
+stsellSignal = sttrend == -1 and sttrend[1] == 1
+plotshape(stsellSignal and switch_supertrend ? dn : na, title = "DownTrend Begins", location = location.absolute, style = shape.circle, size = size.tiny, color = color.new(color.red, 0))
+
+
+/////////////////////////////////////////////
+/////////// Half Trend
+////////////////////////////////////////////
+
+ht_group = "██████████ HalfTrend ██████████"
+amplitude = input(title = "Amplitude", defval = 2, group = ht_group)
+channelDeviation = input(title = "Channel Deviation", defval = 2, group = ht_group)
+showArrows = input(title = "Show Arrows", defval = true, group = ht_group)
+showChannels = input(title = "Show Channels", defval = true, group = ht_group)
+
+var bool halftrend_long = false
+var bool halftrend_short = false
+var float ht = na
+var color htColor = na
+
+bool ht_logic_enabled = respectht or leadingindicator == "Half Trend"
+bool ht_plot_enabled  = switch_halftrend or ht_logic_enabled
+
+if ht_plot_enabled
+    var int ht_trend = 0
+    var int nextTrend = 0
+    var float maxLowPrice = nz(low[1], low)
+    var float minHighPrice = nz(high[1], high)
+
+    var float ht_up = 0.0
+    var float ht_down = 0.0
+    float atrHigh = 0.0
+    float atrLow = 0.0
+    float arrowUp = na
+    float arrowDown = na
+
+    ht_atr2 = ta.atr(100) / 2
+    ht_dev = channelDeviation * ht_atr2
+
+    highPrice = high[math.abs(ta.highestbars(amplitude))]
+    lowPrice = low[math.abs(ta.lowestbars(amplitude))]
+    highma = ta.sma(high, amplitude)
+    lowma = ta.sma(low, amplitude)
+
+    if nextTrend == 1
+        maxLowPrice := math.max(lowPrice, maxLowPrice)
+
+        if highma < maxLowPrice and close < nz(low[1], low)
+            ht_trend := 1
+            nextTrend := 0
+            minHighPrice := highPrice
+            minHighPrice
+    else
+        minHighPrice := math.min(highPrice, minHighPrice)
+
+        if lowma > minHighPrice and close > nz(high[1], high)
+            ht_trend := 0
+            nextTrend := 1
+            maxLowPrice := lowPrice
+            maxLowPrice
+
+    if ht_trend == 0
+        if not na(ht_trend[1]) and ht_trend[1] != 0
+            ht_up := na(ht_down[1]) ? ht_down : ht_down[1]
+            arrowUp := ht_up - ht_atr2
+            arrowUp
+        else
+            ht_up := na(ht_up[1]) ? maxLowPrice : math.max(maxLowPrice, ht_up[1])
+            ht_up
+        atrHigh := ht_up + ht_dev
+        atrLow := ht_up - ht_dev
+        atrLow
+    else
+        if not na(ht_trend[1]) and ht_trend[1] != 1
+            ht_down := na(ht_up[1]) ? ht_up : ht_up[1]
+            arrowDown := ht_down + ht_atr2
+            arrowDown
+        else
+            ht_down := na(ht_down[1]) ? minHighPrice : math.min(minHighPrice, ht_down[1])
+            ht_down
+        atrHigh := ht_down + ht_dev
+        atrLow := ht_down - ht_dev
+        atrLow
+
+    ht := ht_trend == 0 ? ht_up : ht_down
+
+    var color buyColor = color.blue
+    var color sellColor = color.red
+
+    htColor := ht_trend == 0 ? buyColor : sellColor
+
+    if ht_logic_enabled
+        halftrend_long := ht_trend == 0
+        halftrend_short := ht_trend != 0
+    else
+        halftrend_long := false
+        halftrend_short := false
+
+else
+    halftrend_long := false
+    halftrend_short := false
+    ht := na
+    htColor := na
+
+htPlot = plot(switch_halftrend ? ht : na, title = "HalfTrend", linewidth = 2, color = htColor)
+
+
+/////////////////////////////////////////////
+///////// Trend Line Breakout
+/////////////////////////////////////////////
+
+tbgroup = "██████████ Trendline Breakout ██████████"
+length_tb = input.int(14, "Swing Detection Lookback", group = tbgroup)
+mult_tb = input.float(1., "Slope", minval = 0, step = .1, group = tbgroup)
+calcMethod = input.string("Atr", "Slope Calculation Method", options = ["Atr", "Stdev", "Linreg"], group = tbgroup)
+backpaint = input(true, tooltip = "Backpainting offset displayed elements in the past. Disable backpainting to see real time information returned by the indicator.", group = tbgroup)
+
+var upos = 0
+var dnos = 0
+tb_buysignal = bool(na)
+tb_sellsignal = bool(na)
+
+if respecttrendline_breakout or leadingindicator == "Trendline Breakout"
+
+    //Calculations
+
+    var upper_tb = 0.
+    var lower_tb = 0.
+    var slope_ph = 0.
+    var slope_pl = 0.
+
+    var offset_tb = backpaint ? length_tb : 0
+
+    n_tb = bar_index
+    src_tb = close
+
+    ph = ta.pivothigh(length_tb, length_tb)
+    pl = ta.pivotlow(length_tb, length_tb)
+
+    //Slope Calculation Method
+    slope_tb = switch calcMethod
+        "Atr" => ta.atr(length_tb) / length_tb * mult_tb
+        "Stdev" => ta.stdev(src_tb, length_tb) / length_tb * mult_tb
+        "Linreg" => math.abs(ta.sma(src_tb * n_tb, length_tb) - ta.sma(src_tb, length_tb) * ta.sma(n_tb, length_tb)) / ta.variance(n_tb, length_tb) / 2 * mult_tb
+
+    //Get slopes and calculate trendlines
+    slope_ph := not na(ph) ? slope_tb : slope_ph
+    slope_pl := not na(pl) ? slope_tb : slope_pl
+
+    upper_tb := not na(ph) ? ph : upper_tb - slope_ph
+    lower_tb := not na(pl) ? pl : lower_tb + slope_pl
+
+
+    upos := not na(ph) ? 0 : close > upper_tb - slope_ph * length_tb ? 1 : upos
+    dnos := not na(pl) ? 0 : close < lower_tb + slope_pl * length_tb ? 1 : dnos
+
+
+    for i = 0 to signalexpiry - 1 by 1
+        tb_buysignal := upos[0] > upos[i + 1]
+        tb_sellsignal := dnos[0] > dnos[i + 1]
+        tb_sellsignal
+
+
+//////////////////////////////////
+///////////Donchian Channel Ribbon
+///////////////////////////////////
+
+donchiangroup = "██████████ Donchian Channel Ribbon ██████████"
+dlen = input.int(defval = 15, title = "Donchian Channel Period", group = donchiangroup)
+
+dchannel(len) =>
+    float hh = ta.highest(len)
+    float ll = ta.lowest(len)
+
+    int trend = 0
+    trend := close > hh[1] ? 1 : close < ll[1] ? -1 : nz(trend[1])
+    trend
+
+dchannelalt(len, maintrend) =>
+    float hh = ta.highest(len)
+    float ll = ta.lowest(len)
+
+    int trend = 0
+    trend := close > hh[1] ? 1 : close < ll[1] ? -1 : nz(trend[1])
+    maintrend == 1 ? trend == 1 ? #00FF00ff : #00FF009f : maintrend == -1 ? trend == -1 ? #FF0000ff : #FF00009f : na
+
+maintrend = dchannel(dlen)
+
+donchian_long = maintrend == 1 ? true : false
+donchian_short = maintrend == -1 ? true : false
+
+
+////////////////////////////////
+// DMI code
+////////////////////////////////
+
+dmi_group = "████████ Directional Movement Index (DMI) ████████"
+adxlen = input(5, title = "ADX", group = dmi_group, inline = "dmi")
+keyLevel = input(20, title = "ADX limit", group = dmi_group, inline = "dmi")
+dilen = input.int(10, title = "DI Length", group = dmi_group, inline = "dmi")
+
+lensig = adxlen
+upp = ta.change(high)
+downn = ta.change(low)
+plusDM = na(upp) ? na : upp > downn and upp > 0 ? upp : 0
+minusDM = na(downn) ? na : downn > upp and downn > 0 ? downn : 0
+trur = ta.rma(ta.tr, dilen)
+plus = fixnan(100 * ta.rma(plusDM, dilen) / trur)
+minus = fixnan(100 * ta.rma(minusDM, dilen) / trur)
+sum = plus + minus
+adxx = 100 * ta.rma(math.abs(plus - minus) / (sum == 0 ? 1 : sum), lensig)
+dirmov(dilen) =>
+    up = ta.change(high)
+    down = -ta.change(low)
+    truerange = ta.rma(ta.tr, dilen)
+    plus1 = fixnan(100 * ta.rma(up > down and up > 0 ? up : 0, dilen) / truerange)
+    minus1 = fixnan(100 * ta.rma(down > up and down > 0 ? down : 0, dilen) / truerange)
+    [plus1, minus1]
+
+adx(dilen, adxlen) =>
+    [plus1, minus1] = dirmov(dilen)
+    sum1 = plus + minus
+    adx = 100 * ta.rma(math.abs(plus - minus) / (sum1 == 0 ? 1 : sum1), adxlen)
+    [adx, plus, minus]
+
+[adx, diplus, diminus] = adx(dilen, adxlen)
+
+
+////////////////////////////////////////////////
+//Parabolic SAR
+///////////////////////////////////////////////
+
+psar_group = "██████████ Parabolic SAR (PSAR) ██████████"
+start = input.float(0.02, group = psar_group, inline = "sar")
+increment = input.float(0.02, group = psar_group, inline = "sar")
+maximum = input.float(0.2, "Max Value", group = psar_group, inline = "sar")
+out = ta.sar(start, increment, maximum)
+
+
+//////////////////////////////////////////////////
+///////// TDFI
+/////////////////////////////////////////////////
+
+rdfi_group = "█████ Trend Direction Force Index (TDFI) █████ "
+
+lookback = input(13, title = "Lookback", group = rdfi_group)
+mmaLength = input(13, title = "MMA Length", group = rdfi_group)
+mmaMode = input.string(title = "MMA Mode", defval = "ema", options = ["ema", "wma", "swma", "vwma", "hull", "tema"], group = rdfi_group)
+smmaLength = input(13, group = rdfi_group)
+smmaMode = input.string(title = "SMMA Mode", defval = "ema", options = ["ema", "wma", "swma", "vwma", "hull", "tema"], group = rdfi_group)
+nLength = input(3, title = "N Length", group = rdfi_group)
+filterHigh = input(0.05, title = "Filter High", group = rdfi_group)
+filterLow = input(-0.05, title = "Filter Low", group = rdfi_group)
+price = input(close, "Period", group = rdfi_group)
+
+tema(src, len) =>
+    ema1_tdfi = ta.ema(src, len)
+    ema2_tdfi = ta.ema(ema1_tdfi, len)
+    ema3_tdfi = ta.ema(ema2_tdfi, len)
+    3 * ema1_tdfi - 3 * ema2_tdfi + ema3_tdfi
+
+tdfi_ma(mode, src, len) =>
+    mode == "ema" ? ta.ema(src, len) : mode == "wma" ? ta.wma(src, len) : mode == "swma" ? ta.swma(src) : mode == "vwma" ? ta.vwma(src, len) : mode == "hull" ? ta.wma(2 * ta.wma(src, len / 2) - ta.wma(src, len), math.round(math.sqrt(len))) : mode == "tema" ? tema(src, len) : ta.sma(src, len)
+
+tdfi() =>
+    mma = tdfi_ma(mmaMode, price * 1000, mmaLength)
+    smma = tdfi_ma(smmaMode, mma, smmaLength)
+    impetmma = mma - mma[1]
+    impetsmma = smma - smma[1]
+    divma = math.abs(mma - smma)
+    averimpet = (impetmma + impetsmma) / 2
+    tdf = math.pow(divma, 1) * math.pow(averimpet, nLength)
+    tdf / ta.highest(math.abs(tdf), lookback * nLength)
+
+signal_tdfi = tdfi()
+
+tdfi_long = signal_tdfi > filterHigh
+tdfi_short = signal_tdfi < filterLow
+
+
+//////////////////////////////////////////////////
+///////// McGinley Dynamic
+/////////////////////////////////////////////////
+
+md_group = "████████████████████ McGinley Dynamic ████████████████████"
+
+md_length = input.int(14, minval = 1, group = md_group)
+md_source = close
+mg = 0.0
+ema_md = ta.ema(md_source, md_length)
+mg := na(mg[1]) ? ema_md : mg[1] + (md_source - mg[1]) / (md_length * math.pow(md_source / mg[1], 4))
+
+md_long = close > mg
+md_short = close < mg
+
+
+//////////////////////////////////////////////////
+///////// CCI
+/////////////////////////////////////////////////
+
+cci_group = "████████████████████ CCI ████████████████████"
+ccilength = input.int(20, title = "CCI Length", minval = 1, inline = "cci", group = cci_group)
+ccisrc = input(hlc3, title = "Source", inline = "cci", group = cci_group)
+cciupperband = input.int(100, title = "Upper Band", inline = "cci2", group = cci_group)
+ccilowerband = input.int(-100, title = "Lower Band", inline = "cci2", group = cci_group)
+
+ma = ta.sma(ccisrc, ccilength)
+cci = (ccisrc - ma) / (0.015 * ta.dev(ccisrc, ccilength))
+
+
+typeMA = input.string(title = "Method", defval = "SMA", options = ["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group = "Smoothing", inline = "cci4")
+smoothingLength = input.int(title = "Length", defval = 5, minval = 1, maxval = 100, group = "Smoothing", inline = "cci3")
+
+smoothingLine = ma(cci, smoothingLength, typeMA)
+
+ccilong = cci > cciupperband
+ccishort = cci < ccilowerband
+
+
+///////////////////////////////////////////////
+/////// B-Xtrender
+/////////////////////////////////////////////
+
+bxgroup = "██████████ B-Xtrender ██████████"
+short_l1 = input(5, title = "Short - L1", group = bxgroup)
+short_l2 = input(20, title = "Short - L2", group = bxgroup)
+short_l3 = input(15, title = "Short - L3", group = bxgroup)
+
+long_l1 = input(5, title = "Long - L1", group = bxgroup)
+long_l2 = input(10, title = "Long - L2", group = bxgroup)
+
+shortTermXtrender = ta.rsi(ta.ema(close, short_l1) - ta.ema(close, short_l2), short_l3) - 50
+longTermXtrender = ta.rsi(ta.ema(close, long_l1), long_l2) - 50
+
+t3(src, len) =>
+    xe1_1 = ta.ema(src, len)
+    xe2_1 = ta.ema(xe1_1, len)
+    xe3_1 = ta.ema(xe2_1, len)
+    xe4_1 = ta.ema(xe3_1, len)
+    xe5_1 = ta.ema(xe4_1, len)
+    xe6_1 = ta.ema(xe5_1, len)
+    b_1 = 0.7
+    c1_1 = -b_1 * b_1 * b_1
+    c2_1 = 3 * b_1 * b_1 + 3 * b_1 * b_1 * b_1
+    c3_1 = -6 * b_1 * b_1 - 3 * b_1 - 3 * b_1 * b_1 * b_1
+    c4_1 = 1 + 3 * b_1 + b_1 * b_1 * b_1 + 3 * b_1 * b_1
+    nT3Average_1 = c1_1 * xe6_1 + c2_1 * xe5_1 + c3_1 * xe4_1 + c4_1 * xe3_1
+    nT3Average_1
+
+maShortTermXtrender = t3(shortTermXtrender, 5)
+
+bx_long = bool(na)
+bx_short = bool(na)
+
+if bxtype == "Short Term trend"
+    bx_long := maShortTermXtrender > maShortTermXtrender[1]
+    bx_short := maShortTermXtrender < maShortTermXtrender[1]
+    bx_short
+else if bxtype == "Short and Long term trend"
+    bx_long := maShortTermXtrender > maShortTermXtrender[1] and longTermXtrender > 0 and longTermXtrender > longTermXtrender[1] and shortTermXtrender > shortTermXtrender[1] and shortTermXtrender > 0
+    bx_short := maShortTermXtrender < maShortTermXtrender[1] and longTermXtrender < 0 and longTermXtrender < longTermXtrender[1] and shortTermXtrender < shortTermXtrender[1] and shortTermXtrender < 0
+    bx_short
+
+
+////////////////////////////////////////////////
+////// Bull Bear Power Trend (BBPT)
+///////////////////////////////////////////////
+
+BullTrend_hist = 0.0
+BearTrend_hist = 0.0
+
+BullTrend = (close - ta.lowest(low, 50)) / ta.atr(5)
+BearTrend = (ta.highest(high, 50) - close) / ta.atr(5)
+BearTrend2 = -1 * BearTrend
+
+Trend = BullTrend - BearTrend
+
+if BullTrend < 2
+    BullTrend_hist := BullTrend - 2
+    BullTrend_hist
+
+if BearTrend2 > -2
+    BearTrend_hist := BearTrend2 + 2
+    BearTrend_hist
+
+bbpt_long = bool(na)
+bbpt_short = bool(na)
+if bbpttype == "Follow Trend"
+    bbpt_long := BearTrend_hist > 0 and Trend >= 2
+    bbpt_short := BullTrend_hist < 0 and Trend <= -2
+    bbpt_short
+else if bbpttype == "Without Trend"
+    bbpt_long := BearTrend_hist > 0
+    bbpt_short := BullTrend_hist < 0
+    bbpt_short
+
+
+///////////////////////////////////////////////
+//////////// VWAP
+/////////////////////////////////////////////
+
+vwap_group = "██████████ VWAP Settings ██████████"
+hideonDWM = input(false, title = "Hide VWAP on 1D or Above", group = vwap_group)
+var anchor = input.string(defval = "Session", title = "Anchor Period", options = ["Session", "Week", "Month", "Quarter", "Year", "Decade", "Century", "Earnings", "Dividends", "Splits"], group = vwap_group)
+srcvwap = input(title = "Source", defval = hlc3, group = vwap_group)
+offsetvwap = input(0, title = "Offset", group = vwap_group)
+
+showBand_1 = input(true, title = "", group = "Standard Deviation Bands Settings", inline = "band_1")
+stdevMult_1 = input(1.0, title = "Bands Multiplier #1", group = "Standard Deviation Bands Settings", inline = "band_1")
+showBand_2 = input(false, title = "", group = "Standard Deviation Bands Settings", inline = "band_2")
+stdevMult_2 = input(2.0, title = "Bands Multiplier #2", group = "Standard Deviation Bands Settings", inline = "band_2")
+showBand_3 = input(false, title = "", group = "Standard Deviation Bands Settings", inline = "band_3")
+stdevMult_3 = input(3.0, title = "Bands Multiplier #3", group = "Standard Deviation Bands Settings", inline = "band_3")
+
+var float cumulativeVolume = ta.cum(volume) 
+
+if barstate.islast and cumulativeVolume == 0//ta.cum(volume) == 0
+    runtime.error("The data vendor doesn't provide volume data for this symbol.")
+
+new_earnings = request.earnings(syminfo.tickerid, earnings.actual, barmerge.gaps_on, barmerge.lookahead_off, ignore_invalid_symbol = true)
+new_dividends = request.dividends(syminfo.tickerid, dividends.gross, barmerge.gaps_on, barmerge.lookahead_off, ignore_invalid_symbol = true)
+new_split = request.splits(syminfo.tickerid, splits.denominator, barmerge.gaps_on, barmerge.lookahead_off, ignore_invalid_symbol = true)
+
+isNewPeriod = switch anchor
+    "Earnings" => not na(new_earnings)
+    "Dividends" => not na(new_dividends)
+    "Splits" => not na(new_split)
+    "Session" => timeframe.change("D")
+    "Week" => timeframe.change("W")
+    "Month" => timeframe.change("M")
+    "Quarter" => timeframe.change("3M")
+    "Year" => timeframe.change("12M")
+    "Decade" => timeframe.change("12M") and year % 10 == 0
+    "Century" => timeframe.change("12M") and year % 100 == 0
+    => false
+
+isEsdAnchor = anchor == "Earnings" or anchor == "Dividends" or anchor == "Splits"
+if na(srcvwap[1]) and not isEsdAnchor
+    isNewPeriod := true
+    isNewPeriod
+
+float vwapValue = na
+float upperBandValue1 = na
+float lowerBandValue1 = na
+float upperBandValue2 = na
+float lowerBandValue2 = na
+float upperBandValue3 = na
+float lowerBandValue3 = na
+
+if not(hideonDWM and timeframe.isdwm)
+    [_vwap, _stdevUpper, _] = ta.vwap(srcvwap, isNewPeriod, 1)
+    vwapValue := _vwap
+    stdevAbs = _stdevUpper - _vwap
+    upperBandValue1 := _vwap + stdevAbs * stdevMult_1
+    lowerBandValue1 := _vwap - stdevAbs * stdevMult_1
+    upperBandValue2 := _vwap + stdevAbs * stdevMult_2
+    lowerBandValue2 := _vwap - stdevAbs * stdevMult_2
+    upperBandValue3 := _vwap + stdevAbs * stdevMult_3
+    lowerBandValue3 := _vwap - stdevAbs * stdevMult_3
+    lowerBandValue3
+
+long_vwap = close > vwapValue
+short_vwap = close < vwapValue
+
+
+////////////////////////////////////////////////
+////// Chandelier Exit
+///////////////////////////////////////////////
+
+ChandelierE = "██████████ Chandelier Exit ██████████"
+
+ce_length = input(title = "ATR Period", defval = 22, group = ChandelierE)
+ce_mult = input.float(title = "ATR Multiplier", step = 0.1, defval = 3.0, group = ChandelierE)
+showLabels = input(title = "Show Buy/Sell Labels ?", defval = true, group = ChandelierE)
+useClose = input(title = "Use Close Price for Extremums ?", defval = true, group = ChandelierE)
+highlightState = input(title = "Highlight State ?", defval = true, group = ChandelierE)
+
+ce_atr = ce_mult * ta.atr(ce_length)
+
+longStop = (useClose ? ta.highest(close, ce_length) : ta.highest(ce_length)) - ce_atr
+longStopPrev = nz(longStop[1], longStop)
+longStop := close[1] > longStopPrev ? math.max(longStop, longStopPrev) : longStop
+
+shortStop = (useClose ? ta.lowest(close, ce_length) : ta.lowest(ce_length)) + ce_atr
+shortStopPrev = nz(shortStop[1], shortStop)
+shortStop := close[1] < shortStopPrev ? math.min(shortStop, shortStopPrev) : shortStop
+
+var int dir = 1
+dir := close > shortStopPrev ? 1 : close < longStopPrev ? -1 : dir
+
+ce_long = dir == 1
+ce_short = dir == -1
+
+
+////////////////////////////////////////////////
+////// ROC
+///////////////////////////////////////////////
+
+roc_group = "██████████ Rate of Change (ROC) ██████████"
+roc_length = input.int(9, minval = 1, group = roc_group)
+roc_source = input(close, "Source", group = roc_group)
+roc = 100 * (roc_source - roc_source[roc_length]) / roc_source[roc_length]
+roc_long = roc > 0
+roc_short = roc < 0
+
+
+////////////////////////////////////////////////
+////// SSL Channel
+///////////////////////////////////////////////
+
+group_ssl = "██████████ SSL Channel ██████████"
+SSLperiod = input(title = "Period", defval = 10, group = group_ssl)
+SSLlen = input(title = "Period", defval = 10, group = group_ssl)
+smaHigh = ta.sma(high, SSLlen)
+smaLow = ta.sma(low, SSLlen)
+Hlv = int(na)
+Hlv := close > smaHigh ? 1 : close < smaLow ? -1 : Hlv[1]
+sslDown = Hlv < 0 ? smaHigh : smaLow
+sslUp = Hlv < 0 ? smaLow : smaHigh
+
+ssl_long = sslUp > sslDown
+ssl_short = sslUp < sslDown
+
+////////////////////////////////////////////////
+////// Chaikin Money Flow
+///////////////////////////////////////////////
+
+group_chaikin = "██████████ Chaiken Money Flow ██████████"
+chaiking_length = input.int(20, minval = 1, group = group_chaikin)
+ad = close == high and close == low or high == low ? 0 : (2 * close - low - high) / (high - low) * volume
+mf = math.sum(ad, chaiking_length) / math.sum(volume, chaiking_length)
+
+chaikin_long = mf > 0
+chaikin_short = mf < 0
+
+////////////////////////////////////////////////
+////// Vortex INdex
+///////////////////////////////////////////////
+
+vortex_group = "██████████ Vortex Index ██████████"
+
+period_ = input.int(14, title = "Length", minval = 2, group = vortex_group, inline = "vi")
+viupper = input.float(1.1, title = "Upper band", group = vortex_group, inline = "vi")
+vilower = input.float(0.9, title = "Lower Band", group = vortex_group, inline = "vi")
+
+VMP = math.sum(math.abs(high - low[1]), period_)
+VMM = math.sum(math.abs(low - high[1]), period_)
+STR = math.sum(ta.atr(1), period_)
+vip = VMP / STR
+vim = VMM / STR
+
+
+/////////////////////////////////////////////////
+////////Waddar Atar explosion (WAR)
+//////////////////////////////////////////////////
+
+group_wae = "██████████ Waddah Attar Explosion ██████████"
+
+wae_sensitivity = input(150, title = "Sensitivity", group = group_wae)
+wae_fastLength = input(20, title = "FastEMA Length", group = group_wae)
+wae_slowLength = input(40, title = "SlowEMA Length", group = group_wae)
+channelLength = input(20, title = "BB Channel Length", group = group_wae)
+wae_mult = input(2.0, title = "BB Stdev Multiplier", group = group_wae)
+
+deadzone = nz(ta.rma(ta.tr(true), 100)) * 3.7
+
+calc_macd(source, wae_fastLength, wae_slowLength) =>
+    fastMA = ta.ema(source, wae_fastLength)
+    slowMA = ta.ema(source, wae_slowLength)
+    fastMA - slowMA
+
+calc_BBUpper(source, length, wae_mult) =>
+    basis = ta.sma(source, length)
+    dev = wae_mult * ta.stdev(source, length)
+    basis + dev
+
+calc_BBLower(source, length, wae_mult) =>
+    basis = ta.sma(source, length)
+    dev = wae_mult * ta.stdev(source, length)
+    basis - dev
+
+t1 = (calc_macd(close, wae_fastLength, wae_slowLength) - calc_macd(close[1], wae_fastLength, wae_slowLength)) * wae_sensitivity
+
+e1 = calc_BBUpper(close, channelLength, wae_mult) - calc_BBLower(close, channelLength, wae_mult)
+
+trendUp = t1 >= 0 ? t1 : 0
+trendDown = t1 < 0 ? -1 * t1 : 0
+
+wae_long = bool(trendUp) and trendUp > e1 and e1 > deadzone and trendUp > deadzone
+wae_short = bool(trendDown) and trendDown > e1 and e1 > deadzone and trendDown > deadzone
+
+
+//////////////////////////////////////////////
+////////// Range Detector
+//////////////////////////////////////////////
+
+rdgroup = "██████████ Range Detector ██████████"
+
+//Settings
+rd_length = input.int(20, "Minimum Range Length", minval = 2, group = rdgroup)
+rd_mult = input.float(1., "Range Width", minval = 0, step = 0.1, group = rdgroup)
+rd_atrLen = input.int(500, "ATR Length", minval = 1, group = rdgroup)
+//Style
+rd_upCss = input(#089981, "Broken Upward", group = rdgroup)
+rd_dnCss = input(#f23645, "Broken Downward", group = rdgroup)
+unbrokenCss = input(#2157f3, "Unbroken", group = rdgroup)
+
+//Detect and highlight ranges
+//Ranges drawings
+var box bx = na
+var line lvl = na
+
+//Extensions
+var float rd_max = na
+var float rd_min = na
+
+var rd_os = 0
+color detect_css = na
+
+rd_n = bar_index
+rd_atr = ta.atr(rd_atrLen) * rd_mult
+rd_ma = ta.sma(close, rd_length)
+
+count = 0
+for i = 0 to rd_length - 1 by 1
+    count := count + (math.abs(close[i] - rd_ma) > rd_atr ? 1 : 0)
+    count
+
+// if  switch_rd
+if count == 0 and count[1] != count
+    //Test for overlap and change coordinates
+    if rd_n[rd_length] <= bx.get_right()
+        rd_max := math.max(rd_ma + rd_atr, bx.get_top())
+        rd_min := math.min(rd_ma - rd_atr, bx.get_bottom())
+
+        if switch_rd
+            //Box new coordinates
+            bx.set_top(rd_max)
+            bx.set_rightbottom(rd_n, rd_min)
+            bx.set_bgcolor(color.new(unbrokenCss, 80))
+
+            //Line new coordinates
+            avg = math.avg(rd_max, rd_min)
+            lvl.set_y1(avg)
+            lvl.set_xy2(rd_n, avg)
+            lvl.set_color(unbrokenCss)
+    else
+        rd_max := rd_ma + rd_atr
+        rd_min := rd_ma - rd_atr
+
+        //Set new box and level
+        if switch_rd
+            bx := box.new(rd_n[rd_length], rd_ma + rd_atr, rd_n, rd_ma - rd_atr, na, bgcolor = color.new(unbrokenCss, 80))
+
+            lvl := line.new(rd_n[rd_length], rd_ma, rd_n, rd_ma, color = unbrokenCss, style = line.style_dotted)
+
+            detect_css := color.new(color.gray, 80)
+            rd_os := 0
+            rd_os
+
+else if count == 0
+    bx.set_right(rd_n)
+    lvl.set_x2(rd_n)
+
+//Set color
+if close > bx.get_top()
+    bx.set_bgcolor(color.new(rd_upCss, 80))
+    lvl.set_color(rd_upCss)
+    rd_os := 1
+    rd_os
+else if close < bx.get_bottom()
+    bx.set_bgcolor(color.new(rd_dnCss, 80))
+    lvl.set_color(rd_dnCss)
+    rd_os := -1
+    rd_os
+
+//Plots
+//Range detection bgcolor
+bgcolor(detect_css)
+
+plot(switch_rd ? rd_max : na, "Range Top", rd_max != rd_max[1] ? na : rd_os == 0 ? unbrokenCss : rd_os == 1 ? rd_upCss : rd_dnCss)
+
+plot(switch_rd ? rd_min : na, "Range Bottom", rd_min != rd_min[1] ? na : rd_os == 0 ? unbrokenCss : rd_os == 1 ? rd_upCss : rd_dnCss)
+
+
+// for leading indicator
+rd_long = close > rd_max
+rd_short = close < rd_min
+
+//for confirmation indicator
+rd_signal = close > rd_max or close < rd_min
+
+
+/////////////////////////////////////////////////
+////////Volatility Oscillator
+//////////////////////////////////////////////////
+
+group_vo = "██████████ Volatility Oscillator ██████████"
+volength = input(100, group = group_vo)
+spike = close - open
+vox = ta.stdev(spike, volength)
+voy = ta.stdev(spike, volength) * -1
+
+vo_long = spike > vox
+vo_short = spike < voy
+
+
+/////////////////////////////////////////////////
+////////Detrended Price Oscillator (DPO)
+//////////////////////////////////////////////////
+
+group_dpo = "██████████ Detrended Price Oscillator (DPO) ██████████"
+
+dpo_period_ = input.int(10, title = "Length", minval = 1, group = group_dpo)
+isCentered = input(false, title = "Centered", group = group_dpo)
+barsback = dpo_period_ / 2 + 1
+dpo_ma = ta.sma(close, dpo_period_)
+dpo = isCentered ? close[barsback] - dpo_ma : close - dpo_ma[barsback]
+
+dpo_long = dpo > 0
+dpo_short = dpo < 0
+
+
+/////////////////////////////////////////////////
+////////HACOLT
+//////////////////////////////////////////////////
+
+hacolt_group = "███████ Heiken-Ashi Candlestick Oscillator ███████"
+
+hacolt_length = input(defval = 55, title = "TEMA Period", group = hacolt_group)
+hacolt_emaLength = input(defval = 60, title = "EMA Period", group = hacolt_group)
+hacolt_candleSizeFactor = input(defval = 1.1, title = "Candle size factor", group = hacolt_group)
+
+calc_tema(src, length) =>
+    hacolt_ema1 = ta.ema(src, length)
+    hacolt_ema2 = ta.ema(hacolt_ema1, length)
+    hacolt_ema3 = ta.ema(hacolt_ema2, length)
+    3 * (hacolt_ema1 - hacolt_ema2) + hacolt_ema3
+
+var bool hacolt_long = false
+var bool hacolt_short = false
+
+if respecthacolt or leadingindicator == "Heiken-Ashi Candlestick Oscillator"
+    var float hacolt_haOpen = na
+    hacolt_haOpen := nz(hacolt_haOpen[1] + hl2) / 2
+    hacolt_haClose = (hacolt_haOpen + math.max(high, hacolt_haOpen) + math.min(low, hacolt_haOpen) + hl2) / 4
+    hacolt_thaClose = calc_tema(hacolt_haClose, hacolt_length)
+    hacolt_thl2 = calc_tema(hl2, hacolt_length)
+    hacolt_haCloseSmooth = 2 * hacolt_thaClose - calc_tema(hacolt_thaClose, hacolt_length)
+    hacolt_hl2Smooth = 2 * hacolt_thl2 - calc_tema(hacolt_thl2, hacolt_length)
+    hacolt_shortCandle = math.abs(close - open) < (high - low) * hacolt_candleSizeFactor
+    hacolt_keepn1 = hacolt_haClose >= hacolt_haOpen and hacolt_haClose[1] >= hacolt_haOpen[1] or close >= hacolt_haClose or high > high[1] or low > low[1] or hacolt_hl2Smooth >= hacolt_haCloseSmooth
+    hacolt_keepall1 = hacolt_keepn1 or hacolt_keepn1[1] and close >= open or close >= close[1]
+    hacolt_keep13 = hacolt_shortCandle and high >= low[1]
+    hacolt_utr = hacolt_keepall1 or hacolt_keepall1[1] and hacolt_keep13
+    hacolt_keepn2 = hacolt_haClose < hacolt_haOpen and hacolt_haClose[1] < hacolt_haOpen[1] or hacolt_hl2Smooth < hacolt_haCloseSmooth
+    hacolt_keep23 = hacolt_shortCandle and low <= high[1]
+    hacolt_keepall2 = hacolt_keepn2 or hacolt_keepn2[1] and close < open or close < close[1]
+    hacolt_dtr = hacolt_keepall2 or hacolt_keepall2[1] and hacolt_keep23
+    hacolt_upw = not bool(hacolt_dtr) and hacolt_dtr[1] and hacolt_utr
+    hacolt_dnw = not bool(hacolt_utr) and hacolt_utr[1] and hacolt_dtr
+    var bool hacolt_upwWithOffset = false
+    hacolt_upwWithOffset := hacolt_upw != hacolt_dnw ? hacolt_upw : (hacolt_upwWithOffset[1])? true : false
+
+    hacolt_buySig = hacolt_upw or not hacolt_dnw and (bool(hacolt_upwWithOffset) ? false : hacolt_upwWithOffset)
+    hacolt_ltSellSig = close < ta.ema(close, hacolt_emaLength)
+    var bool hacolt_neutralSig = false
+    hacolt_neutralSig := hacolt_buySig or (hacolt_ltSellSig ? false : (hacolt_neutralSig[1]))? true : false
+    hacolt = hacolt_buySig ? 1 : hacolt_neutralSig ? 0 : -1
+
+    hacolt_long := hacolt > 0
+    hacolt_short := hacolt < 0
+    hacolt_short
+
+
+//////////////////////////////////////////////
+/////// MACD
+/////////////////////////////////////////////
+
+macd_group = "██████████ MACD ██████████"
+fast_length = input(title = "Fast Length", defval = 12, group = macd_group)
+slow_length = input(title = "Slow Length", defval = 26, group = macd_group)
+macdsrc = input(title = "Source", defval = close, group = macd_group)
+signal_length = input.int(title = "Signal Smoothing", minval = 1, maxval = 50, defval = 9, group = macd_group)
+sma_source = input.string(title = "Oscillator MA Type", defval = "EMA", options = ["SMA", "EMA"], group = macd_group)
+sma_signal = input.string(title = "Signal Line MA Type", defval = "EMA", options = ["SMA", "EMA"], group = macd_group)
+
+fast_ma = sma_source == "SMA" ? ta.sma(macdsrc, fast_length) : ta.ema(macdsrc, fast_length)
+slow_ma = sma_source == "SMA" ? ta.sma(macdsrc, slow_length) : ta.ema(macdsrc, slow_length)
+macdd = fast_ma - slow_ma
+signal = sma_signal == "SMA" ? ta.sma(macdd, signal_length) : ta.ema(macdd, signal_length)
+hist = macdd - signal
+
+/////////////////////////////////////////////
+///// Awesome Oscillator
+////////////////////////////////////////////
+
+ao_group = "██████████ Awesome Oscillator ██████████"
+nLengthSlow = input(34, title = "Length Slow", group = ao_group)
+nLengthFast = input(5, title = "Length Fast", group = ao_group)
+reverse = input(false, title = "Trade reverse", group = ao_group)
+xSMA1_hl2 = ta.sma(hl2, nLengthFast)
+xSMA2_hl2 = ta.sma(hl2, nLengthSlow)
+xSMA1_SMA2 = xSMA1_hl2 - xSMA2_hl2
+xSMA_hl2 = ta.sma(xSMA1_SMA2, nLengthFast)
+nRes = xSMA1_SMA2 - xSMA_hl2
+
+//// zero line cross (standard code)
+ao = ta.sma(hl2, 5) - ta.sma(hl2, 34)
+diff = ao - ao[1]
+
+ao_long = bool(na)
+ao_short = bool(na)
+
+if aotype == "AC Zero Line Cross"
+    ao_long := nRes > nRes[1] and nRes > 0
+    ao_short := nRes < nRes[1] and nRes < 0
+    ao_short
+else if aotype == "AC Momentum Bar"
+    ao_long := nRes > nRes[1]
+    ao_short := nRes < nRes[1]
+    ao_short
+else if aotype == "Zero Line Cross"
+    ao_long := ao > 0
+    ao_short := ao < 0
+    ao_short
+
+/////////////////////////////////////////////
+///// WolfPack ID
+////////////////////////////////////////////
+
+wolfgroup = "██████████ Wolf Pack ID ██████████"
+input1 = input(title = "Fast Length", group = wolfgroup, defval = 3)
+input2 = input(title = "Slow Length", group = wolfgroup, defval = 8)
+pivR = input(title = "Wolfpack Wave Pivot Lookback Right", group = wolfgroup, defval = 1)
+pivL = input(title = "Wolfpack Wave Pivot Lookback Left", group = wolfgroup, defval = 15)
+fastmaa = ta.ema(close, input1)
+fastmab = ta.ema(close, input2)
+wolfsrc = close
+bspread = (fastmaa - fastmab) * 1.001
+adline = 0
+m = bspread > 0 ? color.new(color.lime, 0) : color.new(color.red, 0)
+wolfup = ta.rma(math.max(ta.change(wolfsrc), 0), 3)
+wolfdown = ta.rma(-math.min(ta.change(wolfsrc), 0), 3)
+lbR = input(title = "Divergence Pivot Lookback Right", group = wolfgroup, defval = 1)
+lbL = input(title = "Divergence Pivot Lookback Left", group = wolfgroup, defval = 10)
+rangeUpper = input(title = "Max of Lookback Range", group = wolfgroup, defval = 100)
+rangeLower = input(title = "Min of Lookback Range", group = wolfgroup, defval = 2)
+
+osc = bspread
+
+_inRange(cond) =>
+    bars = ta.barssince(cond == true)
+    rangeLower <= bars and bars <= rangeUpper
+
+wolf_long = bspread > 0
+wolf_short = bspread < 0
+
+/////////////////////////////////
+/////// Stochastic
+/////////////////////////////////
+
+groupname = "██████████ Stochastic ██████████"
+len = input.int(14, minval = 1, title = "Length", group = groupname)
+smoothK = input.int(3, minval = 1, title = "K Smoothing", group = groupname)
+smoothD = input.int(3, minval = 1, title = "D Smoothing", group = groupname)
+upLine = input.int(80, minval = 50, maxval = 90, title = "Overbought level", group = groupname)
+lowLine = input.int(20, minval = 10, maxval = 50, title = "Oversold level", group = groupname)
+
+//Resolutioon for MTF
+resstoch = timeframe.period
+//Stoch formula
+kk = ta.sma(ta.stoch(close, high, low, len), smoothK)
+dd = ta.sma(kk, smoothD)
+outK = request.security(syminfo.tickerid, resstoch, kk)
+outD = request.security(syminfo.tickerid, resstoch, dd)
+
+//definitions for Cross
+aboveLine = outK > upLine ? 1 : 0
+belowLine = outK < lowLine ? 1 : 0
+stoch_long = bool(na)
+stoch_short = bool(na)
+if stochtype == "CrossOver"
+    stoch_long := outK[1] < outD[1] and outK > outD // ? 1 : 0
+    stoch_short := outK[1] > outD[1] and outK < outD // ? 1 : 0
+    stoch_short
+else if stochtype == "CrossOver in OB & OS levels"
+    stoch_long := outK[1] < outD[1] and outK[1] < lowLine[1] and outK > outD and outK > lowLine //? 1 : 0
+    stoch_short := outK[1] > outD[1] and outK[1] > upLine[1] and outK < outD and outK < upLine //? 1 : 0
+    stoch_short
+else if stochtype == "%K above/below %D"
+    stoch_long := outK > outD
+    stoch_short := outK < outD
+    stoch_short
+
+
+///////////////////////////////////////////////
+///////RSI
+///////////////////////////////////////////////
+
+rsi_group = "█████████████████ RSI  █████████████████"
+
+rsiLengthInput = input.int(14, minval = 1, title = "RSI Length", group = rsi_group)
+rsiSourceInput = input.source(close, "Source", group = rsi_group)
+maTypeInput = input.string("SMA", title = "MA Type", options = ["SMA", "EMA", "SMMA (RMA)", "WMA", "VWMA"], group = rsi_group)
+rsi_upper = input.int(defval = 80, title = "Overbought Zone", group = rsi_group, inline = "zone")
+rsi_lower = input.int(defval = 20, title = "Oversold Zone", group = rsi_group, inline = "zone")
+
+respectrsilevel = input.int(defval = 50, minval = 1, title = "RSI MidLine", group = rsi_group)
+maLengthInput = input.int(14, title = "MA Length", group = rsi_group)
+
+up = ta.rma(math.max(ta.change(rsiSourceInput), 0), rsiLengthInput)
+down = ta.rma(-math.min(ta.change(rsiSourceInput), 0), rsiLengthInput)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - 100 / (1 + up / down)
+rsiMA = ma(rsi, maLengthInput, maTypeInput)
+///////////////////////////////////////////////
+/// HULL SUITE
+//////////////////////////////////////////////
+
+hull_group = "██████████ HullSuite ██████████"
+//INPUT
+hullsrc = input(close, title = "Source", group = hull_group)
+modeSwitch = input.string("Hma", title = "Hull Variation", options = ["Hma", "Thma", "Ehma"], group = hull_group)
+hull_length = input(55, title = "hull_length(180-200 for floating S/R , 55 for swing entry)", group = hull_group)
+hull_lengthMult = input(1.0, title = "hull_length multiplier (Used to view higher timeframes with straight band)", group = hull_group)
+
+useHtf = input(false, title = "Show Hull MA from X timeframe? (good for scalping)", group = hull_group)
+htf = input.timeframe("240", title = "Higher timeframe", group = hull_group)
+
+//FUNCTIONS
+//HMA
+HMA(_hullsrc, _hull_length) =>
+    ta.wma(2 * ta.wma(_hullsrc, _hull_length / 2) - ta.wma(_hullsrc, _hull_length), math.round(math.sqrt(_hull_length)))
+    //EHMA    
+EHMA(_hullsrc, _hull_length) =>
+    ta.ema(2 * ta.ema(_hullsrc, _hull_length / 2) - ta.ema(_hullsrc, _hull_length), math.round(math.sqrt(_hull_length)))
+    //THMA    
+THMA(_hullsrc, _hull_length) =>
+    ta.wma(ta.wma(_hullsrc, _hull_length / 3) * 3 - ta.wma(_hullsrc, _hull_length / 2) - ta.wma(_hullsrc, _hull_length), _hull_length)
+
+//SWITCH
+Mode(modeSwitch, hullsrc, len) =>
+    modeSwitch == "Hma" ? HMA(hullsrc, len) : modeSwitch == "Ehma" ? EHMA(hullsrc, len) : modeSwitch == "Thma" ? THMA(hullsrc, len / 2) : na
+
+//OUT
+_hull = Mode(modeSwitch, hullsrc, int(hull_length * hull_lengthMult))
+HULL = useHtf ? request.security(syminfo.tickerid, htf, _hull) : _hull
+MHULL = HULL[0]
+SHULL = HULL[2]
+
+
+/////////////////////////
+/// STC overlay signal
+/////////////////////////
+
+stc_group = "██████████ Schaff Trend Cycle (STC) ██████████"
+fastLength = input(title = "MACD Fast Length", defval = 23, group = stc_group)
+slowLength = input(title = "MACD Slow Length", defval = 50, group = stc_group)
+cycleLength = input(title = "Cycle Length", defval = 10, group = stc_group)
+d1Length = input(title = "1st %D Length", defval = 3, group = stc_group)
+d2Length = input(title = "2nd %D Length", defval = 3, group = stc_group)
+srcstc = input(title = "Source", defval = close, group = stc_group)
+upper = input(title = "Upper Band", defval = 75, group = stc_group)
+lower = input(title = "Lower Band", defval = 25, group = stc_group)
+v_show_last = input(2000, "Plotting Length", group = stc_group)
+
+macd = ta.ema(srcstc, fastLength) - ta.ema(srcstc, slowLength)
+k = nz(fixnan(ta.stoch(macd, macd, macd, cycleLength)))
+d = ta.ema(k, d1Length)
+kd = nz(fixnan(ta.stoch(d, d, d, cycleLength)))
+stc = ta.ema(kd, d2Length)
+stc := math.max(math.min(stc, 100), 0)
+
+stcColor1 = stc > stc[1] ? color.green : color.red
+stcColor2 = stc > upper ? color.green : stc <= lower ? color.red : color.orange
+
+upperCrossover = ta.crossover(stc, upper)
+upperCrossunder = ta.crossunder(stc, upper)
+lowerCrossover = ta.crossover(stc, lower)
+lowerCrossunder = ta.crossunder(stc, lower)
+stcup = stc >= upper
+stcdown = stc <= lower
+
+
+////////////////////////////////////////////////
+
+
+////QQE MOD
+/////////////////////////////////////////////////
+
+qqe_gorup = "██████████ QQE ██████████"
+RSI_Period = input(6, title = "RSI Length", group = qqe_gorup)
+SF = input(5, title = "RSI Smoothing", group = qqe_gorup)
+QQE = input(3, title = "Fast QQE Factor", group = qqe_gorup)
+ThreshHold = input(3, title = "Thresh-hold", group = qqe_gorup)
+
+srcqqe = input(close, title = "RSI Source", group = qqe_gorup)
+
+Wilders_Period = RSI_Period * 2 - 1
+
+Rsi = ta.rsi(srcqqe, RSI_Period)
+RsiMa = ta.ema(Rsi, SF)
+AtrRsi = math.abs(RsiMa[1] - RsiMa)
+MaAtrRsi = ta.ema(AtrRsi, Wilders_Period)
+dar = ta.ema(MaAtrRsi, Wilders_Period) * QQE
+
+longband = 0.0
+shortband = 0.0
+trend = 0
+
+DeltaFastAtrRsi = dar
+RSIndex = RsiMa
+newshortband = RSIndex + DeltaFastAtrRsi
+newlongband = RSIndex - DeltaFastAtrRsi
+longband := RSIndex[1] > longband[1] and RSIndex > longband[1] ? math.max(longband[1], newlongband) : newlongband
+shortband := RSIndex[1] < shortband[1] and RSIndex < shortband[1] ? math.min(shortband[1], newshortband) : newshortband
+cross_1 = ta.cross(longband[1], RSIndex)
+trend := ta.cross(RSIndex, shortband[1]) ? 1 : cross_1 ? -1 : nz(trend[1], 1)
+FastAtrRsiTL = trend == 1 ? longband : shortband
+
+length = input.int(50, minval = 1, title = "Bollinger Length", group = qqe_gorup)
+multqqe = input.float(0.35, minval = 0.001, maxval = 5, step = 0.1, title = "BB Multiplier", group = qqe_gorup)
+basis = ta.sma(FastAtrRsiTL - 50, length)
+dev = multqqe * ta.stdev(FastAtrRsiTL - 50, length)
+upperqqe = basis + dev
+lowerqqe = basis - dev
+color_bar = RsiMa - 50 > upperqqe ? #00c3ff : RsiMa - 50 < lowerqqe ? #ff0062 : color.gray
+
+// Zero cross
+QQEzlong = 0
+QQEzlong := nz(QQEzlong[1])
+QQEzshort = 0
+QQEzshort := nz(QQEzshort[1])
+QQEzlong := RSIndex >= 50 ? QQEzlong + 1 : 0
+QQEzshort := RSIndex < 50 ? QQEzshort + 1 : 0
+
+RSI_Period2 = input(6, title = "RSI Length", group = qqe_gorup)
+SF2 = input(5, title = "RSI Smoothing", group = qqe_gorup)
+QQE2 = input(1.61, title = "Fast QQE2 Factor", group = qqe_gorup)
+ThreshHold2 = input(3, title = "Thresh-hold", group = qqe_gorup)
+
+src2 = input(close, title = "RSI Source", group = qqe_gorup)
+
+Wilders_Period2 = RSI_Period2 * 2 - 1
+
+Rsi2 = ta.rsi(src2, RSI_Period2)
+RsiMa2 = ta.ema(Rsi2, SF2)
+AtrRsi2 = math.abs(RsiMa2[1] - RsiMa2)
+MaAtrRsi2 = ta.ema(AtrRsi2, Wilders_Period2)
+dar2 = ta.ema(MaAtrRsi2, Wilders_Period2) * QQE2
+longband2 = 0.0
+shortband2 = 0.0
+trend2 = 0
+
+DeltaFastAtrRsi2 = dar2
+RSIndex2 = RsiMa2
+newshortband2 = RSIndex2 + DeltaFastAtrRsi2
+newlongband2 = RSIndex2 - DeltaFastAtrRsi2
+longband2 := RSIndex2[1] > longband2[1] and RSIndex2 > longband2[1] ? math.max(longband2[1], newlongband2) : newlongband2
+shortband2 := RSIndex2[1] < shortband2[1] and RSIndex2 < shortband2[1] ? math.min(shortband2[1], newshortband2) : newshortband2
+cross_2 = ta.cross(longband2[1], RSIndex2)
+trend2 := ta.cross(RSIndex2, shortband2[1]) ? 1 : cross_2 ? -1 : nz(trend2[1], 1)
+FastAtrRsi2TL = trend2 == 1 ? longband2 : shortband2
+
+// Zero cross
+QQE2zlong = 0
+QQE2zlong := nz(QQE2zlong[1])
+QQE2zshort = 0
+QQE2zshort := nz(QQE2zshort[1])
+QQE2zlong := RSIndex2 >= 50 ? QQE2zlong + 1 : 0
+QQE2zshort := RSIndex2 < 50 ? QQE2zshort + 1 : 0
+
+qqeline = FastAtrRsi2TL - 50
+
+Greenbar1 = RsiMa2 - 50 > ThreshHold2
+Greenbar2 = RsiMa - 50 > upperqqe
+
+Redbar1 = RsiMa2 - 50 < 0 - ThreshHold2
+Redbar2 = RsiMa - 50 < lowerqqe
+
+
+
+/////////////// Volume Up/Down
+////////////////////////////////////////////////
+
+vgroup = "██████████ Up/Down Volume ██████████"
+lowerTimeframeTooltip = "The indicator scans lower timeframe data to approximate Up/Down volume. By default, the timeframe is chosen automatically. These inputs override this with a custom timeframe.\n\nHigher timeframes provide more historical data, but the data will be less precise."
+useCustomTimeframeInput = input.bool(false, "Use custom timeframe", tooltip = lowerTimeframeTooltip, group = vgroup)
+lowerTimeframeInput = input.timeframe("1", "Timeframe", group = vgroup)
+
+upAndDownVolume() =>
+    posVol = 0.0
+    negVol = 0.0
+
+    switch 
+        close > open => 
+    	    posVol := posVol + volume
+    	    posVol
+        close < open => 
+    	    negVol := negVol - volume
+    	    negVol
+        close >= close[1] => 
+    	    posVol := posVol + volume
+    	    posVol
+        close < close[1] => 
+    	    negVol := negVol - volume
+    	    negVol
+
+    [posVol, negVol]
+
+lowerTimeframe = switch 
+    useCustomTimeframeInput => lowerTimeframeInput
+    timeframe.isintraday => "1"
+    timeframe.isdaily => "5"
+    => "60"
+
+timeframeForSecurity = useCustomTimeframeInput ? lowerTimeframeInput : timeframe.period
+
+[upVolumeArray, downVolumeArray] = request.security_lower_tf(syminfo.tickerid, timeframeForSecurity, upAndDownVolume())
+
+SMALength = input(20, title = "SMA Length", group = vgroup)
+volume_ma = ta.sma(volume, SMALength)
+
+volume_abovema_signal = volume > volume_ma
+
+upVolume = array.sum(upVolumeArray)
+downVolume = array.sum(downVolumeArray)
+delta = upVolume + downVolume
+prevdelta = delta[1]
+
+
+var cumVol = 0.
+cumVol := cumVol + nz(volume)
+if barstate.islast and cumVol == 0
+    runtime.error("The data vendor doesn\"t provide volume data for this symbol.")
+
+
+isqqebarabove = Greenbar1 and Greenbar2
+isqqebarbelow = Redbar1 and Redbar2
+
+sarup = out < close
+sardown = out > close
+
+longvol = bool(na)
+shortvol = bool(na)
+
+if volumetype == "Delta"
+    longvol := delta > 0 and delta > delta[1]
+    shortvol := delta < 0 and delta < delta[1]
+    shortvol
+else if volumetype == "volume above MA"
+    longvol := volume_abovema_signal
+    shortvol := volume_abovema_signal
+    shortvol
+else
+    longvol := upVolume > upVolume[1]
+    shortvol := downVolume < downVolume[1]
+    shortvol
+
+longCond = bool(na)
+shortCond = bool(na)
+
+
+longCond2 = bool(na)
+shortCond2 = bool(na)
+
+vipcondition = bool(na)
+vimcondition = bool(na)
+
+if vitype == "Simple"
+    vipcondition := vip > vim
+    vimcondition := vip < vim
+    vimcondition
+else
+    vipcondition := vip > vim and vip > viupper and vip > vip[1] and vim < vim[1] and vim[1] <= vilower and vip[1] >= viupper
+    vimcondition := vip < vim and vim > viupper and vim > vim[1] and vip < vip[1] and vip[1] <= vilower and vim[1] >= viupper
+    vimcondition
+
+
+vipcondition2 = vip > vim
+vimcondition2 = vip < vim
+
+///////////////////////////////////ADX Condition ////////////////////////////////////////
+adxcycle = 0
+adxup = ta.crossover(adx, keyLevel)
+adxdown = ta.crossunder(adx, keyLevel)
+adxcycle := adxup ? 1 : adxdown ? -1 : adxcycle[1]
+adxcondition = string(na)
+
+adxupcondition = bool(na)
+adxdowncondition = bool(na)
+if adxtype == "Adx & +Di -Di"
+    adxupcondition := diplus > diminus and adx >= keyLevel
+    adxdowncondition := diplus < diminus and adx >= keyLevel
+    adxdowncondition
+if adxtype == "Adx Only"
+    adxupcondition := adx > keyLevel
+    adxdowncondition := adx > keyLevel
+    adxdowncondition
+else
+    if adxcycle == -1
+        adxupcondition := diplus > diminus and adx >= keyLevel and diplus - diminus > 1
+        adxdowncondition := diplus < diminus and adx >= keyLevel and diminus - diplus > 1
+        adxdowncondition
+    else if adxcycle == 1
+        adxupcondition := diplus > diminus and adx >= keyLevel and adx < 55 and (adx > adx[1] or diplus > diplus[1] and diminus < diminus[1]) and diplus - diminus > 1
+        adxdowncondition := diplus < diminus and adx >= keyLevel and adx < 55 and (adx > adx[1] or diplus < diplus[1] and diminus > diminus[1]) and diminus - diplus > 1
+        adxdowncondition
+
+///////////////adx condition end/////////////////////////////////////////////////////
+
+justcontinue = true
+justcontinue := justcontinue ? true : false
+
+isstup = bool(na)
+isstdown = bool(na)
+isstup := sttrend == 1
+isstdown := sttrend != 1
+
+ismacdup = bool(na)
+ismacddown = bool(na)
+
+isqqeabove = bool(na)
+isqqebelow = bool(na)
+
+if qqetype == "Line"
+    isqqeabove := qqeline > 0
+    isqqebelow := qqeline < 0
+    isqqebelow
+else if qqetype == "Bar"
+    isqqeabove := RsiMa2 - 50 > 0 and Greenbar1 and Greenbar2
+    isqqebelow := RsiMa2 - 50 < 0 and Redbar1 and Redbar2
+    isqqebelow
+else if qqetype == "Line & Bar"
+    isqqeabove := RsiMa2 - 50 > 0 and Greenbar1 and Greenbar2 and qqeline > 0
+    isqqebelow := RsiMa2 - 50 < 0 and Redbar1 and Redbar2 and qqeline < 0
+    isqqebelow
+
+rsimalong2 = bool(na)
+rsimashort2 = bool(na)
+
+rsimalong2 := rsiMA >= rsiMA[1]
+rsimashort2 := rsiMA <= rsiMA[1]
+
+
+rsilimitlong = rsi >= rsilimitup
+rsilimitshort = rsi <= rsilimitdown
+
+rsimalimitlong = rsiMA >= rsimalimitup
+rsimalimitshort = rsiMA <= rsimalimitdown
+
+
+////////////////////////////////////////////////////////////////////////////
+// 2 EMA Cross (for leading + confirmation) - re-added
+////////////////////////////////////////////////////////////////////////////
+
+var float first_2ema = na
+var float second_2ema = na
+
+first_2ema := ta.ema(close, respect2maperiod_1)
+second_2ema := ta.ema(close, respect2maperiod_2)
+
+detectCrossWithLookback(fast_series, slow_series, lookback) =>
+    crossUp = fast_series[lookback] > slow_series[lookback] and fast_series[lookback + 1] <= slow_series[lookback + 1]
+    crossDown = fast_series[lookback] < slow_series[lookback] and fast_series[lookback + 1] >= slow_series[lookback + 1]
+
+    if crossUp or crossDown
+        noCrosses = true
+        for i = 0 to lookback - 1 by 1
+            if fast_series[i] > slow_series[i] and fast_series[i + 1] <= slow_series[i + 1] or fast_series[i] < slow_series[i] and fast_series[i + 1] >= slow_series[i + 1]
+                noCrosses := false
+                break
+        if noCrosses
+            if crossUp
+                1
+            else
+                -1
+        else
+            0
+    else
+        0
+
+var float ema2_long = 0
+var float ema2_short = 0
+
+if signal_type == "Default"
+    ema2_long := ta.crossover(first_2ema, second_2ema) ? 1 : 0
+    ema2_short := ta.crossunder(first_2ema, second_2ema) ? 1 : 0
+    ema2_short
+else // Lookback method
+    crossDetected = detectCrossWithLookback(first_2ema, second_2ema, lookback_period)
+    ema2_long := crossDetected == 1 and first_2ema > second_2ema ? 1 : 0
+    ema2_short := crossDetected == -1 and first_2ema < second_2ema ? 1 : 0
+    ema2_short
+
+////////////////////////////////////////////////////////////////////////////
+// 3 EMA Cross (for leading + confirmation) - re-added
+////////////////////////////////////////////////////////////////////////////
+
+var float first_3ema = na
+var float second_3ema = na
+var float third_3ema = na
+
+first_3ema := ta.ema(close, respect3maperiod_1)
+second_3ema := ta.ema(close, respect3maperiod_2)
+third_3ema := ta.ema(close, respect3maperiod_3)
+
+leadinglongcond = bool(na)
+leadingshortcond = bool(na)
+
+
+if leadingindicator == "Range Filter"
+
+    if rftype == "Default"
+        leadinglongcond := src > filt and src > src[1] and upward > 0 or src > filt and src < src[1] and upward > 0
+        leadingshortcond := src < filt and src < src[1] and downward > 0 or src < filt and src > src[1] and downward > 0
+        leadingshortcond
+    else if rftype == "DW"
+        leadinglongcond := rfupward !=0
+        leadingshortcond := rfdownward !=0
+        leadingshortcond
+
+else if leadingindicator == "DMI (Adx)"
+    if adxtype == "Basic"
+        leadinglongcond := diplus > diminus and adx >= keyLevel
+        leadingshortcond := diplus < diminus and adx >= keyLevel
+        leadingshortcond
+    else
+        if adxcycle == -1
+            leadinglongcond := diplus > diminus and adx >= keyLevel and diplus - diminus > 1
+            leadingshortcond := diplus < diminus and adx >= keyLevel and diminus - diplus > 1
+            leadingshortcond
+        else if adxcycle == 1
+            leadinglongcond := diplus > diminus and adx >= keyLevel and adx < 55 and (adx > adx[1] or diplus > diplus[1] and diminus < diminus[1]) and diplus - diminus > 1
+            leadingshortcond := diplus < diminus and adx >= keyLevel and adx < 55 and (adx > adx[1] or diplus < diplus[1] and diminus > diminus[1]) and diminus - diplus > 1
+            leadingshortcond
+else if leadingindicator == "Parabolic SAR (PSAR)"
+    leadinglongcond := out < close
+    leadingshortcond := out > close
+    leadingshortcond
+else if leadingindicator == "Rational Quadratic Kernel (RQK)"
+    leadinglongcond := rqkuptrend
+    leadingshortcond := rqkdowntrend
+    leadingshortcond
+
+else if leadingindicator == "Trendline Breakout"
+    leadinglongcond := tb_buysignal
+    leadingshortcond := tb_sellsignal
+    leadingshortcond
+
+else if leadingindicator == "Range Detector"
+    leadinglongcond := rd_long
+    leadingshortcond := rd_short
+    leadingshortcond
+
+else if leadingindicator == "Heiken-Ashi Candlestick Oscillator"
+    leadinglongcond := hacolt_long
+    leadingshortcond := hacolt_short
+    leadingshortcond
+
+else if leadingindicator == "Donchian Trend Ribbon"
+    leadinglongcond := donchian_long
+    leadingshortcond := donchian_short
+    leadingshortcond
+
+else if leadingindicator == "Rate of Change (ROC)"
+    leadinglongcond := roc_long
+    leadingshortcond := roc_short
+    leadingshortcond
+
+else if leadingindicator == "Trend Direction Force Index (TDFI)"
+    leadinglongcond := tdfi_long
+    leadingshortcond := tdfi_short
+    leadingshortcond
+
+else if leadingindicator == "Detrended Price Oscillator (DPO)"
+    leadinglongcond := dpo_long
+    leadingshortcond := dpo_short
+    leadingshortcond
+
+else if leadingindicator == "2 EMA Cross"
+    leadinglongcond := ema2_long !=0
+    leadingshortcond := ema2_short !=0
+    leadingshortcond
+
+else if leadingindicator == "3 EMA Cross"
+    leadinglongcond := first_3ema > second_3ema and first_3ema > third_3ema and second_3ema > third_3ema
+    leadingshortcond := first_3ema < second_3ema and first_3ema < third_3ema and second_3ema < third_3ema
+    leadingshortcond
+
+else if leadingindicator == "Chandelier Exit"
+    leadinglongcond := ce_long
+    leadingshortcond := ce_short
+    leadingshortcond
+
+else if leadingindicator == "Stochastic"
+    leadinglongcond := stoch_long
+    leadingshortcond := stoch_short
+    leadingshortcond
+
+else if leadingindicator == "Vortex Index"
+
+    if vitype == "Simple"
+        leadinglongcond := vip > vim
+        leadingshortcond := vip < vim
+        leadingshortcond
+    else
+        leadinglongcond := vip > vim and vip > viupper and vip > vip[1] and vim < vim[1] and vim[1] <= vilower and vip[1] >= viupper
+        leadingshortcond := vip < vim and vim > viupper and vim > vim[1] and vip < vip[1] and vip[1] <= vilower and vim[1] >= viupper
+        leadingshortcond
+
+else if leadingindicator == "Schaff Trend Cycle (STC)"
+    leadinglongcond := stc >= upper
+    leadingshortcond := stc <= upper
+    leadingshortcond
+else if leadingindicator == "Wolfpack Id"
+    leadinglongcond := wolf_long
+    leadingshortcond := wolf_short
+    leadingshortcond
+
+else if leadingindicator == "B-Xtrender"
+    leadinglongcond := bx_long
+    leadingshortcond := bx_short
+    leadingshortcond
+
+else if leadingindicator == "Bull Bear Power Trend"
+    leadinglongcond := bbpt_long
+    leadingshortcond := bbpt_short
+    leadingshortcond
+
+else if leadingindicator == "QQE Mod"
+    if qqetype == "Line"
+        leadinglongcond := qqeline > 0
+        leadingshortcond := qqeline < 0
+        leadingshortcond
+    else if qqetype == "Bar"
+        leadinglongcond := RsiMa2 - 50 > 0 and Greenbar1 and Greenbar2
+        leadingshortcond := RsiMa2 - 50 < 0 and Redbar1 and Redbar2
+        leadingshortcond
+    else if qqetype == "Line & Bar"
+        leadinglongcond := RsiMa2 - 50 > 0 and Greenbar1 and Greenbar2 and qqeline > 0
+        leadingshortcond := RsiMa2 - 50 < 0 and Redbar1 and Redbar2 and qqeline < 0
+        leadingshortcond
+
+
+else if leadingindicator == "MACD"
+    if macdtype == "MACD Crossover"
+        leadinglongcond := macdd > signal
+        leadingshortcond := macdd < signal
+        leadingshortcond
+    else if macdtype == "Zero line crossover"
+        leadinglongcond := macdd > signal and macdd > 0.00000
+        leadingshortcond := macdd < signal and macdd < 0.00000
+        leadingshortcond
+
+else if leadingindicator == "True Strength Indicator (TSI)"
+    if tsitype == "Signal Cross"
+        leadinglongcond := tsi_long
+        leadingshortcond := tsi_short
+        leadingshortcond
+    else if tsitype == "Zero line cross"
+        leadinglongcond := tsi_long
+        leadingshortcond := tsi_short
+        leadingshortcond
+
+else if leadingindicator == "RSI"
+    if rsitype == "RSI MA Cross"
+        leadinglongcond := rsi > rsiMA
+        leadingshortcond := rsi < rsiMA
+        leadingshortcond
+    else if rsitype == "RSI Exits OB/OS zones"
+        leadinglongcond := rsi > rsi_lower and rsi[1] < rsi_lower
+        leadingshortcond := rsi < rsi_upper and rsi[1] > rsi_upper
+        leadingshortcond
+    else if rsitype == "RSI Level"
+        leadinglongcond := rsi > respectrsilevel
+        leadingshortcond := rsi < respectrsilevel
+        leadingshortcond
+
+else if leadingindicator == "Chaikin Money Flow"
+    leadinglongcond := chaikin_long
+    leadingshortcond := chaikin_short
+    leadingshortcond
+
+else if leadingindicator == "Volatility Oscillator"
+    leadinglongcond := vo_long
+    leadingshortcond := vo_short
+    leadingshortcond
+
+else if leadingindicator == "SSL Channel"
+    leadinglongcond := ssl_long
+    leadingshortcond := ssl_short
+    leadingshortcond
+
+else if leadingindicator == "Awesome Oscillator"
+    leadinglongcond := ao_long
+    leadingshortcond := ao_short
+    leadingshortcond
+
+else if leadingindicator == "Supertrend"
+
+    leadinglongcond := sttrend == 1
+    leadingshortcond := sttrend != 1
+    leadingshortcond
+
+else if leadingindicator == "Half Trend"
+
+    leadinglongcond := halftrend_long
+    leadingshortcond := halftrend_short
+    leadingshortcond
+
+else if leadingindicator == "Waddah Attar Explosion"
+
+    leadinglongcond := wae_long
+    leadingshortcond := wae_short
+    leadingshortcond
+
+else if leadingindicator == "Hull Suite"
+    leadinglongcond := HULL > HULL[2]
+    leadingshortcond := HULL < HULL[2]
+    leadingshortcond
+else if leadingindicator == "VWAP"
+    leadinglongcond := long_vwap
+    leadingshortcond := short_vwap
+    leadingshortcond
+else if leadingindicator == "CCI"
+    leadinglongcond := ccilong
+    leadingshortcond := ccishort
+    leadingshortcond
+
+tmup = bool(na)
+tmdown = bool(na)
+
+hullup = bool(na)
+hulldown = bool(na)
+if respecthull
+    hullup := HULL > HULL[2]
+    hulldown := HULL < HULL[2]
+    hulldown
+
+rsiup = bool(na)
+rsidown = bool(na)
+
+if rsitype == "RSI MA Cross"
+    rsiup := rsi > rsiMA
+    rsidown := rsi < rsiMA
+    rsidown
+else if rsitype == "RSI Exits OB/OS zones"
+    rsiup := rsi > rsi_lower and rsi[1] < rsi_lower
+    rsidown := rsi < rsi_upper and rsi[1] > rsi_upper
+    rsidown
+else if rsitype == "RSI Level"
+    rsiup := rsi > respectrsilevel
+    rsidown := rsi < respectrsilevel
+    rsidown
+
+if macdtype == "MACD Crossover"
+    ismacdup := macdd > signal
+    ismacddown := macdd < signal
+    ismacddown
+else if macdtype == "Zero line crossover"
+    ismacdup := macdd > signal and macdd > 0.00000
+    ismacddown := macdd < signal and macdd < 0.00000
+    ismacddown
+
+uprf = bool(na)
+downrf = bool(na)
+
+if rftype == "Default"
+    uprf := src > filt and src > src[1] and upward > 0 or src > filt and src < src[1] and upward > 0
+    downrf := src < filt and src < src[1] and downward > 0 or src < filt and src > src[1] and downward > 0
+    downrf
+else if rftype == "DW"
+    uprf := rfupward !=0
+    downrf := rfdownward !=0
+    downrf
+
+ema3_long = first_3ema > second_3ema and first_3ema > third_3ema and second_3ema > third_3ema
+ema3_short = first_3ema < second_3ema and first_3ema < third_3ema and second_3ema < third_3ema
+
+
+var int leadinglong_count = 0
+var int leadinglong_count2 = 0
+
+var int leadingshort_count = 0
+var int leadingshort_count2 = 0
+
+if leadinglongcond
+    leadinglong_count := leadinglong_count + 1
+    leadinglong_count2 := leadinglong_count
+    leadinglong_count2
+
+for i = 1 to 100 by 1
+    if leadinglongcond[i]
+        leadinglong_count := leadinglong_count + 1
+        leadinglong_count2 := leadinglong_count
+        leadinglong_count2
+
+    else
+        leadinglong_count := 0
+        break
+
+if leadingshortcond
+    leadingshort_count := leadingshort_count + 1
+    leadingshort_count2 := leadingshort_count
+    leadingshort_count2
+
+for i = 1 to 100 by 1
+    if leadingshortcond[i]
+        leadingshort_count := leadingshort_count + 1
+        leadingshort_count2 := leadingshort_count
+        leadingshort_count2
+
+    else
+        leadingshort_count := 0
+        break
+
+CondIni = 0
+
+longCondition = bool(na)
+shortCondition = bool(na)
+
+// if expiry option is used
+longcond_withexpiry = longCond and leadinglong_count2 <= signalexpiry
+shortcond_withexpiry = shortCond and leadingshort_count2 <= signalexpiry
+
+log.info("leadinglong_count2 : {0}", leadinglong_count2)
+log.info("leadingshort_count2: {0}", leadingshort_count2)
+//without expiry (번갈아 제한 제거)
+longCondition := longcond_withexpiry
+shortCondition := shortcond_withexpiry
+
+CondIni := longcond_withexpiry ? 1 : shortcond_withexpiry ? -1 : CondIni[1]
+
+is_expiry_count_crossed_long = leadinglong_count2 >= signalexpiry
+is_expiry_count_crossed_short = leadingshort_count2 >= signalexpiry
+
+plotshape(showsignal ? bool(longCondition[1]) ? false : bool(longCondition[1]) ? false : bool(longCondition) : false, title = "Buy Signal", text = "long", textcolor = color.new(color.white, 0), style = shape.labelup, size = size.tiny, location = location.belowbar, color = color.new(color.green, 0))
+
+//plotshape(showsignal ? longCondition[1] ? false : longCondition : na, title = "Buy Signal", text = "long", textcolor = color.new(color.white, 0), style = shape.labelup, size = size.tiny, location = location.belowbar, color = color.new(color.green, 0))
+plotshape(showsignal and shortCondition and showsignal, title = "Sell Signal", text = "short", textcolor = color.new(color.white, 0), style = shape.labeldown, size = size.tiny, location = location.abovebar, color = color.new(color.red, 0))
+
+//alertcondition(longCondition, title = "Buy Alert", message = "BUY")
+//alertcondition(shortCondition, title = "Sell Alert", message = "SELL")
+//alertcondition(longCondition or shortCondition, title = "Buy or Sell Alert", message = "Buy or Sell Alert")
+
+rsitype2 = rsitype
+if rsitype2 == "RSI Level"
+    rsitype2 := "RSI Level (" + str.tostring(respectrsilevel) + ")"
+    rsitype2
+
+confirmation_counter = array.new_string(0)
+confirmation_val = array.new_string(0)
+confirmation_val_short = array.new_string(0)
+
+pushConfirmation(respect, label, longCondition, shortCondition) =>
+    if respect
+        array.push(confirmation_counter, label)
+        array.push(confirmation_val, bool(longCondition) ? "✔️" : "❌")
+        array.push(confirmation_val_short, bool(shortCondition) ? "✔️" : "❌")
+
+pushConfirmation(respect2ma, "2 EMA Cross (" + str.tostring(respect2maperiod_1) + "," + str.tostring(respect2maperiod_2) + ")", ema2_long, ema2_short)
+pushConfirmation(respect3ma, "3 EMA Cross (" + str.tostring(respect3maperiod_1) + "," + str.tostring(respect3maperiod_2) + "," + str.tostring(respect3maperiod_3) + ")", ema3_long, ema3_short)
+pushConfirmation(respectrf, "Range Filter", uprf, downrf)
+pushConfirmation(respectrqk, "Rational Quadratic Kernel (RQK)", rqkuptrend, rqkdowntrend)
+pushConfirmation(respectst, "SuperTrend", isstup, isstdown)
+pushConfirmation(respectht, "Half Trend", halftrend_long, halftrend_short)
+
+pushConfirmation(respecttrendline_breakout, "Trendline breakout", tb_buysignal, tb_sellsignal)
+pushConfirmation(respectrd, "Range Detector", rd_long, rd_short)
+pushConfirmation(respecthacolt, "Heiken-Ashi Candlestick Oscillator", hacolt_long, hacolt_short)
+
+pushConfirmation(respectdonchian, "Donchian Trend Ribbon", donchian_long, donchian_short)
+pushConfirmation(respectroc, "Rate of Change (ROC)", roc_long, roc_short)
+pushConfirmation(respecttsi, "True Strength Indicator (TSI)", tsi_long, tsi_short)
+
+pushConfirmation(respecttdfi, "Trend Direction Force Index (TDFI)", tdfi_long, tdfi_short)
+
+pushConfirmation(respectbx, "B-Xtrender (" + str.tostring(bxtype) + ")", bx_long, bx_short)
+pushConfirmation(respectbbpt, "Bull Bear Power Trend (" + str.tostring(bbpttype) + ")", bbpt_long, bbpt_short)
+pushConfirmation(respectvwap, "VWAP", long_vwap, short_vwap)
+
+pushConfirmation(respectce, "Chandelier Exit", ce_long, ce_short)
+pushConfirmation(respectcci, "CCI", ccilong, ccishort)
+pushConfirmation(respectadx, "DMI (Adx)  (" + str.tostring(adxtype) + ")", adxupcondition, adxdowncondition)
+pushConfirmation(respectsar, "Parabolic SAR", sarup, sardown)
+pushConfirmation(respectssl, "SSL Channel", ssl_long, ssl_short)
+pushConfirmation(respectvo, "Volatility Oscillator", vo_long, vo_short)
+pushConfirmation(respectdpo, "Detrended Price Oscillator(DPO)", dpo_long, dpo_short)
+pushConfirmation(respectmd, "McGinley Dynamic", md_long, md_short)
+
+pushConfirmation(respectstochastic, "Stochastic (" + str.tostring(stochtype) + ")", stoch_long, stoch_short)
+pushConfirmation(respectrsi, "RSI (" + str.tostring(rsitype2) + ")", rsiup, rsidown)
+pushConfirmation(respectmacd, "MACD (" + str.tostring(macdtype) + ")", ismacdup, ismacddown)
+pushConfirmation(respectstc, "Schaff Trend Cycle", stcup, stcdown)
+pushConfirmation(respectwae, "Waddah Attar Explosion", wae_long, wae_short)
+
+pushConfirmation(respectchaikin, "Chaikin Money Flow", chaikin_long, chaikin_short)
+pushConfirmation(respectvol, "Volume", longvol, shortvol)
+pushConfirmation(respectao, "Awesome Oscillator(" + str.tostring(aotype) + ")", ao_long, ao_short)
+pushConfirmation(respectwolf, "Wolfpack Id", wolf_long, wolf_short)
+pushConfirmation(respectqqe, "QQE Mod (" + str.tostring(qqetype) + ")", isqqeabove, isqqebelow)
+pushConfirmation(respecthull, "HullSuite", hullup, hulldown)
+pushConfirmation(respectvi, "Vortex Index  (" + str.tostring(vitype) + ")", vipcondition, vimcondition)
+
+getFalseShortConditionItems(arrShort) =>
+    sShort = ""
+    if array.size(arrShort) > 0
+        for i = 0 to array.size(arrShort) - 1 by 1
+            if array.get(arrShort, i) == "❌"
+                sShort := sShort + array.get(confirmation_counter, i) + "\n"
+                sShort
+    sShort
+
+falseShortConditionString = getFalseShortConditionItems(confirmation_val_short)
+
+tooltipS = "🔴 Failed Short Confirmations: " + "\n" + "--------------------------" + "\n" + falseShortConditionString
+
+labelShortCondition = showsignal and is_expiry_count_crossed_short and not is_expiry_count_crossed_short[1] and CondIni == 1
+
+if labelShortCondition
+    label.new(bar_index, low, "🔴", color = color.new(#dd1111, 0), textcolor = color.white, style = label.style_none, yloc = yloc.belowbar, size = size.small, tooltip = tooltipS)
+
+getFalseLongConditionItems(arr) =>
+    s = ""
+    if array.size(arr) > 0
+        for i = 0 to array.size(arr) - 1 by 1
+            if array.get(arr, i) == "❌"
+                s := s + array.get(confirmation_counter, i) + "\n"
+                s
+    s
+
+falseLongConditionString = getFalseLongConditionItems(confirmation_val)
+
+tooltipL = "🔴 Failed Long Confirmations: " + "\n" + "--------------------------" + "\n" + falseLongConditionString
+
+labelCondition = showsignal and is_expiry_count_crossed_long and not is_expiry_count_crossed_long[1] and CondIni == -1
+
+if labelCondition
+    label.new(bar_index, high, "🔴", color = color.new(color.green, 0), textcolor = color.white, style = label.style_none, yloc = yloc.abovebar, size = size.small, tooltip = tooltipL)
+
+plot(longCondition ? 100 : na, "long Signal", display = display.data_window)
+plot(shortCondition ? -100 : na, "Short Signal", display = display.data_window)
+
+
+// =========================================================
+// [최종 수정] 36개 지표 합산 + 0~10 환산 + 실시간 UP/DOWN 표시
+// =========================================================
+
+// 1. 변수 초기화
+total_all_long_count = 0
+long_list = ""
+short_list = ""
+
+// 2. 36개 지표 상태 체크 및 리스트 분류 (EMA, Choppiness 제외)
+if ema2_long == 1
+    total_all_long_count += 1
+    long_list += "- 2 EMA Cross\n"
+else
+    short_list += "- 2 EMA Cross\n"
+
+if ema3_long
+    total_all_long_count += 1
+    long_list += "- 3 EMA Cross\n"
+else
+    short_list += "- 3 EMA Cross\n"
+
+if uprf
+    total_all_long_count += 1
+    long_list += "- Range Filter\n"
+else
+    short_list += "- Range Filter\n"
+
+if rqkuptrend
+    total_all_long_count += 1
+    long_list += "- SuperTrend (RQ)\n"
+else
+    short_list += "- SuperTrend (RQ)\n"
+
+if sttrend == 1
+    total_all_long_count += 1
+    long_list += "- SuperTrend\n"
+else
+    short_list += "- SuperTrend\n"
+
+if halftrend_long
+    total_all_long_count += 1
+    long_list += "- HALF TREND\n"
+else
+    short_list += "- HALF TREND\n"
+if bx_long
+    total_all_long_count += 1
+    long_list += "- B-Xtrender\n"
+else
+    short_list += "- B-Xtrender\n"
+
+if bbpt_long
+    total_all_long_count += 1
+    long_list += "- Bull Bear Power Trend\n"
+else
+    short_list += "- Bull Bear Power Trend\n"
+
+if long_vwap
+    total_all_long_count += 1
+    long_list += "- VWAP\n"
+else
+    short_list += "- VWAP\n"
+if ce_long
+    total_all_long_count += 1
+    long_list += "- Chandelier Exit\n"
+else
+    short_list += "- Chandelier Exit\n"
+
+if ccilong
+    total_all_long_count += 1
+    long_list += "- CCI\n"
+else
+    short_list += "- CCI\n"
+
+if ao_long
+    total_all_long_count += 1
+    long_list += "- Awesome Oscillator\n"
+else
+    short_list += "- Awesome Oscillator\n"
+
+if adxupcondition
+    total_all_long_count += 1
+    long_list += "- DMI (ADX)\n"
+else
+    short_list += "- DMI (ADX)\n"
+
+if sarup
+    total_all_long_count += 1
+    long_list += "- Parabolic SAR\n"
+else
+    short_list += "- Parabolic SAR\n"
+
+if wae_long
+    total_all_long_count += 1
+    long_list += "- Waddah Attar Explosion\n"
+else
+    short_list += "- Waddah Attar Explosion\n"
+
+if vo_long
+    total_all_long_count += 1
+    long_list += "- Volatility Oscillator\n"
+else
+    short_list += "- Volatility Oscillator\n"
+
+if stoch_long
+    total_all_long_count += 1
+    long_list += "- Stochastic\n"
+else
+    short_list += "- Stochastic\n"
+
+if rsiup
+    total_all_long_count += 1
+    long_list += "- RSI\n"
+else
+    short_list += "- RSI\n"
+
+if rsiMA >= nz(rsiMA[1])
+    total_all_long_count += 1
+    long_list += "- RSI MA Cross\n"
+else
+    short_list += "- RSI MA Cross\n"
+
+if rsi >= rsilimitup
+    total_all_long_count += 1
+    long_list += "- RSI Level\n"
+else
+    short_list += "- RSI Level\n"
+
+if ismacdup
+    total_all_long_count += 1
+    long_list += "- MACD\n"
+else
+    short_list += "- MACD\n"
+
+if ssl_long
+    total_all_long_count += 1
+    long_list += "- SSL Channel\n"
+else
+    short_list += "- SSL Channel\n"
+
+if stc >= 75
+    total_all_long_count += 1
+    long_list += "- STC\n"
+else
+    short_list += "- STC\n"
+
+if chaikin_long
+    total_all_long_count += 1
+    long_list += "- Chaikin Money Flow\n"
+else
+    short_list += "- Chaikin Money Flow\n"
+
+if longvol
+    total_all_long_count += 1
+    long_list += "- Volume\n"
+else
+    short_list += "- Volume\n"
+
+if wolf_long
+    total_all_long_count += 1
+    long_list += "- Wolfpack Id\n"
+else
+    short_list += "- Wolfpack Id\n"
+
+if isqqeabove
+    total_all_long_count += 1
+    long_list += "- QQE Mod\n"
+else
+    short_list += "- QQE Mod\n"
+
+if hullup
+    total_all_long_count += 1
+    long_list += "- Hull Suite\n"
+else
+    short_list += "- Hull Suite\n"
+
+if vipcondition
+    total_all_long_count += 1
+    long_list += "- Vortex Indicator\n"
+else
+    short_list += "- Vortex Indicator\n"
+
+if tb_buysignal
+    total_all_long_count += 1
+    long_list += "- Trendline Breakout\n"
+else
+    short_list += "- Trendline Breakout\n"
+
+if roc_long
+    total_all_long_count += 1
+    long_list += "- ROC\n"
+else
+    short_list += "- ROC\n"
+
+if dpo_long
+    total_all_long_count += 1
+    long_list += "- DPO\n"
+else
+    short_list += "- DPO\n"
+
+if tdfi_long
+    total_all_long_count += 1
+    long_list += "- TDFI\n"
+else
+    short_list += "- TDFI\n"
+
+if md_long
+    total_all_long_count += 1
+    long_list += "- Mcginley Dynamic\n"
+else
+    short_list += "- Mcginley Dynamic\n"
+
+// 3. 0~10 비율 환산 및 반올림
+raw_score = (total_all_long_count / 36.0) * 10.0
+rounded_score = math.round(raw_score)
+
+// 4. 색상 계산
+dynamic_color = color.from_gradient(rounded_score, 0, 10, color.red, color.lime)
+
+// 5. 개별 캔들 라벨 출력 (기존 기능)
+// NOTE: 점수 라벨은 화면 표시용(UI)만 제어합니다. raw_score/rounded_score 계산 및 내부 로직은 항상 유지됩니다.
+//       또한 라벨이 너무 많이 생성되면 다른 라벨(Switch Board의 Break Sup 등)이 자동 삭제되는 문제가 있어
+//       score_labels_keep 개수만 유지하도록 제한합니다.
+prev_show_candle_score = barstate.isfirst ? true : show_candle_score[1]
+if (not show_candle_score) and prev_show_candle_score
+    clear_score_labels()
+
+if show_candle_score
+    label_text = str.tostring(rounded_score, "#")
+    tt_content = "점수: " + label_text + "/10 (Long: " + str.tostring(total_all_long_count) + "개)\n\n"
+    tt_content += "🟢 [LONG 지표]\n" + (long_list == "" ? "없음\n" : long_list) + "\n"
+    tt_content += "🔴 [SHORT 지표]\n" + (short_list == "" ? "없음\n" : short_list)
+
+    new_lbl = label.new(bar_index, low,
+          text = label_text,
+          color = color.new(dynamic_color, 100),
+          textcolor = dynamic_color,
+          style = label.style_label_up,
+          yloc = yloc.belowbar,
+          size = size.small,
+          tooltip = tt_content)
+
+    array.push(score_labels, new_lbl)
+    if array.size(score_labels) > score_labels_keep
+        label.delete(array.shift(score_labels))
+
+// 6. [최종 개선] 라벨 위치 최적화 및 횡보 판단 로직 강화
+var label status_label = na
+
+// 점수 흐름을 더 부드럽게 만들기 위해 EMA 주기를 7로 상향 (노이즈 감소)
+score_ema = ta.ema(raw_score, 7)
+slope = score_ema - score_ema[1]
+
+if barstate.islast
+    label.delete(status_label)
+    
+    string trend_text = ""
+    color bg_col = na
+    color txt_col = color.white 
+    
+    // 횡보 판단 임계값 상향 (0.05 -> 0.15): 더 엄격하게 보합을 판정합니다.
+    float threshold_side = 0.15
+    float threshold_strong = 0.50
+    float threshold_mid = 0.25
+
+    if math.abs(slope) <= threshold_side
+        trend_text := "보합"
+        bg_col := color.new(color.gray, 20)
+        
+    else if slope > threshold_side
+        if slope >= threshold_strong
+            trend_text := "(강) 상승"
+            bg_col := color.new(color.lime, 10)
+            txt_col := color.black
+        else if slope >= threshold_mid
+            trend_text := "(중) 상승"
+            bg_col := color.new(color.green, 20)
+        else
+            trend_text := "(약) 상승"
+            bg_col := color.new(color.rgb(0, 100, 0), 20)
+            
+    else if slope < -threshold_side
+        if slope <= -threshold_strong
+            trend_text := "(강) 하락"
+            bg_col := color.new(color.red, 10)
+        else if slope <= -threshold_mid
+            trend_text := "(중) 하락"
+            bg_col := color.new(color.rgb(150, 0, 0), 20)
+        else
+            trend_text := "(약) 하락"
+            bg_col := color.new(color.rgb(80, 0, 0), 20)
+
+    // 라벨 생성: bar_index + 30 으로 우측 여백 확보
+    status_label := label.new(bar_index + 30, close, 
+          text = trend_text, 
+          color = bg_col, 
+          textcolor = txt_col, 
+          style = label.style_label_center, 
+          size = size.large,
+          yloc = yloc.price)
+
+
+// =========================================================
+// [제안] 추세 전환 확정형 (ATR Trailing) 로직
+// =========================================================
+
+// 1. 변동성 기반 추세선 (SuperTrend 원리)
+atr_val = ta.atr(10)
+upper_band = high[1] - (atr_val * 2)
+lower_band = low[1] + (atr_val * 2)
+
+
+// 2. [핵심] 신호 조건 (단순화)
+// breakout_len input은 상단 옵션으로 이동
+
+// 롱: 점수가 어느정도 높고(5 이상), 직전 N봉(옵션) 최고가를 돌파할 때
+long_trigger_base = (rounded_score >= 5) and ta.crossover(close, ta.highest(high, breakout_len)[1])
+
+// 숏: 점수가 어느정도 낮고(5 이하), 직전 N봉(옵션) 최저가를 이탈할 때
+short_trigger_base = (rounded_score <= 5) and ta.crossunder(close, ta.lowest(low, breakout_len)[1])
+
+// 3. [가장 마지막 필터] 스퀴즈 모멘텀 (LazyBear) 히스토그램 색상
+sqz_long_ok = true
+sqz_short_ok = true
+if use_sqz_filter
+    // Calculate BB
+    sqz_src = close
+    sqz_basis = ta.sma(sqz_src, sqz_bbLen)
+    sqz_dev = sqz_bbMult * ta.stdev(sqz_src, sqz_bbLen)
+    sqz_upperBB = sqz_basis + sqz_dev
+    sqz_lowerBB = sqz_basis - sqz_dev
+
+    // Calculate KC
+    sqz_ma = ta.sma(sqz_src, sqz_kcLen)
+    sqz_range = ta.tr(true)  // TrueRange 고정
+    sqz_rangema = ta.sma(sqz_range, sqz_kcLen)
+    sqz_upperKC = sqz_ma + sqz_rangema * sqz_kcMult
+    sqz_lowerKC = sqz_ma - sqz_rangema * sqz_kcMult
+
+    // Squeeze state (원본 계산 유지)
+    sqzOn  = (sqz_lowerBB > sqz_lowerKC) and (sqz_upperBB < sqz_upperKC)
+    sqzOff = (sqz_lowerBB < sqz_lowerKC) and (sqz_upperBB > sqz_upperKC)
+    noSqz  = (not sqzOn) and (not sqzOff)
+
+    // Squeeze Momentum value (LazyBear)
+    sqz_mid = ((ta.highest(high, sqz_kcLen) + ta.lowest(low, sqz_kcLen)) / 2 + ta.sma(close, sqz_kcLen)) / 2
+    sqz_val = ta.linreg(sqz_src - sqz_mid, sqz_kcLen, 0)
+    sqz_prev = nz(sqz_val[1])
+
+    // LazyBear bcolor 규칙: 파랑/초록/빨강/주황
+    sqz_isBlue   = (sqz_val > 0)  and (sqz_val > sqz_prev)
+    sqz_isGreen  = (sqz_val > 0)  and (sqz_val <= sqz_prev)
+    sqz_isRed    = (sqz_val <= 0) and (sqz_val < sqz_prev)
+    sqz_isOrange = (sqz_val <= 0) and (sqz_val >= sqz_prev)
+
+    // 요청 규칙:
+    // - 주황/파랑일 때만 LONG 가능 (SHORT 제거)
+    // - 초록/빨강일 때만 SHORT 가능 (LONG 제거)
+    sqz_long_ok := sqz_isOrange or sqz_isBlue
+    sqz_short_ok := sqz_isGreen or sqz_isRed
+
+    // 오프셋: 히스토그램 크기가 -오프셋~+오프셋 범위면 LONG/SHORT 라벨 제거
+    sqz_inOffset = use_sqz_offset_filter and (sqz_val >= -sqz_hist_offset) and (sqz_val <= sqz_hist_offset)
+    if sqz_inOffset
+        sqz_long_ok := false
+        sqz_short_ok := false
+
+// 4. 최종 라벨 (중복 방지 제거: 조건이 맞으면 연속 신호도 허용)
+bool final_long = long_trigger_base and sqz_long_ok
+bool final_short = short_trigger_base and sqz_short_ok
+
+
+// 5. [가장 마지막 추가 필터] 직전 N봉 점수(rounded_score) 평균으로 라벨 제거
+//    - 평균 ≥ short_remove_avg_th  => SHORT 제거
+//    - 평균 ≤ long_remove_avg_th   => LONG 제거
+float avg_prev_score = ta.sma(rounded_score, score_avg_len)[1]
+bool score_filter_long_ok  = use_score_avg_filter ? (na(avg_prev_score) ? true : (avg_prev_score > long_remove_avg_th)) : true
+bool score_filter_short_ok = use_score_avg_filter ? (na(avg_prev_score) ? true : (avg_prev_score < short_remove_avg_th)) : true
+
+bool final_long_filtered  = final_long  and score_filter_long_ok
+bool final_short_filtered = final_short and score_filter_short_ok
+
+// 6. [추가 마지막 필터] 연속 동일 라벨 제거
+//    - 마지막으로 출력된 라벨과 같은 방향의 라벨은 반대 라벨이 나오기 전까지 제거
+var int last_label_dir = 0  // 1 = LONG, -1 = SHORT, 0 = none
+
+bool long_candidate  = final_long_filtered
+bool short_candidate = final_short_filtered
+
+if use_no_consecutive_label_filter
+    long_candidate  := final_long_filtered  and last_label_dir != 1
+    short_candidate := final_short_filtered and last_label_dir != -1
+
+// [NON-REPAINT] 봉 마감(확정) 후에만 라벨/알림 발생
+bool final_long_out  = long_candidate  and barstate.isconfirmed
+bool final_short_out = short_candidate and barstate.isconfirmed
+
+// 연속 동일 라벨 제거 필터의 상태 업데이트도 "확정 봉"에서만 반영
+if use_no_consecutive_label_filter
+    if final_long_out
+        last_label_dir := 1
+    else if final_short_out
+        last_label_dir := -1
+
+// 5. 출력 (라벨 기준 = 알람 기준 100% 동일)
+bool long_label_out  = show_final_ls_labels and final_long_out
+bool short_label_out = show_final_ls_labels and final_short_out
+
+plotshape(long_label_out,  title="LONG",  location=location.belowbar, color=color.new(color.lime, 0), style=shape.labelup,   text="LONG",  textcolor=color.black, size=size.normal)
+plotshape(short_label_out, title="SHORT", location=location.abovebar, color=color.new(color.red, 0),  style=shape.labeldown, text="SHORT", textcolor=color.white, size=size.normal)
+
+alertcondition(long_label_out,  title="LONG Label (Filters)",  message="{{ticker}} LONG 필터링 @ {{close}}")
+alertcondition(short_label_out, title="SHORT Label (Filters)", message="{{ticker}} SHORT 필터링 @ {{close}}")
+
+
+
+// =========================================================
+// Strategy Orders (LABEL-driven + Risk Management)
+// - LONG 라벨 뜨면: 롱 매수 + (옵션) 숏 청산
+// - SHORT 라벨 뜨면: 숏 매수 + (옵션) 롱 청산
+//
+// 자금관리(리스크 고정):
+//  - 진입 시점의 "청산 기준선(Stop line)"까지의 거리로 1계약(1주)당 리스크를 계산
+//  - Stop line: Chandelier Exit의 longStop/shortStop 사용
+// =========================================================
+bool labelLongSignal  = enable_long_trades  and final_long_out
+bool labelShortSignal = enable_short_trades and final_short_out
+
+// 같은 라벨이 여러 봉 연속으로 true가 될 수 있으면(연속필터 OFF 등) 엣지(첫 봉)만 진입
+if use_signal_edge
+    labelLongSignal  := labelLongSignal  and not final_long_out[1]
+    labelShortSignal := labelShortSignal and not final_short_out[1]
+
+// Debug markers (top of chart)
+plotchar(show_debug_signals and labelLongSignal,  title="DBG LABEL Long",  char="L", location=location.top, size=size.tiny)
+plotchar(show_debug_signals and labelShortSignal, title="DBG LABEL Short", char="S", location=location.top, size=size.tiny)
+
+// --- Stop price 저장(진입 시점 기준 고정) ---
+var float long_stop_at_entry  = na
+var float short_stop_at_entry = na
+
+// 포지션이 청산/전환되어 0이 되면 저장값 리셋
+if strategy.position_size == 0
+    long_stop_at_entry  := na
+    short_stop_at_entry := na
+
+// 현재 바에서 사용할 "청산 기준선(Stop line)"
+float long_stop_line  = longStop
+float short_stop_line = shortStop
+
+// 유효한 stop인지 체크 (롱: stop < entry, 숏: stop > entry)
+is_valid_long_stop(entryPrice, stopPrice) =>
+    not na(stopPrice) and stopPrice < entryPrice
+
+is_valid_short_stop(entryPrice, stopPrice) =>
+    not na(stopPrice) and stopPrice > entryPrice
+
+
+
+// ===== Filters (imported from BB_Breakout) =====
+// (moved up near the top for UI ordering)
+// ===== End Filters =====
+
+// === Combined filter gates ===
+allow_long_filters  = arma_long_condt and lvolatilityCondition and HV_long_condt and adx_long_condt and osc_long_cond and ait_long_cond
+allow_short_filters = arma_short_condt and svolatilityCondition and HV_short_condt and adx_short_condt and osc_short_cond and ait_short_cond
+
+// --- Entries ---
+if labelLongSignal and allow_long_filters and in_date_range
+    if close_on_opposite
+        strategy.close("Short")
+    if strategy.position_size <= 0
+        // 진입 시점 기준 stop 고정
+        float stopL = long_stop_line
+        bool okStop = is_valid_long_stop(close, stopL)
+        float qtyL = calc_entry_qty(true, close)
+
+        if not na(qtyL) and qtyL > 0
+            long_stop_at_entry := okStop ? stopL : na
+            strategy.entry("Long", strategy.long, qty=qtyL)
+
+// Opposite-signal close for Long does NOT depend on Enable Short.
+// - Even when Enable Short = OFF, a valid short signal (final_short_out) can still close an existing Long.
+// - Entry into Short positions is still controlled by labelShortSignal (enable_short_trades).
+if close_on_opposite and final_short_out and allow_short_filters
+    strategy.close("Long")
+
+if labelShortSignal and allow_short_filters and in_date_range
+    if strategy.position_size >= 0
+        // 진입 시점 기준 stop 고정
+        float stopS = short_stop_line
+        bool okStop = is_valid_short_stop(close, stopS)
+        float qtyS = calc_entry_qty(false, close)
+
+        if not na(qtyS) and qtyS > 0
+            short_stop_at_entry := okStop ? stopS : na
+            strategy.entry("Short", strategy.short, qty=qtyS)
+
+// =========================================================
+// Take Profit & Stop Loss (첨부파일 방식 반영)
+// - Take Profit: PERC / ATR / BOTH, (옵션) 트레일링, (옵션) 부분청산(Qty %)
+// - Stop Loss  : (기본) 진입 시점 long_stop/short_stop 고정 + (옵션) 트레일링(ON/TP), (옵션) Break Even
+//   * Stop Method는 LINE/PERC/ATR/BOTH로 선택 가능 (LINE = 기존 청산기준선)
+// =========================================================
+
+// --- helpers ---
+var float tpsl_long_entry_price  = na
+var float tpsl_short_entry_price = na
+var float tpsl_long_openAtr      = na
+var float tpsl_short_openAtr     = na
+
+// 포지션이 청산되면 스냅샷 리셋
+if strategy.position_size == 0
+    tpsl_long_entry_price  := na
+    tpsl_short_entry_price := na
+    tpsl_long_openAtr      := na
+    tpsl_short_openAtr     := na
+
+// Entry 시점(주문 제출 시점) 스냅샷 저장
+// (process_orders_on_close=true 이므로, 실제 체결은 봉 마감 기준이며 entryPrice는 close로 간주)
+bool tpsl_enterLong  = labelLongSignal  and (strategy.position_size <= 0)
+bool tpsl_enterShort = labelShortSignal and (strategy.position_size >= 0)
+
+if tpsl_enterLong
+    tpsl_long_entry_price := close
+    tpsl_long_openAtr     := ta.atr(tpsl_atrLength)
+
+if tpsl_enterShort
+    tpsl_short_entry_price := close
+    tpsl_short_openAtr     := ta.atr(tpsl_atrLength)
+
+// =========================================================
+// TAKE PROFIT
+// (inputs moved up near the top for UI ordering)
+
+tpsl_getLongTP(entryPrice, openAtr) =>
+    switch tpsl_longTP_method
+        "PERC" => entryPrice * (1 + tpsl_longTP_perc)
+        "ATR"  => entryPrice + tpsl_longTP_atrMul * openAtr
+        "BOTH" => math.max(entryPrice * (1 + tpsl_longTP_perc), entryPrice + tpsl_longTP_atrMul * openAtr)
+        => na
+
+tpsl_getShortTP(entryPrice, openAtr) =>
+    switch tpsl_shortTP_method
+        "PERC" => entryPrice * (1 - tpsl_shortTP_perc)
+        "ATR"  => entryPrice - tpsl_shortTP_atrMul * openAtr
+        "BOTH" => math.min(entryPrice * (1 - tpsl_shortTP_perc), entryPrice - tpsl_shortTP_atrMul * openAtr)
+        => na
+
+var float tpsl_longTP_price  = na
+var float tpsl_shortTP_price = na
+
+// 포지션 진입 시 TP 가격 고정
+if tpsl_enterLong
+    tpsl_longTP_price := tpsl_getLongTP(tpsl_long_entry_price, nz(tpsl_long_openAtr, ta.atr(tpsl_atrLength)))
+
+if tpsl_enterShort
+    tpsl_shortTP_price := tpsl_getShortTP(tpsl_short_entry_price, nz(tpsl_short_openAtr, ta.atr(tpsl_atrLength)))
+
+// 포지션 종료 시 TP 리셋
+if strategy.position_size == 0
+    tpsl_longTP_price  := na
+    tpsl_shortTP_price := na
+
+// TP 도달 플래그 (StopLoss 트레일링이 "TP" 모드일 때 사용)
+var bool tpsl_longTP_hit  = false
+var bool tpsl_shortTP_hit = false
+if strategy.position_size == 0
+    tpsl_longTP_hit  := false
+    tpsl_shortTP_hit := false
+else
+    if strategy.position_size > 0 and not na(tpsl_longTP_price)
+        tpsl_longTP_hit := tpsl_longTP_hit[1] or (high >= tpsl_longTP_price)
+    else
+        tpsl_longTP_hit := false
+    if strategy.position_size < 0 and not na(tpsl_shortTP_price)
+        tpsl_shortTP_hit := tpsl_shortTP_hit[1] or (low <= tpsl_shortTP_price)
+    else
+        tpsl_shortTP_hit := false
+
+tpsl_longTP_stepTicks  = not na(tpsl_longTP_price)  ? (tpsl_longTP_price  * tpsl_longTP_distancePerc  / syminfo.mintick) : na
+tpsl_shortTP_stepTicks = not na(tpsl_shortTP_price) ? (tpsl_shortTP_price * tpsl_shortTP_distancePerc / syminfo.mintick) : na
+
+plot(tpsl_longTP_price,  title="Long Take Profit",  color=color.new(color.fuchsia, 0), linewidth=1, style=plot.style_linebr, offset=1)
+plot(tpsl_shortTP_price, title="Short Take Profit", color=color.new(color.fuchsia, 0), linewidth=1, style=plot.style_linebr, offset=1)
+
+// =========================================================
+// STOP LOSS
+// (inputs moved up near the top for UI ordering)
+
+// baseSrc는 트레일링 계산에 사용할 기준 (close/high/low/entry 등)
+tpsl_getLongSL(baseSrc, entryPrice, openAtr, lineStop) =>
+    // LINE 선택 시 기존 청산기준선을 사용하되, lineStop이 없으면 PERC 기준으로 fallback
+    float computed = switch tpsl_longSL_method
+        "LINE" => not na(lineStop) ? lineStop : baseSrc * (1 - tpsl_longSL_perc)
+        "PERC" => baseSrc * (1 - tpsl_longSL_perc)
+        "ATR"  => baseSrc - tpsl_longSL_atrMul * openAtr
+        "BOTH" => math.max(baseSrc * (1 - tpsl_longSL_perc), baseSrc - tpsl_longSL_atrMul * openAtr)
+        => na
+    // lineStop이 존재하면, 위험을 더 키우지 않도록(더 멀어지지 않도록) 보수적으로 제한
+    not na(lineStop) ? math.max(computed, lineStop) : computed
+
+tpsl_getShortSL(baseSrc, entryPrice, openAtr, lineStop) =>
+    float computed = switch tpsl_shortSL_method
+        "LINE" => not na(lineStop) ? lineStop : baseSrc * (1 + tpsl_shortSL_perc)
+        "PERC" => baseSrc * (1 + tpsl_shortSL_perc)
+        "ATR"  => baseSrc + tpsl_shortSL_atrMul * openAtr
+        "BOTH" => math.min(baseSrc * (1 + tpsl_shortSL_perc), baseSrc + tpsl_shortSL_atrMul * openAtr)
+        => na
+    not na(lineStop) ? math.min(computed, lineStop) : computed
+
+// trailing 시작 조건
+bool tpsl_longTrailOn  = (tpsl_slTrailingMode == "ON") or (tpsl_slTrailingMode == "TP" and tpsl_longTP_hit)
+bool tpsl_shortTrailOn = (tpsl_slTrailingMode == "ON") or (tpsl_slTrailingMode == "TP" and tpsl_shortTP_hit)
+
+var float tpsl_longSL_price  = na
+var float tpsl_shortSL_price = na
+
+// 진입 시 SL 초기값 고정
+if tpsl_enterLong
+    // 기존 long_stop_at_entry(라인) 기준이 먼저 저장된 상태이며, 없으면 퍼센트/ATR로 계산됨
+    baseSrcL = tpsl_long_entry_price
+    initSL = tpsl_getLongSL(baseSrcL, tpsl_long_entry_price, nz(tpsl_long_openAtr, ta.atr(tpsl_atrLength)), long_stop_at_entry)
+    tpsl_longSL_price := initSL
+
+if tpsl_enterShort
+    baseSrcS = tpsl_short_entry_price
+    initSL = tpsl_getShortSL(baseSrcS, tpsl_short_entry_price, nz(tpsl_short_openAtr, ta.atr(tpsl_atrLength)), short_stop_at_entry)
+    tpsl_shortSL_price := initSL
+
+// 포지션이 살아있는 동안(옵션) 트레일링로직으로 SL을 조여감
+if strategy.position_size > 0
+    if tpsl_longTrailOn
+        trailBase = tpsl_slTrailSrc == "CLOSE" ? close : high
+        newSL = tpsl_getLongSL(trailBase, nz(tpsl_long_entry_price, strategy.position_avg_price), nz(tpsl_long_openAtr, ta.atr(tpsl_atrLength)), long_stop_at_entry)
+        // Break-even: TP 도달 이후 SL을 최소 진입가까지 끌어올림
+        if tpsl_longBE and tpsl_longTP_hit and not na(tpsl_long_entry_price)
+            newSL := math.max(newSL, tpsl_long_entry_price)
+        tpsl_longSL_price := math.max(nz(tpsl_longSL_price[1], newSL), newSL)
+    else
+        // 트레일링 OFF이면 진입 시점 값 유지
+        tpsl_longSL_price := nz(tpsl_longSL_price[1])
+else if strategy.position_size < 0
+    if tpsl_shortTrailOn
+        trailBase = tpsl_slTrailSrc == "CLOSE" ? close : low
+        newSL = tpsl_getShortSL(trailBase, nz(tpsl_short_entry_price, strategy.position_avg_price), nz(tpsl_short_openAtr, ta.atr(tpsl_atrLength)), short_stop_at_entry)
+        if tpsl_shortBE and tpsl_shortTP_hit and not na(tpsl_short_entry_price)
+            newSL := math.min(newSL, tpsl_short_entry_price)
+        tpsl_shortSL_price := math.min(nz(tpsl_shortSL_price[1], newSL), newSL)
+    else
+        tpsl_shortSL_price := nz(tpsl_shortSL_price[1])
+
+// 포지션 종료 시 SL 리셋
+if strategy.position_size == 0
+    tpsl_longSL_price  := na
+    tpsl_shortSL_price := na
+
+plot(tpsl_longSL_price,  title="Long Stop Loss",  color=color.new(color.silver, 0), linewidth=1, style=plot.style_linebr, offset=1)
+plot(tpsl_shortSL_price, title="Short Stop Loss", color=color.new(color.silver, 0), linewidth=1, style=plot.style_linebr, offset=1)
+
+// =========================================================
+// EXIT ORDERS
+// =========================================================
+// NOTE (BB_Breakout 원본과 동일 동작):
+// - TP Qty % = 0 이면 TP/SL(OCO)을 "전체 수량"에 대해 제출합니다(= Profit/Stop Loss 값이 항상 백테스트에 반영됨)
+// - TP Qty % > 0 이면 부분청산 TP/SL + 나머지 수량 SL 을 제출합니다
+if strategy.position_size > 0
+    posQ = math.abs(strategy.position_size)
+    tpQ_raw = posQ * (tpsl_longTP_qtyPerc / 100)
+    tpQ_rnd = round_qty(tpQ_raw, exchange_decimal)
+
+    // qty%가 0이거나(또는 라운딩 결과가 0) => 전체 수량 TP/SL
+    tp_full = (tpsl_longTP_qtyPerc <= 0) or na(tpQ_rnd) or tpQ_rnd <= 0 or tpQ_rnd >= posQ
+
+    if not na(tpsl_longTP_price) and not na(tpsl_longSL_price)
+        if tp_full
+            // 전체 수량 TP/SL (qty 파라미터를 주지 않으면 전체 수량에 적용됨)
+            strategy.exit("Long TP/SL", from_entry="Long", limit = tpsl_longTP_trailingEnabled ? na : tpsl_longTP_price, stop = tpsl_longSL_price, trail_price = tpsl_longTP_trailingEnabled ? tpsl_longTP_price : na, trail_offset = tpsl_longTP_trailingEnabled ? tpsl_longTP_stepTicks : na)
+        else
+            // 부분청산 TP/SL
+            strategy.exit("Long TP/SL", from_entry="Long", qty = tpQ_rnd, limit = tpsl_longTP_trailingEnabled ? na : tpsl_longTP_price, stop = tpsl_longSL_price, trail_price = tpsl_longTP_trailingEnabled ? tpsl_longTP_price : na, trail_offset = tpsl_longTP_trailingEnabled ? tpsl_longTP_stepTicks : na)
+            // 나머지 수량 SL
+            strategy.exit("Long SL", from_entry="Long", stop = tpsl_longSL_price)
+    else if not na(tpsl_longSL_price)
+        // TP 가격이 na인 경우라도 SL은 유지
+        strategy.exit("Long SL", from_entry="Long", stop = tpsl_longSL_price)
+
+if strategy.position_size < 0
+    posQ = math.abs(strategy.position_size)
+    tpQ_raw = posQ * (tpsl_shortTP_qtyPerc / 100)
+    tpQ_rnd = round_qty(tpQ_raw, exchange_decimal)
+
+    tp_full = (tpsl_shortTP_qtyPerc <= 0) or na(tpQ_rnd) or tpQ_rnd <= 0 or tpQ_rnd >= posQ
+
+    if not na(tpsl_shortTP_price) and not na(tpsl_shortSL_price)
+        if tp_full
+            strategy.exit("Short TP/SL", from_entry="Short", limit = tpsl_shortTP_trailingEnabled ? na : tpsl_shortTP_price, stop = tpsl_shortSL_price, trail_price = tpsl_shortTP_trailingEnabled ? tpsl_shortTP_price : na, trail_offset = tpsl_shortTP_trailingEnabled ? tpsl_shortTP_stepTicks : na)
+        else
+            strategy.exit("Short TP/SL", from_entry="Short", qty = tpQ_rnd, limit = tpsl_shortTP_trailingEnabled ? na : tpsl_shortTP_price, stop = tpsl_shortSL_price, trail_price = tpsl_shortTP_trailingEnabled ? tpsl_shortTP_price : na, trail_offset = tpsl_shortTP_trailingEnabled ? tpsl_shortTP_stepTicks : na)
+            strategy.exit("Short SL", from_entry="Short", stop = tpsl_shortSL_price)
+    else if not na(tpsl_shortSL_price)
+        strategy.exit("Short SL", from_entry="Short", stop = tpsl_shortSL_price)
+
+
+// =========================================================
+// Bitget Webhook (direct) - emit JSON via alert() on position size change
+// - Use TradingView Alert condition: "Any alert() function call"
+// - Sends: entry/close (and TP/SL closes). Partial TP is locked off in this version.
+// - Patch: positionSize now keeps sign (+long / -short) to match {{strategy.position_size}} semantics
+// =========================================================
+bitget_group = "🟧🟥🟦🟪 Bitget Webhook"
+enable_bitget_webhook = input.bool(true, title="Enable Bitget Webhook JSON alert()", group=bitget_group, tooltip="켜면 포지션 수량(strategy.position_size)이 변할 때마다(주문 체결 기준) 비트겟 웹훅 JSON을 alert()로 전송합니다. 알람 생성 시 조건은 'Any alert() function call'을 선택하세요.")
+
+pos_to_str(p) =>
+    p > 0 ? "long" : p < 0 ? "short" : "flat"
+
+pos_prev = strategy.position_size[1]
+pos_curr = strategy.position_size
+pos_delta = pos_curr - pos_prev
+
+if enable_bitget_webhook and barstate.isconfirmed and not na(pos_prev) and (pos_delta != 0)
+    string action = pos_delta > 0 ? "buy" : "sell"
+    float contracts = math.abs(pos_delta)                 // matches “this fill size” best
+    string marketPos = pos_to_str(pos_curr)
+    string prevMarketPos = pos_to_str(pos_prev)
+    float positionSize = pos_curr                         // ✅ keep sign to match {{strategy.position_size}}
+
+    // Build JSON (strings) to match Bitget webhook format
+    string msg = "{\"action\":\"" + action + "\",\"contracts\":\"" + str.tostring(contracts) + "\",\"marketPosition\":\"" + marketPos + "\",\"positionSize\":\"" + str.tostring(positionSize) + "\",\"prevMarketPosition\":\"" + prevMarketPos + "\",\"price\":\"" + str.tostring(close, format.mintick) + "\",\"symbol\":\"" + syminfo.ticker + "\",\"time\":\"" + str.tostring(timenow) + "\"}"
+    alert(msg, alert.freq_once_per_bar_close)

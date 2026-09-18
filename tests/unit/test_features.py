@@ -232,3 +232,54 @@ def test_trade_cluster_and_sweep():
     assert cluster["min_price"] == 100.0
     assert cluster["max_price"] == 101.0
 
+
+def test_macro_and_positioning_features_incremental():
+    from quantdesk.features.base import IncrementalFeatureEngine
+    from quantdesk.strategies.live_runner import make_live_envelope
+
+    engine = IncrementalFeatureEngine(instrument_id="BTCUSDT")
+
+    # 1. Update Macro Liquidity event
+    macro_event = make_live_envelope(
+        event_type="MacroLiquidityUpdated",
+        instrument_id="GLOBAL",
+        payload={
+            "macro_fed_liq_zscore": 1.45,
+            "macro_fed_liq_trend": 1,
+            "macro_usdt_d_zscore": -0.85,
+            "macro_usdt_d_slope": -0.04,
+            "macro_warning_strength": 75.0,
+            "macro_regime": "BULLISH_SIGNAL",
+            "warn_bearish": False,
+            "warn_bullish": True,
+        },
+        now_ns=1_000_000_000,
+        engine_seq=1,
+    )
+    res = engine.update(macro_event)
+    assert len(res) == 8
+    d = engine.as_dict()
+    assert d["macro_regime"] == "BULLISH_SIGNAL"
+    assert d["macro_warning_strength"] == 75.0
+    assert d["warn_bullish"] is True
+
+    # 2. Update Whale Positioning event
+    whale_event = make_live_envelope(
+        event_type="WhalePositioningUpdated",
+        instrument_id="BTCUSDT",
+        payload={
+            "whale_ls_ratio_ln": 0.405,
+            "whale_ls_macd_hist": 0.012,
+            "whale_net_flow_zscore": 2.1,
+            "whale_net_flow_direction": 1,
+            "whale_is_spike": True,
+        },
+        now_ns=1_000_000_100,
+        engine_seq=2,
+    )
+    res_whale = engine.update(whale_event)
+    assert len(res_whale) == 5
+    d2 = engine.as_dict()
+    assert d2["whale_net_flow_zscore"] == 2.1
+    assert d2["whale_is_spike"] is True
+

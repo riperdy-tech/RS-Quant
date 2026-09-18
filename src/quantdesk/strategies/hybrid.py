@@ -11,9 +11,15 @@ from quantdesk.strategies.base import Strategy
 
 
 class HybridStrategy(Strategy):
-    def __init__(self, rule_strategy: Strategy, threshold: float = 0.60):
+    def __init__(
+        self,
+        rule_strategy: Strategy,
+        threshold: float = 0.60,
+        high_conviction_threshold: float = 0.70,
+    ):
         self.rule_strategy = rule_strategy
         self.threshold = threshold
+        self.high_conviction_threshold = high_conviction_threshold
         self.registry: Any = None
         self.evaluations_count = 0
 
@@ -50,15 +56,23 @@ class HybridStrategy(Strategy):
             # Model inference wrapped in exception handler to fail closed on latency or errors
             try:
                 features = context.get("features", {})
-                pred = model.predict(features) if hasattr(model, "predict") else 0.0
-                probability = float(pred)
+                if hasattr(model, "predict_proba"):
+                    probability = float(model.predict_proba(features))
+                elif hasattr(model, "predict"):
+                    pred = model.predict(features)
+                    probability = float(pred)
+                else:
+                    probability = 0.0
             except Exception:
                 # Fail closed on inference error or latency budget breach
                 continue
 
             if probability >= self.threshold:
                 model_hash = getattr(model, "model_hash", "ml-v1")
-                validated = replace(intent, model_hash_or_none=model_hash)
+                reason = intent.reason
+                if probability >= self.high_conviction_threshold:
+                    reason = f"{reason}_high_conviction"
+                validated = replace(intent, model_hash_or_none=model_hash, reason=reason)
                 validated_intents.append(validated)
 
         return tuple(validated_intents)

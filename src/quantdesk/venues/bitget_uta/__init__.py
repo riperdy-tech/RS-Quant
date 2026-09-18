@@ -54,9 +54,18 @@ from quantdesk.venues.bitget_uta.rest import (
     VenueError,
 )
 from quantdesk.venues.capabilities import VenueCapabilities
-from quantdesk.venues.instruments import InstrumentSpec
+from quantdesk.venues.bitget_uta.contract_specs import (
+    BitgetContractSpec,
+    BitgetContractSpecsRegistry,
+    fetch_bitget_funding_rate,
+)
 
-__all__ = ["BitgetUTAAdapter"]
+__all__ = [
+    "BitgetUTAAdapter",
+    "BitgetContractSpec",
+    "BitgetContractSpecsRegistry",
+    "fetch_bitget_funding_rate",
+]
 
 
 class BitgetUTAAdapter:

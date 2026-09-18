@@ -75,9 +75,12 @@ export interface SystemStatus {
 }
 
 export interface PositionItem {
+  strategy_id?: string;
   instrument_id: string;
   lots: number;
+  units?: string;
   side: 'BUY' | 'SELL';
+
   entry_price: string;
   mark_price: string;
   unrealized_pnl: string;
@@ -129,4 +132,80 @@ export interface ReflexStatus {
   instruments?: Record<string, InstrumentReflexParams>;
   recent_events: ReflexEvent[];
 }
+
+export interface MacroReport {
+  regime: 'BULLISH_SIGNAL' | 'BEARISH_WARNING' | 'NEUTRAL_CHOP';
+  warn_bearish: boolean;
+  warn_bullish: boolean;
+  warning_strength: number;
+  strength_level: string;
+  fed_snapshot: {
+    walcl: number;
+    tga: number;
+    rrp: number;
+    net_liquidity: number;
+    net_liquidity_sma20: number;
+    trend_direction: number;
+    pct_change: number;
+    is_bullish: boolean;
+    z_score: number;
+  } | null;
+  usdt_snapshot: {
+    usdt_dominance_pct: number;
+    ema5: number;
+    z_score: number;
+    slope: number;
+    trend_up: boolean;
+  } | null;
+  timestamp_ns: number;
+}
+
+export interface WhalePositioning {
+  oi: number;
+  lsr: number;
+  long_contracts: number;
+  short_contracts: number;
+  d_long: number;
+  d_short: number;
+  net_flow_raw: number;
+  net_flow_zscore: number;
+  net_flow_direction: number;
+  ratio_ln: number;
+  macd_line: number;
+  macd_signal: number;
+  macd_hist: number;
+  is_spike: boolean;
+}
+
+export interface MacroRadarData {
+  macro_report: MacroReport | null;
+  whale_positioning: Record<string, WhalePositioning>;
+  timestamp_ns: number;
+}
+
+export interface AgenticStatus {
+  instrument_id: string;
+  strategy_id: string;
+  current_bias: string;
+  current_regime: string;
+  tactical_state: string;
+  dynamic_parameters: {
+    indicator_weights: Record<string, number>;
+    atr_target_mult: string;
+    depth5_threshold: number;
+    entry_cooldown_s: number;
+    volatility_hurdle_bps: number;
+    conviction_threshold: number;
+    consecutive_losses: number;
+  };
+  rolling_ic: Record<string, number>;
+  memory_summary: {
+    total_episodes: number;
+    win_rate_pct: string;
+    total_net_pnl: string;
+    recent_attributions: string[];
+  };
+  timestamp_ns: number;
+}
+
 

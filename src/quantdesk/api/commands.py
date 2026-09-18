@@ -35,10 +35,14 @@ class DurableInbox:
 
         self.emergency_halted: bool = False
         self.strategy_states: dict[str, str] = {
-            "imbalance-btc": "RUNNING",
-            "momentum-btc": "RUNNING",
-            "imbalance-eth": "RUNNING",
-            "momentum-eth": "RUNNING",
+            "unified-btc": "RUNNING",
+            "unified-eth": "RUNNING",
+            "curated-btc": "RUNNING",
+            "curated-eth": "RUNNING",
+            "imbalance-btc": "PAUSED",
+            "momentum-btc": "PAUSED",
+            "imbalance-eth": "PAUSED",
+            "momentum-eth": "PAUSED",
         }
 
         if self.db_path:
@@ -259,6 +263,19 @@ class DurableInbox:
         elif cmd_type == "RESET_RISK_LATCH":
             self.emergency_halted = False
             # Note: reset does NOT resume paused strategies (§15)
+        elif cmd_type in ("ENABLE_LIVE", "ARM_LIVE"):
+            cap_val = body.get("payload", {}).get("capital_usdt") or target_dict.get("capital_usdt")
+            lev_val = body.get("payload", {}).get("leverage") or target_dict.get("leverage")
+            if cap_val:
+                try:
+                    from quantdesk.strategies.live_runner import autonomous_live_engine
+
+                    autonomous_live_engine.update_capital_config(
+                        capital_usdt=cap_val,
+                        leverage=lev_val or 3.0,
+                    )
+                except Exception:
+                    pass
         elif cmd_type == "PAUSE_STRATEGY":
             strat = target_dict.get("strategy_id", "imbalance-btc")
             self.strategy_states[strat] = "PAUSED"

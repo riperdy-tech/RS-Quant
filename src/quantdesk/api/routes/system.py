@@ -220,3 +220,44 @@ async def test_bitget_connection(
             "success": False,
             "message": f"Network error connecting to Bitget: {exc!s}",
         }
+
+
+class CapitalConfigPayload(BaseModel):
+    capital_usdt: float
+    leverage: float = 3.0
+
+
+@router.get("/api/v1/settings/trading-capital")
+def get_trading_capital_config(
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Retrieves current trading capital and leverage settings with per-leg allocations."""
+    from quantdesk.strategies.live_runner import autonomous_live_engine
+
+    return autonomous_live_engine.get_capital_config()
+
+
+@router.post("/api/v1/settings/trading-capital")
+def set_trading_capital_config(
+    payload: CapitalConfigPayload,
+    session: Session = Depends(require_operator),
+) -> dict[str, Any]:
+    """Sets initial working capital and leverage multiplier for futures position sizing."""
+    if payload.capital_usdt < 20.0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Capital must be at least 20.0 USDT so each instrument leg satisfies Bitget 5 USDT minimum notional.",
+        )
+    if payload.leverage < 1.0 or payload.leverage > 10.0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Leverage multiplier must be between 1.0x and 10.0x.",
+        )
+
+    from quantdesk.strategies.live_runner import autonomous_live_engine
+
+    return autonomous_live_engine.update_capital_config(
+        capital_usdt=payload.capital_usdt,
+        leverage=payload.leverage,
+    )
+

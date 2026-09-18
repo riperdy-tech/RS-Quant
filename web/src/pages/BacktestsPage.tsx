@@ -22,7 +22,7 @@ export const BacktestsPage: React.FC = () => {
   const [selectedRun, setSelectedRun] = useState<any | null>(null);
 
   // Form State
-  const [strategyId, setStrategyId] = useState('imbalance-btc');
+  const [strategyId, setStrategyId] = useState('unified-btc');
   const [datasetId, setDatasetId] = useState('ds-btc-2024-q1');
   const [initialCash, setInitialCash] = useState(10000);
 
@@ -159,6 +159,10 @@ export const BacktestsPage: React.FC = () => {
                 onChange={(e) => setStrategyId(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
+                <option value="unified-btc">unified-btc (Unified Agentic Alpha Engine)</option>
+                <option value="unified-eth">unified-eth (Unified Agentic Alpha Engine)</option>
+                <option value="curated-btc">curated-btc (Curated 12-Factor Pine Ensemble)</option>
+                <option value="curated-eth">curated-eth (Curated 12-Factor Pine Ensemble)</option>
                 <option value="imbalance-btc">imbalance-btc (Order Book Imbalance)</option>
                 <option value="momentum-btc">momentum-btc (Momentum Breakout)</option>
                 <option value="mean-reversion-eth">mean-reversion-eth (Mean Reversion)</option>
