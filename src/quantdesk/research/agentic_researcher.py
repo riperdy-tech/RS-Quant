@@ -17,6 +17,7 @@ import time
 from typing import Any
 
 from quantdesk.research.attribution_analyzer import LossAttributionAnalyzer
+from quantdesk.research.llm_research_client import LLMResearchClient, shared_llm_client
 from quantdesk.research.sandbox_validator import SandboxValidator, ValidationVerdict
 from quantdesk.strategies.unified_agentic import TradeEpisode, UnifiedAgenticAlphaEngine
 
@@ -33,6 +34,8 @@ class ResearchHypothesis:
     baseline_value: Any
     proposed_value: Any
     rationale: str
+    model_used: str = "offline"
+    latency_ms: int = 0
     verdict: ValidationVerdict | None = None
     status: str = "PENDING_VALIDATION"  # PENDING_VALIDATION, PROMOTED, REJECTED
 
@@ -40,10 +43,15 @@ class ResearchHypothesis:
 class AgenticResearchLoop:
     """Coordinates autonomous post-mortems, sandbox verification, and parameter promotion."""
 
-    def __init__(self, instrument_id: str) -> None:
+    def __init__(
+        self,
+        instrument_id: str,
+        llm_client: LLMResearchClient | None = None,
+    ) -> None:
         self.instrument_id = instrument_id
         self.attribution_analyzer = LossAttributionAnalyzer(instrument_id)
         self.sandbox_validator = SandboxValidator(instrument_id)
+        self.llm_client = llm_client or shared_llm_client
         self.hypotheses: list[ResearchHypothesis] = []
         self.last_research_run_ns: int = 0
         self.total_hypotheses_evaluated: int = 0
@@ -64,6 +72,8 @@ class AgenticResearchLoop:
             baseline_value=0.55,
             proposed_value=0.35,
             rationale="Baseline tuning: Relaxed static conviction threshold to 0.35 to empower 10-indicator autoregressive weighting.",
+            model_used="system:bootstrap",
+            latency_ms=0,
             status="PROMOTED",
         )
         self.hypotheses.append(h)
@@ -82,49 +92,40 @@ class AgenticResearchLoop:
 
         # 1. Run Attribution Analysis
         diagnosis = self.attribution_analyzer.analyze(episodes)
-        leak = diagnosis.get("top_alpha_leak")
 
-        # Propose mutation based on diagnostic findings
-        target_param = "volatility_hurdle_bps"
-        base_val = engine.params.volatility_hurdle_bps
-        prop_val = base_val + 1.5
-        rationale = diagnosis.get("recommended_hypothesis", "Standard recursive optimization cycle.")
+        base_params = {
+            "conviction_threshold": float(engine.params.conviction_threshold),
+            "volatility_hurdle_bps": float(engine.params.volatility_hurdle_bps),
+            "atr_target_mult": float(engine.params.atr_target_mult),
+            "depth5_threshold": float(engine.params.depth5_threshold),
+        }
 
-        if leak == "FEE_DRAG_LOSS":
-            target_param = "atr_target_mult"
-            base_val = float(engine.params.atr_target_mult)
-            prop_val = round(base_val + 0.3, 2)
-            rationale = "Widening profit target multiplier to escape exchange fee drag friction."
-        elif leak == "RAPID_STOP_CHOP":
-            target_param = "depth5_threshold"
-            base_val = engine.params.depth5_threshold
-            prop_val = round(min(0.60, base_val + 0.05), 2)
-            rationale = "Elevating order book depth imbalance threshold to filter whip-saws."
-        elif leak == "ALPHA_SCRATCH":
-            target_param = "conviction_threshold"
-            base_val = engine.params.conviction_threshold
-            prop_val = round(min(0.50, base_val + 0.05), 2)
-            rationale = "Raising conviction hurdle to ensure stronger initial momentum follow-through."
+        # 2. Formulate intelligent hypothesis via LLM Research Client (DeepSeek / Gemini / Rule fallback)
+        proposal = self.llm_client.generate_hypothesis(
+            instrument_id=self.instrument_id,
+            diagnosis_report=diagnosis,
+            current_parameters=base_params,
+            rolling_ic=getattr(engine, "rolling_ic", None),
+        )
+        target_param = proposal.target_parameter
+        prop_val = proposal.proposed_value
+        base_val = base_params.get(target_param, 0.0)
 
         hypo_id = f"hypo-{now_ns}"
         hypo = ResearchHypothesis(
             hypothesis_id=hypo_id,
             timestamp_ns=now_ns,
             instrument_id=self.instrument_id,
-            trigger_diagnosis=leak or "ROUTINE_VARIANCE",
+            trigger_diagnosis=diagnosis.get("top_alpha_leak") or "ROUTINE_VARIANCE",
             target_parameter=target_param,
             baseline_value=base_val,
             proposed_value=prop_val,
-            rationale=rationale,
+            rationale=proposal.rationale,
+            model_used=proposal.model_used,
+            latency_ms=proposal.latency_ms,
         )
 
-        # 2. Run Isolated Sandbox Validation against Historical Bars
-        base_params = {
-            "conviction_threshold": engine.params.conviction_threshold,
-            "volatility_hurdle_bps": engine.params.volatility_hurdle_bps,
-            "atr_target_mult": float(engine.params.atr_target_mult),
-            "depth5_threshold": engine.params.depth5_threshold,
-        }
+        # 3. Run Isolated Sandbox Validation against Historical Bars
         cand_params = dict(base_params)
         cand_params[target_param] = prop_val
 
@@ -132,7 +133,7 @@ class AgenticResearchLoop:
         hypo.verdict = verdict
         self.total_hypotheses_evaluated += 1
 
-        # 3. Apply Institutional Risk Gates Decision
+        # 4. Apply Institutional Risk Gates Decision
         if verdict.approved:
             hypo.status = "PROMOTED"
             self.total_promoted += 1
@@ -147,14 +148,14 @@ class AgenticResearchLoop:
                 engine.params.depth5_threshold = float(prop_val)
 
             logger.info(
-                f"Agentic Researcher PROMOTED mutation for {self.instrument_id}: "
+                f"Agentic Researcher PROMOTED mutation for {self.instrument_id} via {proposal.model_used}: "
                 f"{target_param} {base_val} -> {prop_val} | Status={verdict.status}"
             )
         else:
             hypo.status = "REJECTED"
             self.total_rejected += 1
             logger.info(
-                f"Agentic Researcher REJECTED mutation for {self.instrument_id}: "
+                f"Agentic Researcher REJECTED mutation for {self.instrument_id} via {proposal.model_used}: "
                 f"{target_param} {base_val} -> {prop_val} | Status={verdict.status}"
             )
 
@@ -179,6 +180,8 @@ class AgenticResearchLoop:
                     "baseline_value": h.baseline_value,
                     "proposed_value": h.proposed_value,
                     "rationale": h.rationale,
+                    "model_used": h.model_used,
+                    "latency_ms": h.latency_ms,
                     "status": h.status,
                     "verdict": {
                         "approved": h.verdict.approved,

@@ -4,6 +4,7 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 from quantdesk.api.auth import Session, require_viewer
 from quantdesk.api.commands import durable_inbox
@@ -381,6 +382,38 @@ def trigger_agentic_research(
         "target_parameter": hypo.target_parameter if hypo else None,
         "proposed_value": hypo.proposed_value if hypo else None,
         "rationale": hypo.rationale if hypo else None,
+        "model_used": hypo.model_used if hypo else None,
+        "latency_ms": hypo.latency_ms if hypo else None,
     }
+
+
+class LLMConfigRequest(BaseModel):
+    provider: str  # "deepseek", "gemini", or "offline"
+    api_key: str | None = None
+    model: str | None = None
+
+
+@router.get("/agentic/llm-config")
+def get_llm_config(
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Returns active AI reasoning provider configuration and credentials status."""
+    from quantdesk.research.llm_research_client import shared_llm_client
+    return shared_llm_client.get_status()
+
+
+@router.post("/agentic/llm-config")
+def update_llm_config(
+    req: LLMConfigRequest,
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Updates active AI reasoning provider, credentials, or model live."""
+    from quantdesk.research.llm_research_client import shared_llm_client
+    return shared_llm_client.update_config(
+        provider=req.provider,
+        api_key=req.api_key,
+        model=req.model,
+    )
+
 
 

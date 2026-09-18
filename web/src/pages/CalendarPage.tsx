@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
+  Bot,
   Calendar,
+  Check,
   CheckCircle2,
   Clock,
   Compass,
@@ -11,9 +13,11 @@ import {
   ExternalLink,
   Flame,
   Globe,
+  Key,
   Layers,
   Play,
   RefreshCw,
+  Save,
   Shield,
   ShieldAlert,
   Sparkles,
@@ -44,6 +48,16 @@ export const CalendarPage: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState<'BTCUSDT' | 'ETHUSDT'>('BTCUSDT');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [researchNotice, setResearchNotice] = useState<string | null>(null);
+
+  // Tier 3 Autonomous LLM Connector state
+  const [llmConfig, setLlmConfig] = useState<any>(null);
+  const [activeTabProvider, setActiveTabProvider] = useState<'deepseek' | 'gemini' | 'offline'>('deepseek');
+  const [deepseekKeyInput, setDeepseekKeyInput] = useState('');
+  const [geminiKeyInput, setGeminiKeyInput] = useState('');
+  const [deepseekModel, setDeepseekModel] = useState('deepseek-chat');
+  const [geminiModel, setGeminiModel] = useState('gemini-1.5-flash');
+  const [isSavingLLM, setIsSavingLLM] = useState(false);
+  const [llmFeedback, setLlmFeedback] = useState<string | null>(null);
 
   // Sample curated institutional high-impact macroeconomic calendar
   const events: MacroEvent[] = [
@@ -113,18 +127,58 @@ export const CalendarPage: React.FC = () => {
   const fetchData = async () => {
     setIsRefreshing(true);
     try {
-      const [radarRes, resStatus, pmRes] = await Promise.all([
+      const [radarRes, resStatus, pmRes, llmRes] = await Promise.all([
         fetch('/api/v1/trading/macro-radar').then((r) => (r.ok ? r.json() : null)),
         fetch(`/api/v1/agentic/research-status?symbol=${selectedSymbol}`).then((r) => (r.ok ? r.json() : null)),
         fetch(`/api/v1/agentic/post-mortem?symbol=${selectedSymbol}`).then((r) => (r.ok ? r.json() : null)),
+        fetch('/api/v1/agentic/llm-config').then((r) => (r.ok ? r.json() : null)),
       ]);
       setMacroRadar(radarRes);
       setResearchStatus(resStatus);
       setPostMortem(pmRes);
+      if (llmRes) {
+        setLlmConfig(llmRes);
+        if (llmRes.deepseek?.model) setDeepseekModel(llmRes.deepseek.model);
+        if (llmRes.gemini?.model) setGeminiModel(llmRes.gemini.model);
+      }
     } catch {
       // Ignored
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const handleSaveLLM = async (provider: 'deepseek' | 'gemini' | 'offline') => {
+    setIsSavingLLM(true);
+    setLlmFeedback(null);
+    try {
+      const payload: any = { provider };
+      if (provider === 'deepseek') {
+        if (deepseekKeyInput.trim()) payload.api_key = deepseekKeyInput.trim();
+        payload.model = deepseekModel;
+      } else if (provider === 'gemini') {
+        if (geminiKeyInput.trim()) payload.api_key = geminiKeyInput.trim();
+        payload.model = geminiModel;
+      }
+      const res = await fetch('/api/v1/agentic/llm-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLlmConfig(data);
+        setLlmFeedback(`Successfully activated ${provider.toUpperCase()}`);
+        setDeepseekKeyInput('');
+        setGeminiKeyInput('');
+      } else {
+        setLlmFeedback('Failed to update AI configuration');
+      }
+    } catch (e: any) {
+      setLlmFeedback(`Configuration error: ${e.message}`);
+    } finally {
+      setIsSavingLLM(false);
+      setTimeout(() => setLlmFeedback(null), 5000);
     }
   };
 
@@ -140,7 +194,7 @@ export const CalendarPage: React.FC = () => {
         method: 'POST',
       });
       const data = await res.json();
-      setResearchNotice(`Research cycle executed: ${data.target_parameter || 'No parameter'} -> Verdict: ${data.verdict}`);
+      setResearchNotice(`Research cycle completed: ${data.target_parameter || 'No parameter'} -> Verdict: ${data.verdict} (${data.model_used || 'rule'})`);
       fetchData();
       setTimeout(() => setResearchNotice(null), 6000);
     } catch (e: any) {
@@ -452,6 +506,186 @@ export const CalendarPage: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Tier 3 AI Autonomous Reasoning Connector (DeepSeek & Gemini) */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4">
+            <div className="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+              <span className="font-bold text-xs uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Bot className="w-4 h-4 text-indigo-500" /> Tier 3 AI Research Connector
+              </span>
+              <span className={`px-2 py-0.5 text-[10px] font-bold rounded font-mono ${
+                llmConfig?.active_provider === 'deepseek'
+                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                  : llmConfig?.active_provider === 'gemini'
+                  ? 'bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300'
+                  : 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+              }`}>
+                {llmConfig?.active_provider === 'deepseek' && 'ONLINE (DeepSeek)'}
+                {llmConfig?.active_provider === 'gemini' && 'ONLINE (Gemini)'}
+                {(!llmConfig?.active_provider || llmConfig?.active_provider === 'offline') && 'OFFLINE (Rule Engine)'}
+              </span>
+            </div>
+
+            {/* Provider Tabs */}
+            <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/60 rounded-lg mb-3">
+              <button
+                type="button"
+                onClick={() => setActiveTabProvider('deepseek')}
+                className={`py-1 text-[11px] font-bold rounded-md transition-all ${
+                  activeTabProvider === 'deepseek'
+                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                DeepSeek
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTabProvider('gemini')}
+                className={`py-1 text-[11px] font-bold rounded-md transition-all ${
+                  activeTabProvider === 'gemini'
+                    ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                Google Gemini
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTabProvider('offline')}
+                className={`py-1 text-[11px] font-bold rounded-md transition-all ${
+                  activeTabProvider === 'offline'
+                    ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                Offline Rules
+              </button>
+            </div>
+
+            {/* Tab Details */}
+            {activeTabProvider === 'deepseek' && (
+              <div className="space-y-2.5 text-xs">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                      <Key className="w-3 h-3 text-slate-400" /> DeepSeek API Key
+                    </label>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {llmConfig?.deepseek?.configured
+                        ? `Active: ${llmConfig.deepseek.key_preview}`
+                        : 'Not Configured'}
+                    </span>
+                  </div>
+                  <input
+                    type="password"
+                    placeholder="Enter sk-..."
+                    value={deepseekKeyInput}
+                    onChange={(e) => setDeepseekKeyInput(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 block mb-1">
+                    Model Target
+                  </label>
+                  <select
+                    value={deepseekModel}
+                    onChange={(e) => setDeepseekModel(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="deepseek-chat">deepseek-chat (V3 / V4.1 Flash)</option>
+                    <option value="deepseek-reasoner">deepseek-reasoner (R1 Quantitative)</option>
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isSavingLLM}
+                  onClick={() => handleSaveLLM('deepseek')}
+                  className="w-full mt-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-sm disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {isSavingLLM ? 'Activating...' : 'Activate DeepSeek Provider'}
+                </button>
+              </div>
+            )}
+
+            {activeTabProvider === 'gemini' && (
+              <div className="space-y-2.5 text-xs">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                      <Key className="w-3 h-3 text-slate-400" /> Gemini API Key
+                    </label>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {llmConfig?.gemini?.configured
+                        ? `Active: ${llmConfig.gemini.key_preview}`
+                        : 'Not Configured'}
+                    </span>
+                  </div>
+                  <input
+                    type="password"
+                    placeholder="Enter AIzaSy..."
+                    value={geminiKeyInput}
+                    onChange={(e) => setGeminiKeyInput(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-medium text-slate-600 dark:text-slate-400 block mb-1">
+                    Model Target
+                  </label>
+                  <select
+                    value={geminiModel}
+                    onChange={(e) => setGeminiModel(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  >
+                    <option value="gemini-1.5-flash">gemini-1.5-flash (Free Tier / High Speed)</option>
+                    <option value="gemini-2.0-flash">gemini-2.0-flash (Next-Gen Low Latency)</option>
+                    <option value="gemini-1.5-pro">gemini-1.5-pro (High Precision PM Reasoning)</option>
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isSavingLLM}
+                  onClick={() => handleSaveLLM('gemini')}
+                  className="w-full mt-2 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-sm disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {isSavingLLM ? 'Activating...' : 'Activate Gemini Provider'}
+                </button>
+              </div>
+            )}
+
+            {activeTabProvider === 'offline' && (
+              <div className="space-y-2 text-xs">
+                <div className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-slate-600 dark:text-slate-400">
+                  <p className="text-[11px] leading-relaxed">
+                    Deterministic offline rule fallback. Generates microstructural parameter adjustments using local heuristic formulas without making external network calls.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={isSavingLLM}
+                  onClick={() => handleSaveLLM('offline')}
+                  className="w-full mt-2 py-1.5 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-700 dark:hover:bg-slate-600 font-semibold text-xs rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-sm disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {isSavingLLM ? 'Activating...' : 'Switch to Offline Rule Mode'}
+                </button>
+              </div>
+            )}
+
+            {llmFeedback && (
+              <div className="mt-2.5 p-2 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-center">
+                {llmFeedback}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -474,6 +708,7 @@ export const CalendarPage: React.FC = () => {
             <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 font-semibold border-b border-slate-100 dark:border-slate-800">
               <tr>
                 <th className="py-3 px-4">Hypothesis ID</th>
+                <th className="py-3 px-4">AI Reasoner</th>
                 <th className="py-3 px-4">Diagnosis Trigger</th>
                 <th className="py-3 px-4">Target Parameter</th>
                 <th className="py-3 px-4">Baseline → Proposed</th>
@@ -485,7 +720,7 @@ export const CalendarPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
               {!researchStatus?.recent_hypotheses || researchStatus.recent_hypotheses.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-slate-400">
+                  <td colSpan={8} className="py-6 text-center text-slate-400">
                     No research hypotheses logged yet.
                   </td>
                 </tr>
@@ -493,6 +728,22 @@ export const CalendarPage: React.FC = () => {
                 researchStatus.recent_hypotheses.map((h: any) => (
                   <tr key={h.hypothesis_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                     <td className="py-3 px-4 text-indigo-600 font-bold">{h.hypothesis_id}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          h.model_used?.startsWith('deepseek')
+                            ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                            : h.model_used?.startsWith('gemini')
+                            ? 'bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300'
+                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                        }`}>
+                          {h.model_used || 'system'}
+                        </span>
+                        {h.latency_ms > 0 && (
+                          <span className="text-slate-400 text-[10px]">{h.latency_ms}ms</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-3 px-4 font-sans">{h.trigger_diagnosis}</td>
                     <td className="py-3 px-4 font-bold text-slate-900 dark:text-slate-100">{h.target_parameter}</td>
                     <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
