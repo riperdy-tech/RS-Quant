@@ -923,6 +923,8 @@ class AutonomousLiveEngine:
             "filled_qty": str(qty_units),
             "status": "FILLED",
             "created_at_ns": now_ns,
+            "created_ns": now_ns,
+            "timestamp_ns": now_ns,
         }
         self.orders.appendleft(order_record)
 
@@ -1280,10 +1282,27 @@ class AutonomousLiveEngine:
     # Read Model Queries for Control API (§15.2)
 
     def get_positions(self) -> list[dict[str, Any]]:
-        return list(self.positions.values())
+        result = []
+        for p in self.positions.values():
+            d = dict(p)
+            ts = d.get("timestamp_ns") or d.get("entry_time_ns")
+            if ts:
+                d["timestamp_ns"] = ts
+                d["entry_time_ns"] = ts
+            result.append(d)
+        return result
 
     def get_orders(self) -> list[dict[str, Any]]:
-        return list(self.orders)
+        result = []
+        for o in self.orders:
+            d = dict(o)
+            ts = d.get("created_at_ns") or d.get("timestamp_ns") or d.get("created_ns")
+            if ts:
+                d["created_at_ns"] = ts
+                d["created_ns"] = ts
+                d["timestamp_ns"] = ts
+            result.append(d)
+        return result
 
     def get_fills(self) -> list[dict[str, Any]]:
         return list(self.fills)

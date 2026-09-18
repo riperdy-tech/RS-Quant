@@ -881,9 +881,9 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
                       </span>
                     </td>
                     <td className="py-3 px-4 font-mono text-xs">
-                      <span>{formatTimestampWithElapsed(pos.entry_time_ns, pos.timestamp_ms).timeStr}</span>
+                      <span>{formatTimestampWithElapsed(pos.entry_time_ns || pos.timestamp_ns, pos.timestamp_ms).timeStr}</span>
                       <span className="text-[10px] text-slate-400 block font-sans">
-                        {formatTimestampWithElapsed(pos.entry_time_ns, pos.timestamp_ms).elapsedStr || `${pos.hold_time_s || 0}s held`}
+                        {formatTimestampWithElapsed(pos.entry_time_ns || pos.timestamp_ns, pos.timestamp_ms).elapsedStr || `${pos.hold_time_s || 0}s held`}
                       </span>
                     </td>
                     <td className="py-3 px-4 font-mono font-medium">{pos.units || pos.lots}</td>
@@ -1034,9 +1034,9 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
                     <tr key={ord.order_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                       <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-300">{ord.order_id}</td>
                       <td className="py-3 px-4 font-mono text-xs">
-                        <span>{formatTimestampWithElapsed(ord.created_ns || ord.timestamp_ns, ord.ts_ms).timeStr}</span>
+                        <span>{formatTimestampWithElapsed(ord.created_at_ns || ord.created_ns || ord.timestamp_ns, ord.ts_ms).timeStr}</span>
                         <span className="text-[10px] text-slate-400 block font-sans">
-                          {formatTimestampWithElapsed(ord.created_ns || ord.timestamp_ns, ord.ts_ms).elapsedStr}
+                          {formatTimestampWithElapsed(ord.created_at_ns || ord.created_ns || ord.timestamp_ns, ord.ts_ms).elapsedStr}
                         </span>
                       </td>
                       <td className="py-3 px-4 font-semibold text-indigo-600 dark:text-indigo-400">{ord.strategy_id}</td>
