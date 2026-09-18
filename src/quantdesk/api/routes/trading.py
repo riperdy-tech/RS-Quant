@@ -305,3 +305,82 @@ def refresh_macro_radar(
     return autonomous_live_engine.refresh_macro_radar(walcl=walcl, tga=tga, rrp=rrp, usdt_d=usdt_d)
 
 
+@router.get("/agentic/research-status")
+def get_agentic_research_status(
+    symbol: str = "BTCUSDT",
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Returns Tier 3 Autonomous Researcher status, hypotheses, and sandbox validations."""
+    from quantdesk.research.agentic_researcher import research_loops
+    loop = research_loops.get(symbol, research_loops.get("BTCUSDT"))
+    if not loop:
+        return {"error": f"Research loop for {symbol} not found"}
+    return loop.get_status()
+
+
+@router.get("/agentic/post-mortem")
+def get_agentic_post_mortem(
+    symbol: str = "BTCUSDT",
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Returns real-time Loss Attribution clustering and diagnostic failure analysis."""
+    from quantdesk.research.attribution_analyzer import LossAttributionAnalyzer
+    from quantdesk.strategies.live_runner import autonomous_live_engine
+    engine = autonomous_live_engine.unified_engines.get(symbol)
+    if not engine:
+        return {"error": f"Engine for {symbol} not found"}
+    analyzer = LossAttributionAnalyzer(symbol)
+    return analyzer.analyze(list(engine.memory.episodes))
+
+
+@router.post("/agentic/trigger-research")
+def trigger_agentic_research(
+    symbol: str = "BTCUSDT",
+    session: Session = Depends(require_viewer),
+) -> dict[str, Any]:
+    """Manually triggers an autonomous Tier 3 hypothesis formulation and sandbox validation run."""
+    from quantdesk.research.agentic_researcher import research_loops
+    from quantdesk.strategies.live_runner import autonomous_live_engine
+    engine = autonomous_live_engine.unified_engines.get(symbol)
+    if not engine:
+        return {"error": f"Engine for {symbol} not found"}
+    loop = research_loops.get(symbol, research_loops.get("BTCUSDT"))
+    if not loop:
+        return {"error": f"Research loop for {symbol} not found"}
+
+    cur_strat = autonomous_live_engine.curated_ensembles.get(symbol)
+    bars = []
+    if cur_strat and getattr(cur_strat, "_bars_history", None):
+        for b in cur_strat._bars_history[-100:]:
+            bars.append({
+                "close": b.close,
+                "high": b.high,
+                "low": b.low,
+                "atr14": getattr(b, "atr_14", b.close * 0.005) or (b.close * 0.005),
+                "ema7": b.close,
+                "sma15": b.close,
+            })
+    if len(bars) < 30:
+        p = 65000.0 if symbol.startswith("BTC") else 3500.0
+        for i in range(60):
+            p += (10.0 if i % 2 == 0 else -6.0)
+            bars.append({
+                "close": p,
+                "high": p + 15.0,
+                "low": p - 15.0,
+                "atr14": p * 0.004,
+                "ema7": p,
+                "sma15": p - 5.0,
+            })
+
+    hypo = loop.run_research_cycle(engine, bars)
+    return {
+        "status": "RESEARCH_CYCLE_COMPLETED",
+        "hypothesis_id": hypo.hypothesis_id if hypo else None,
+        "verdict": hypo.status if hypo else None,
+        "target_parameter": hypo.target_parameter if hypo else None,
+        "proposed_value": hypo.proposed_value if hypo else None,
+        "rationale": hypo.rationale if hypo else None,
+    }
+
+

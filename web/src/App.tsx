@@ -10,11 +10,9 @@ import { SystemStatus } from './types/api';
 import { HomePage } from './pages/HomePage';
 import { TradingPage } from './pages/TradingPage';
 import { StrategiesPage } from './pages/StrategiesPage';
+import { CalendarPage } from './pages/CalendarPage';
 import { BacktestsPage } from './pages/BacktestsPage';
-import { ModelsPage } from './pages/ModelsPage';
-import { MarketsPage } from './pages/MarketsPage';
 import { RiskPage } from './pages/RiskPage';
-import { DataPage } from './pages/DataPage';
 import { DiagnosticsPage } from './pages/DiagnosticsPage';
 import { SettingsPage } from './pages/SettingsPage';
 
@@ -142,24 +140,16 @@ export function App() {
         <StrategiesPage onOpenCommand={handleOpenCommand} />
       )}
 
+      {(activeTab === 'Calendar' || activeTab === 'Macro Calendar & Radar') && (
+        <CalendarPage />
+      )}
+
       {activeTab === 'Backtests' && (
         <BacktestsPage />
       )}
 
-      {activeTab === 'Models' && (
-        <ModelsPage onOpenCommand={handleOpenCommand} />
-      )}
-
-      {activeTab === 'Markets' && (
-        <MarketsPage />
-      )}
-
       {activeTab === 'Risk' && (
         <RiskPage onOpenCommand={handleOpenCommand} isViewer={isViewer} />
-      )}
-
-      {activeTab === 'Data' && (
-        <DataPage onOpenCommand={handleOpenCommand} />
       )}
 
       {(activeTab === 'Diagnostics' || activeTab === 'Logs & Diagnostics') && (

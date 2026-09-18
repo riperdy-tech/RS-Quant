@@ -512,11 +512,11 @@ class AutonomousLiveEngine:
         if inbox.emergency_halted:
             return
 
-        # 1. Legacy Imbalance Scalper (Guarded by DurableInbox status, default PAUSED)
+        # 1. Legacy Imbalance Scalper (Observation Only - Sole Execution Authority is Unified Engine)
         strat_key = f"imbalance-{symbol[:3].lower()}"
         strat_state = inbox.strategy_states.get(strat_key, "PAUSED")
         strat = self.imbalance_scalpers.get(symbol)
-        if strat and strat_state == "RUNNING":
+        if strat:
             # Synchronize live adaptive strategy parameters for THIS specific symbol
             params = self.instrument_params.setdefault(symbol, {
                 "maker_only_mode": True,
@@ -556,19 +556,7 @@ class AutonomousLiveEngine:
                         "action": "RESUME_STANDARD_DISCIPLINE",
                     })
 
-            intents = strat.on_event(env, {"features": features})
-            if intents:
-                for intent in intents:
-                    # Volatility Fee Hurdle Gate
-                    if intent.action == IntentAction.ENTER:
-                        atr = features.get("atr14")
-                        if atr is not None and mid and mid > 0:
-                            vol_bps = (float(atr) / float(mid)) * 10000.0
-                            if vol_bps < 12.0:
-                                continue
-                    self._execute_intent(intent, bids, asks, now_ns)
-
-        # 2. Autonomous Unified Agentic Alpha Engine evaluation (§15.2)
+        # 2. Autonomous Unified Agentic Alpha Engine evaluation (§15.2 - Sole Execution Authority)
         unified_key = f"unified-{symbol[:3].lower()}"
         unified_state = inbox.strategy_states.get(unified_key, "RUNNING")
         u_engine = self.unified_engines.get(symbol)
@@ -578,22 +566,26 @@ class AutonomousLiveEngine:
             if cur_strat and cur_strat.latest_bar_state:
                 st = cur_strat.latest_bar_state
                 u_features["consensus_score"] = st.raw_score
-                # Use live tactical squeeze/mcginley from fe if available, fallback to macro
-                if "squeeze_color" not in u_features or not u_features["squeeze_color"]:
-                    u_features["squeeze_color"] = st.squeeze_color.value
-                if "mcginley_value" not in u_features or not u_features["mcginley_value"]:
-                    u_features["mcginley_value"] = st.mcginley_value
+                # Wire continuous indicator values for active autoregressive conviction scoring
+                u_features["rqk_value"] = getattr(st, "rqk_value", None)
+                u_features["rqk_trend"] = st.rqk_trend
+                u_features["mcginley_value"] = getattr(st, "mcginley_value", None)
+                u_features["mcginley_trend"] = st.mcginley_trend
+                u_features["squeeze_val"] = getattr(st, "squeeze_val", 0.0)
+                u_features["squeeze_color"] = st.squeeze_color.value if hasattr(st.squeeze_color, "value") else str(st.squeeze_color)
+                u_features["cmf_value"] = getattr(st, "cmf_value", None)
+                u_features["cmf_trend"] = st.cmf_trend
+                u_features["stc_value"] = getattr(st, "stc_value", 50.0)
+                u_features["stc_trend"] = st.stc_trend
+                u_features["qqe_line"] = getattr(st, "qqe_line", 0.0)
+                u_features["qqe_trend"] = st.qqe_trend
+                u_features["adx_value"] = getattr(st, "adx_value", 20.0)
+                u_features["adx_trend"] = st.adx_trend
                 u_features["chandelier_long_stop"] = st.long_stop
                 u_features["chandelier_short_stop"] = st.short_stop
-                u_features["rqk_trend"] = st.rqk_trend
-                u_features["mcginley_trend"] = st.mcginley_trend
-                u_features["cmf_trend"] = st.cmf_trend
-                u_features["cmf_value"] = getattr(st, "cmf_value", None)
-                u_features["stc_trend"] = st.stc_trend
-                u_features["qqe_trend"] = st.qqe_trend
-                u_features["adx_trend"] = st.adx_trend
                 u_features["chandelier_dir"] = st.chandelier_dir
                 u_features["volume_delta"] = getattr(st, "volume_delta", None)
+                u_features["volume_ratio"] = getattr(st, "volume_ratio", 1.0)
                 u_features["donchian_high"] = getattr(st, "donchian_high", None)
                 u_features["donchian_low"] = getattr(st, "donchian_low", None)
                 if st.atr_14 and st.atr_14 > 0:
@@ -705,26 +697,10 @@ class AutonomousLiveEngine:
             fe.update(bar_env)
 
             # Evaluate momentum strategy (Guarded by DurableInbox status, default PAUSED)
-            mom_strat = self.momentum_strategies.get(symbol)
-            inbox = _get_durable_inbox()
-            strat_key = f"momentum-{symbol[:3].lower()}"
-            strat_state = inbox.strategy_states.get(strat_key, "PAUSED")
-            if mom_strat and strat_state == "RUNNING" and not inbox.emergency_halted:
-                features = {name: fv.value for name, fv in fe._features.items()}
-                intents = mom_strat.on_event(bar_env, {"features": features})
-                if intents:
-                    for intent in intents:
-                        # Fetch latest book for execution
-                        from quantdesk.venues.bitget_uta.live_feed import live_feed_service
-                        book = live_feed_service.get_order_book(symbol)
-                        self._execute_intent(intent, book.get("bids", []), book.get("asks", []), now_ns)
-
-            # Evaluate Curated 12-Factor Multi-Timeframe Strategy (2H macro bars)
+            # Update Curated 12-Factor Multi-Timeframe Strategy for feature extraction
             curated_strat = self.curated_ensembles.get(symbol)
-            curated_key = f"curated-{symbol[:3].lower()}"
-            curated_state = inbox.strategy_states.get(curated_key, "RUNNING")
-            if curated_strat and curated_state == "RUNNING" and not inbox.emergency_halted:
-                curated_intents = curated_strat.on_event(
+            if curated_strat:
+                curated_strat.on_event(
                     bar_env,
                     {
                         "features": {
@@ -737,11 +713,7 @@ class AutonomousLiveEngine:
                         "equity": float(self.initial_equity + self.realized_pnl),
                     },
                 )
-                if curated_intents:
-                    for c_intent in curated_intents:
-                        from quantdesk.venues.bitget_uta.live_feed import live_feed_service
-                        book = live_feed_service.get_order_book(symbol)
-                        self._execute_intent(c_intent, book.get("bids", []), book.get("asks", []), now_ns)
+                # Note: Legacy standalone execution decommissioned; Unified Engine acts as sole execution authority.
 
             # Start new bar
             bar["start_s"] = curr_sec

@@ -90,6 +90,9 @@ export interface PositionItem {
   maintenance_margin: string;
   currency: string;
   timestamp_ns: number;
+  entry_time_ns?: number;
+  hold_time_s?: number;
+  timestamp_ms?: number;
 }
 
 export interface SSEEventEnvelope {
@@ -205,6 +208,13 @@ export interface AgenticStatus {
     total_net_pnl: string;
     recent_attributions: string[];
   };
+  meta_learner?: {
+    last_p_win?: number;
+    total_retrains?: number;
+    replay_buffer_len?: number;
+    last_accuracy?: number;
+  };
+  empirical_macro?: Record<string, any>;
   timestamp_ns: number;
 }
 

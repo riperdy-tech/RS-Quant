@@ -256,6 +256,21 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
   const dynParams = agenticStatus?.dynamic_parameters;
   const weights = dynParams?.indicator_weights || {};
   const memSummary = agenticStatus?.memory_summary;
+  const metaLearner = agenticStatus?.meta_learner;
+  const empiricalMacro = agenticStatus?.empirical_macro;
+
+  const formatTimestampWithElapsed = (timestampNs?: number, timestampMs?: number) => {
+    if (!timestampNs && !timestampMs) return { timeStr: '--:--:--', elapsedStr: '' };
+    const ts = timestampNs ? timestampNs / 1_000_000 : (timestampMs || Date.now());
+    const date = new Date(ts);
+    const timeStr = date.toTimeString().split(' ')[0];
+    const elapsedSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+    let elapsedStr = '';
+    if (elapsedSec < 60) elapsedStr = `${elapsedSec}s ago`;
+    else if (elapsedSec < 3600) elapsedStr = `${Math.floor(elapsedSec / 60)}m ago`;
+    else elapsedStr = `${Math.floor(elapsedSec / 3600)}h ago`;
+    return { timeStr, elapsedStr };
+  };
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -601,9 +616,13 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
                 Self-Learning Autoregressive Indicator Weights ($w_i$) &amp; Rolling Information Coefficients
               </span>
             </div>
-            <div className="flex items-center gap-3 text-[10px] font-mono text-slate-400">
-              <span>Fast Rhythm: Cooldown {dynParams?.entry_cooldown_s ?? 60}s</span>
-              <span>Medium: Rolling 10-Trade IC</span>
+            <div className="flex items-center gap-3 text-[10px] font-mono text-slate-400 flex-wrap">
+              <span className="px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800">
+                P(Win): {metaLearner?.last_p_win ? `${(metaLearner.last_p_win * 100).toFixed(1)}%` : '50.0%'}
+              </span>
+              <span>Online Retrains: {metaLearner?.total_retrains ?? 0}</span>
+              <span>Replay Buffer: {metaLearner?.replay_buffer_len ?? 0}/200</span>
+              <span>Fast Rhythm: Cooldown {dynParams?.entry_cooldown_s ?? 45}s</span>
               <span>Episodes: {memSummary?.total_episodes ?? 0}</span>
             </div>
           </div>
@@ -827,6 +846,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
                 <th className="py-3 px-4">Strategy</th>
                 <th className="py-3 px-4">Instrument</th>
                 <th className="py-3 px-4">Side</th>
+                <th className="py-3 px-4">Entry Time</th>
                 <th className="py-3 px-4">Size</th>
                 <th className="py-3 px-4">Entry Price</th>
                 <th className="py-3 px-4">Live Mark Price</th>
@@ -838,7 +858,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {positions.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-6 text-center text-slate-400 font-mono">
+                  <td colSpan={10} className="py-6 text-center text-slate-400 font-mono">
                     No open positions held. Algorithms in cash / scanning mode.
                   </td>
                 </tr>
@@ -858,6 +878,12 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
                           : 'bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-400'
                       }`}>
                         {pos.side}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 font-mono text-xs">
+                      <span>{formatTimestampWithElapsed(pos.entry_time_ns, pos.timestamp_ms).timeStr}</span>
+                      <span className="text-[10px] text-slate-400 block font-sans">
+                        {formatTimestampWithElapsed(pos.entry_time_ns, pos.timestamp_ms).elapsedStr || `${pos.hold_time_s || 0}s held`}
                       </span>
                     </td>
                     <td className="py-3 px-4 font-mono font-medium">{pos.units || pos.lots}</td>
@@ -912,6 +938,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
               <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 font-semibold border-b border-slate-100 dark:border-slate-800">
                 <tr>
                   <th className="py-3 px-4">Fill ID</th>
+                  <th className="py-3 px-4">Time</th>
                   <th className="py-3 px-4">Side</th>
                   <th className="py-3 px-4">Size</th>
                   <th className="py-3 px-4">Price</th>
@@ -923,7 +950,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {fills.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-slate-400 font-mono">
+                    <td colSpan={8} className="py-6 text-center text-slate-400 font-mono">
                       No fills recorded yet.
                     </td>
                   </tr>
@@ -931,6 +958,12 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
                   fills.slice(0, 10).map((fl) => (
                     <tr key={fl.fill_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                       <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-300">{fl.fill_id}</td>
+                      <td className="py-3 px-4 font-mono text-xs">
+                        <span>{formatTimestampWithElapsed(fl.timestamp_ns, fl.ts_ms).timeStr}</span>
+                        <span className="text-[10px] text-slate-400 block font-sans">
+                          {formatTimestampWithElapsed(fl.timestamp_ns, fl.ts_ms).elapsedStr}
+                        </span>
+                      </td>
                       <td className="py-3 px-4">
                         <span className={`px-2 py-0.5 rounded font-bold uppercase ${
                           fl.side === 'BUY'
@@ -980,6 +1013,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
               <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 font-semibold border-b border-slate-100 dark:border-slate-800">
                 <tr>
                   <th className="py-3 px-4">Order ID</th>
+                  <th className="py-3 px-4">Time</th>
                   <th className="py-3 px-4">Strategy</th>
                   <th className="py-3 px-4">Side</th>
                   <th className="py-3 px-4">Qty</th>
@@ -991,7 +1025,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {orders.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-6 text-center text-slate-400 font-mono">
+                    <td colSpan={8} className="py-6 text-center text-slate-400 font-mono">
                       No orders placed yet.
                     </td>
                   </tr>
@@ -999,6 +1033,12 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
                   orders.slice(0, 10).map((ord) => (
                     <tr key={ord.order_id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                       <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-300">{ord.order_id}</td>
+                      <td className="py-3 px-4 font-mono text-xs">
+                        <span>{formatTimestampWithElapsed(ord.created_ns || ord.timestamp_ns, ord.ts_ms).timeStr}</span>
+                        <span className="text-[10px] text-slate-400 block font-sans">
+                          {formatTimestampWithElapsed(ord.created_ns || ord.timestamp_ns, ord.ts_ms).elapsedStr}
+                        </span>
+                      </td>
                       <td className="py-3 px-4 font-semibold text-indigo-600 dark:text-indigo-400">{ord.strategy_id}</td>
                       <td className="py-3 px-4">
                         <span className={`px-2 py-0.5 rounded font-bold uppercase ${
