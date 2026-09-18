@@ -11,6 +11,7 @@ from enum import StrEnum
 import json
 import logging
 import os
+from pathlib import Path
 import time
 from typing import Any
 
@@ -20,6 +21,32 @@ import httpx
 load_dotenv()
 
 logger = logging.getLogger("quantdesk.llm_research_client")
+
+
+def _persist_to_env(key: str, value: str) -> None:
+    """Safely writes or updates configuration parameter in .env file."""
+    try:
+        env_path = Path(".env")
+        if not env_path.exists():
+            env_path.write_text(f"{key}={value}\n", encoding="utf-8")
+            return
+
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+        found = False
+        new_lines = []
+        for line in lines:
+            if line.strip().startswith(f"{key}="):
+                new_lines.append(f"{key}={value}")
+                found = True
+            else:
+                new_lines.append(line)
+        if not found:
+            new_lines.append(f"{key}={value}")
+
+        env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    except Exception as e:
+        logger.warning("Could not persist %s to .env: %s", key, e)
+
 
 # Strict institutional parameter bounds to prevent LLM hallucination
 ALLOWED_PARAMETER_BOUNDS: dict[str, tuple[float, float]] = {
@@ -89,21 +116,26 @@ class LLMResearchClient:
             if api_key is not None:
                 self.deepseek_api_key = api_key.strip()
                 os.environ["DEEPSEEK_API_KEY"] = self.deepseek_api_key
+                _persist_to_env("DEEPSEEK_API_KEY", self.deepseek_api_key)
             if model:
                 self.deepseek_model = model.strip()
                 os.environ["DEEPSEEK_MODEL"] = self.deepseek_model
+                _persist_to_env("DEEPSEEK_MODEL", self.deepseek_model)
         elif prov == "gemini":
             self.provider = LLMProvider.GEMINI
             if api_key is not None:
                 self.gemini_api_key = api_key.strip()
                 os.environ["GEMINI_API_KEY"] = self.gemini_api_key
+                _persist_to_env("GEMINI_API_KEY", self.gemini_api_key)
             if model:
                 self.gemini_model = model.strip()
                 os.environ["GEMINI_MODEL"] = self.gemini_model
+                _persist_to_env("GEMINI_MODEL", self.gemini_model)
         else:
             self.provider = LLMProvider.OFFLINE
 
         os.environ["AI_RESEARCH_PROVIDER"] = self.provider.value
+        _persist_to_env("AI_RESEARCH_PROVIDER", self.provider.value)
         logger.info(
             "LLM Research Client updated: provider=%s, deepseek_configured=%s, gemini_configured=%s",
             self.provider.value,

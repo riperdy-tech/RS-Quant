@@ -114,6 +114,13 @@ class OnlineMetaLearner:
 
     def predict_win_probability(self, features: list[float]) -> float:
         """Predicts probability P(Win | Microstructure) in range [0.0, 1.0]."""
+        # Cold-Start Calibration: Prior to collecting min_train_episodes (10 real trades),
+        # return an uninhibited positive prior (0.55) so candidate entries that satisfy
+        # the 3 upstream institutional gates (Macro Compass, 10-Indicator Conviction, L2 Depth-5 Sniper)
+        # can execute and populate the streaming replay buffer for real model training.
+        if len(self.replay_buffer) < self.min_train_episodes:
+            return 0.55
+
         if self.model is None:
             return 0.50
         x_arr = np.array([features], dtype=np.float32)
