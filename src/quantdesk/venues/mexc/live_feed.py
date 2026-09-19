@@ -78,10 +78,11 @@ class MEXCLiveFeedService:
                     backoff = 1.0
                     logger.info("Connected to MEXC live WebSocket.")
 
-                    # Subscribe to sub.depth, sub.deal, and sub.funding.rate for each symbol
+                    # Subscribe to sub.depth.full, sub.ticker, sub.deal, sub.funding.rate, sub.kline
                     for sym in self.symbols:
                         mexc_sym = to_mexc_symbol(sym)
-                        await ws.send(json.dumps({"method": "sub.depth", "param": {"symbol": mexc_sym}}))
+                        await ws.send(json.dumps({"method": "sub.depth.full", "param": {"symbol": mexc_sym, "limit": 20}}))
+                        await ws.send(json.dumps({"method": "sub.ticker", "param": {"symbol": mexc_sym}}))
                         await ws.send(json.dumps({"method": "sub.deal", "param": {"symbol": mexc_sym}}))
                         await ws.send(json.dumps({"method": "sub.funding.rate", "param": {"symbol": mexc_sym}}))
                         await ws.send(json.dumps({"method": "sub.kline", "param": {"symbol": mexc_sym, "interval": "Min1"}}))
@@ -139,14 +140,18 @@ class MEXCLiveFeedService:
         now_ns = time.time_ns()
         from quantdesk.strategies.live_runner import autonomous_live_engine
 
-        if channel == "push.depth":
+        if channel in ("push.depth", "push.depth.full"):
             data = msg.get("data", {})
             bids_raw = data.get("bids", [])
             asks_raw = data.get("asks", [])
 
+            # Strictly sort: bids DESCENDING (highest price first), asks ASCENDING (lowest price first)
+            sorted_bids = sorted(bids_raw, key=lambda x: float(x[0]), reverse=True)
+            sorted_asks = sorted(asks_raw, key=lambda x: float(x[0]), reverse=False)
+
             # Format to [[price, qty], ...]
-            formatted_bids = [[str(b[0]), str(b[1])] for b in bids_raw[:15]]
-            formatted_asks = [[str(a[0]), str(a[1])] for a in asks_raw[:15]]
+            formatted_bids = [[str(b[0]), str(b[1])] for b in sorted_bids[:15]]
+            formatted_asks = [[str(a[0]), str(a[1])] for a in sorted_asks[:15]]
 
             self.order_books[inst_id] = {"bids": formatted_bids, "asks": formatted_asks}
 
@@ -170,6 +175,24 @@ class MEXCLiveFeedService:
                 payload={"type": "DEPTH", "data": {"symbol": inst_id, "bids": formatted_bids, "asks": formatted_asks}},
                 min_interval_ms=100,
             )
+
+        elif channel == "push.ticker":
+            data = msg.get("data", {})
+            bid1 = data.get("bid1")
+            ask1 = data.get("ask1")
+            last = data.get("lastPrice")
+            if bid1 is not None and ask1 is not None:
+                autonomous_live_engine.process_ticker_update(inst_id, str(bid1), str(ask1))
+            self.tickers[inst_id] = {
+                "symbol": inst_id,
+                "last_price": str(last or 0),
+                "bid_price": str(bid1 or 0),
+                "ask_price": str(ask1 or 0),
+                "mark_price": str(data.get("fairPrice") or last or 0),
+                "funding_rate": str(data.get("fundingRate") or 0),
+                "change_24h": str(data.get("riseFallRate") or 0),
+                "volume_24h": str(data.get("volume24") or 0),
+            }
 
         elif channel == "push.deal":
             deals = msg.get("data", [])

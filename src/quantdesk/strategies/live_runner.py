@@ -15,6 +15,7 @@ import time
 import urllib.request
 from collections import deque
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 
@@ -298,6 +299,48 @@ class AutonomousLiveEngine:
                 engine_seq=2,
             )
             fe.update(whale_env)
+
+        # Restore persisted trade history, orders, fills, and positions
+        self._load_persistent_state()
+
+    def _save_persistent_state(self) -> None:
+        """Persists orders, fills, positions, and cumulative PnL so restarts never lose history."""
+        try:
+            state_file = Path("data/runner_state.json")
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "realized_pnl": str(self.realized_pnl),
+                "instrument_realized_pnl": {k: str(v) for k, v in self.instrument_realized_pnl.items()},
+                "instrument_trade_counts": self.instrument_trade_counts,
+                "positions": self.positions,
+                "orders": list(self.orders)[:200],
+                "fills": list(self.fills)[:200],
+            }
+            with open(state_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            logger.debug(f"Could not persist runner state: {e}")
+
+    def _load_persistent_state(self) -> None:
+        """Hydrates previous orders, fills, positions, and realized PnL on startup."""
+        state_file = Path("data/runner_state.json")
+        if not state_file.exists():
+            return
+        try:
+            with open(state_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.realized_pnl = Decimal(data.get("realized_pnl", "0.00"))
+            for k, v in data.get("instrument_realized_pnl", {}).items():
+                self.instrument_realized_pnl[k] = Decimal(str(v))
+            self.instrument_trade_counts = data.get("instrument_trade_counts", self.instrument_trade_counts)
+            self.positions = data.get("positions", {})
+            for o in reversed(data.get("orders", [])):
+                self.orders.append(o)
+            for fl in reversed(data.get("fills", [])):
+                self.fills.append(fl)
+            logger.info("Restored persisted positions, orders, and fills from data/runner_state.json")
+        except Exception as e:
+            logger.warning(f"Failed to restore runner state: {e}")
 
     def bootstrap_ensemble_history(self) -> None:
         """Pre-seeds CuratedEnsembleStrategy with trailing 2-hour candles from Bitget.
@@ -878,6 +921,16 @@ class AutonomousLiveEngine:
             liquidity = "TAKER"
             fee = fill_price * qty_units * spec.taker_fee_rate  # Bitget 0.06% taker fee
 
+        # Sanity check: fill price must not diverge > 2% from mark price
+        curr_mark_str = self.latest_mark_prices.get(symbol)
+        if curr_mark_str:
+            curr_mark = Decimal(curr_mark_str)
+            if curr_mark > Decimal("0") and abs(fill_price - curr_mark) / curr_mark > Decimal("0.02"):
+                logger.warning(
+                    f"Outlier book depth price rejected for {symbol}: fill {fill_price} vs mark {curr_mark} (>2% divergence). Clamping to mark."
+                )
+                fill_price = spec.quantize_price(curr_mark)
+
         # Validate order against Bitget limits
         is_valid, err_msg = spec.validate_order(qty_units, fill_price)
         if not is_valid:
@@ -1113,6 +1166,7 @@ class AutonomousLiveEngine:
         logger.info(
             f"Autonomous strategy {intent.strategy_id} executed {side.value} on {symbol} @ {fill_price}"
         )
+        self._save_persistent_state()
 
     def _update_symbol_mark(self, symbol: str, mark_p: Decimal, now_ns: int) -> None:
         """Updates mark price and mark-to-market unrealized PnL across all open positions for symbol."""

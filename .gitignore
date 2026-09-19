@@ -17,6 +17,7 @@ playwright-report/
 runtime/
 artifacts/
 data/accounts/
+data/*.json
 *.log
 .env
 .env.*

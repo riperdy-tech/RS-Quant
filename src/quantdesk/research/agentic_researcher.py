@@ -58,28 +58,6 @@ class AgenticResearchLoop:
         self.total_promoted: int = 0
         self.total_rejected: int = 0
 
-        # Seed an initial baseline hypothesis record for immediate UI visibility
-        self._seed_initial_record()
-
-    def _seed_initial_record(self) -> None:
-        now_ns = time.time_ns()
-        h = ResearchHypothesis(
-            hypothesis_id=f"hypo-{now_ns}",
-            timestamp_ns=now_ns,
-            instrument_id=self.instrument_id,
-            trigger_diagnosis="INITIAL_CALIBRATION",
-            target_parameter="conviction_threshold",
-            baseline_value=0.55,
-            proposed_value=0.35,
-            rationale="Baseline tuning: Relaxed static conviction threshold to 0.35 to empower 10-indicator autoregressive weighting.",
-            model_used="system:bootstrap",
-            latency_ms=0,
-            status="PROMOTED",
-        )
-        self.hypotheses.append(h)
-        self.total_promoted += 1
-        self.total_hypotheses_evaluated += 1
-
     def run_research_cycle(
         self,
         engine: UnifiedAgenticAlphaEngine,
