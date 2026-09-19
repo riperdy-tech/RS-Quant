@@ -101,7 +101,7 @@ class DynamicParameters:
     depth5_threshold: float = 0.35
     entry_cooldown_s: int = 45
     volatility_hurdle_bps: float = 5.0
-    conviction_threshold: float = 0.35
+    conviction_threshold: float = 0.45
     consecutive_losses: int = 0
     total_episodes_evaluated: int = 0
     last_medium_tune_ns: int = 0
@@ -511,21 +511,21 @@ class UnifiedAgenticAlphaEngine:
                 elif self.position_side == Side.SELL and sq_color in ("ORANGE", "BLUE"):
                     exit_reason = "momentum_squeeze_deceleration"
 
-            # Vector 4: Real-Time Alpha Half-Life Scratch (< 3 Minutes Dead Chop Protection)
-            # If after 180 seconds the trade has not generated positive alpha and momentum stalls,
-            # exit immediately at scratch rather than holding a deteriorating dead position!
+            # Vector 4: Real-Time Alpha Half-Life Scratch (Momentum Stall Protection)
+            # If after 180 seconds the trade has not generated positive alpha and momentum reverses into adverse flow,
+            # exit at scratch rather than holding a deteriorating dead position.
             if not exit_reason and hold_time_s >= 180 and hold_time_s < 1200:
                 sq_color = features.get("squeeze_color")
                 d5 = features.get("depth5_imbalance")
                 d5_val = float(d5 or 0.0)
 
-                # Long alpha stall
+                # Long alpha stall: flat/negative PnL AND momentum flipped to bearish with adverse depth
                 if self.position_side == Side.BUY and pnl_bps < Decimal("3.0"):
-                    if sq_color in ("GREEN", "RED") or d5_val < -0.15:
+                    if (sq_color in ("GREEN", "RED") and d5_val <= -0.20) or d5_val <= -0.40:
                         exit_reason = "alpha_half_life_scratch"
-                # Short alpha stall
+                # Short alpha stall: flat/negative PnL AND momentum flipped to bullish with adverse depth
                 elif self.position_side == Side.SELL and pnl_bps < Decimal("3.0"):
-                    if sq_color in ("BLUE", "ORANGE") or d5_val > 0.15:
+                    if (sq_color in ("BLUE", "ORANGE") and d5_val >= 0.20) or d5_val >= 0.40:
                         exit_reason = "alpha_half_life_scratch"
 
             # Vector 5: Strict Alpha Horizon Time-Decay (20-Minute Scratch Rule & Max Holding Timeout)

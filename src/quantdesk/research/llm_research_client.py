@@ -209,13 +209,15 @@ class LLMResearchClient:
         rolling_ic: dict[str, float] | None,
     ) -> str:
         """Constructs quantitative reasoning prompt requiring strict JSON schema output."""
-        return f"""You are a Lead Quantitative Portfolio Manager optimizing an autonomous 3x leverage perpetual futures algorithm on Bitget for {instrument_id}.
+        return f"""You are a Lead Quantitative Portfolio Manager optimizing an autonomous 3x leverage perpetual futures algorithm on MEXC for {instrument_id}.
 
 ### MICROSTRUCTURE LOSS POST-MORTEM REPORT:
 - Total Evaluated Trades: {diagnosis.get('total_trades', 0)}
 - Realized Win Rate: {diagnosis.get('win_rate_pct', 0.0)}%
 - Total Net PnL: {diagnosis.get('total_net_pnl', 0.0)} USDT
 - Primary Alpha Leak Tag: {diagnosis.get('top_alpha_leak', 'NONE')}
+- Statistical Loss Attribution Recommendation:
+  {diagnosis.get('recommended_hypothesis', 'None')}
 - Attribution Clusters Breakdown:
 {json.dumps(diagnosis.get('clusters', {}), indent=2)}
 

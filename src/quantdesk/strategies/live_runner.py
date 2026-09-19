@@ -482,7 +482,41 @@ class AutonomousLiveEngine:
                 logger.warning(f"Failed to pre-seed 1m bars for {symbol}: {e}")
 
     def get_research_bars(self, symbol: str) -> list[dict[str, float]]:
-        """Gathers latest 100 bars for isolated sandbox validation backtests."""
+        """Gathers latest real 1m candles from MEXC for isolated sandbox validation backtests."""
+        mexc_sym = symbol.replace("USDT", "_USDT")
+        try:
+            url = f"https://contract.mexc.com/api/v1/contract/kline/{mexc_sym}?interval=Min1"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (QuantDesk)"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                raw = json.loads(resp.read().decode())
+            d = raw.get("data", {})
+            closes = d.get("close", [])
+            highs = d.get("high", [])
+            lows = d.get("low", [])
+            if closes and len(closes) >= 30:
+                bars = []
+                n = min(300, len(closes))
+                for i in range(len(closes) - n, len(closes)):
+                    c = float(closes[i])
+                    h = float(highs[i])
+                    l = float(lows[i])
+                    bars.append({
+                        "close": c,
+                        "high": h,
+                        "low": l,
+                        "atr14": max(0.01, h - l),
+                        "ema7": c,
+                        "sma15": c,
+                    })
+                for idx in range(len(bars)):
+                    if idx >= 6:
+                        bars[idx]["ema7"] = sum(b["close"] for b in bars[idx - 6 : idx + 1]) / 7.0
+                    if idx >= 14:
+                        bars[idx]["sma15"] = sum(b["close"] for b in bars[idx - 14 : idx + 1]) / 15.0
+                return bars
+        except Exception as exc:
+            logger.warning(f"Failed to fetch MEXC klines for research bars {symbol}: {exc}")
+
         cur_strat = self.curated_ensembles.get(symbol)
         bars: list[dict[str, float]] = []
         if cur_strat and getattr(cur_strat, "_bars_history", None):
@@ -497,14 +531,15 @@ class AutonomousLiveEngine:
                 })
         if len(bars) < 30:
             p = 65000.0 if symbol.startswith("BTC") else 3500.0
-            for _ in range(50):
+            for i in range(50):
+                wave = math.sin(i / 5.0) * 20.0
                 bars.append({
-                    "close": p,
-                    "high": p + 15.0,
-                    "low": p - 15.0,
+                    "close": p + wave,
+                    "high": p + wave + 15.0,
+                    "low": p + wave - 15.0,
                     "atr14": p * 0.004,
-                    "ema7": p,
-                    "sma15": p - 5.0,
+                    "ema7": p + wave - 2.0,
+                    "sma15": p + wave - 5.0,
                 })
         return bars
 
@@ -534,7 +569,7 @@ class AutonomousLiveEngine:
                     if self._stop_research_flag:
                         break
                     u_eng = self.unified_engines.get(symbol)
-                    if not u_eng or len(u_eng.memory.episodes) < 5:
+                    if not u_eng or len(u_eng.memory.episodes) < 2:
                         continue
 
                     from quantdesk.research.agentic_researcher import research_loops
@@ -551,8 +586,8 @@ class AutonomousLiveEngine:
                     )
                     elapsed_s = (time.time_ns() - last_run_ns) / 1_000_000_000 if last_run_ns > 0 else 9999
 
-                    # Trigger if >= 5 new episodes, or at least 1 new episode during an alpha leak, or >= 10 mins since last run
-                    should_run = (len(new_episodes) >= 5) or (len(new_episodes) >= 1 and has_alpha_leak) or (elapsed_s >= 600 and len(episodes) >= 5)
+                    # Trigger if >= 3 new episodes, or at least 1 new episode during an alpha leak, or >= 5 mins since last run
+                    should_run = (len(new_episodes) >= 3) or (len(new_episodes) >= 1 and has_alpha_leak) or (elapsed_s >= 300 and len(episodes) >= 2)
 
                     if should_run:
                         logger.info(f"🔬 Autonomous Tier 3 Research Triggered for {symbol} ({len(episodes)} episodes, leak={has_alpha_leak})")

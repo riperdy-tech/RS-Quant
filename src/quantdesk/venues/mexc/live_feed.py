@@ -129,7 +129,8 @@ class MEXCLiveFeedService:
         if not channel or channel == "pong":
             return
 
-        raw_sym = msg.get("symbol") or msg.get("data", {}).get("symbol")
+        raw_data = msg.get("data")
+        raw_sym = msg.get("symbol") or (raw_data.get("symbol") if isinstance(raw_data, dict) else None)
         if not raw_sym:
             return
 

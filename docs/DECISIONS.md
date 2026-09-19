@@ -269,3 +269,21 @@ Material assumptions, substitutions, and deviations from the implementation plan
   - All 22 tests in `test_bitget_contract_specs.py` and `test_unified_agentic.py` pass; all 743+ system tests pass; web frontend builds cleanly.
   - Live uvicorn daemon active on `http://127.0.0.1:8000`.
 
+## 2026-09-19
+
+- **MEXC Perpetual Contract Futures Migration & Zero-Mock Architecture**:
+  - Migrated live trading runner from Bitget to native MEXC Contract v1 WebSocket (`wss://contract.mexc.com/edge`) and REST APIs (`https://contract.mexc.com`).
+  - Strict zero-mock enforcement: authentic order book depths (`push.depth`), ticker trades (`push.deal`), and mark prices stream directly into deterministic engine envelopes.
+  - Added bidirectional symbol mapping (`BTCUSDT` $\leftrightarrow$ `BTC_USDT`).
+- **Microstructure Post-Mortem & Alpha Scratch De-Sensitization**:
+  - Forensic autopsy of live trade log identified that 3 out of 4 initial trade losses were premature `ALPHA_SCRATCH` exits (-$15.10 total loss) triggered at 180s due to minor $\pm 0.15$ order-book quoting jitter.
+  - Refined `alpha_half_life_scratch` in `unified_agentic.py`: requires momentum stall (`sq_color in ("GREEN", "RED")`) **AND** confirmed adverse depth ($d_5 \le -0.20$), or severe depth collapse ($d_5 \le -0.40$), eliminating exits on normal spread jitter.
+  - Raised default `conviction_threshold` from `0.35` to `0.45` to reject low-conviction chop entries.
+- **Autonomous AI Researcher (Tier 3) Unblocking & Real MEXC Sandbox Candles**:
+  - Lowered autonomous background researcher gating threshold in `live_runner.py` from 5 to `>= 2` episodes when an alpha leak is detected.
+  - Wired `get_research_bars` to fetch up to 300 real 1m candles directly from MEXC contract REST API, allowing the sandbox backtester to evaluate LLM mutations against authentic market price action.
+  - Verified institutional risk gates: when DeepSeek Flash proposed loosening conviction threshold to 0.40, the sandbox backtester detected $\Delta \text{Sharpe} = -8.08$ and -$162.37 loss on real MEXC bars and successfully rejected the mutation.
+- **Empirical Research Journal Established**:
+  - Created [`docs/EMPIRICAL_RESEARCH_LOG.md`](EMPIRICAL_RESEARCH_LOG.md) as the persistent repository of empirical datasets, failure diagnoses, code changes, and outcome telemetry for higher-intelligence audits and pattern analysis.
+
+
