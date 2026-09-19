@@ -1633,6 +1633,7 @@ class AutonomousLiveEngine:
                 u_eng.target_price = None
                 u_eng.memory.episodes.clear()
                 u_eng.params.consecutive_losses = 0
+            self._save_persistent_state()
 
 
         now_ns = time.time_ns()
