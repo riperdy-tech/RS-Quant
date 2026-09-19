@@ -89,13 +89,14 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
   const [reflexStatus, setReflexStatus] = useState<ReflexStatus | null>(null);
 
   // Feedback notifications
+  const [marketFeedStatus, setMarketFeedStatus] = useState<any>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [diagnosticRunning, setDiagnosticRunning] = useState(false);
   const [baselineLoading, setBaselineLoading] = useState(false);
 
   const fetchAllData = async () => {
     try {
-      const [pos, ords, fls, bals, perf, strats, decs, agentic, radar, rflx, tk, dp, tr, tel] =
+      const [pos, ords, fls, bals, perf, strats, decs, agentic, radar, rflx, tk, dp, tr, tel, mkt] =
         await Promise.all([
           api.getPositions().catch(() => []),
           api.getOrders().catch(() => []),
@@ -111,6 +112,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
           api.getMarketDepth(selectedSymbol).catch(() => null),
           api.getMarketTrades(selectedSymbol).catch(() => []),
           api.getStrategyTelemetry(selectedSymbol).catch(() => null),
+          api.getMarketFeedStatus().catch(() => null),
         ]);
 
       setPositions(pos);
@@ -127,6 +129,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
       if (dp) setDepth({ bids: dp.bids || [], asks: dp.asks || [] });
       if (tr && tr.length > 0) setLiveTrades(tr.slice(0, 10));
       if (tel) setTelemetry(tel);
+      if (mkt) setMarketFeedStatus(mkt);
     } catch {
       // transient read error
     }
@@ -286,13 +289,17 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
             </h1>
             <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Bitget Live WebSocket
+              {marketFeedStatus?.venue === 'bitget' ? 'Bitget Live WebSocket' : 'MEXC Live WebSocket'}
             </span>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
               3x Leverage Isolated
             </span>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-              Maker 0.02% / Taker 0.06%
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+              marketFeedStatus?.venue === 'bitget'
+                ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+            }`}>
+              {marketFeedStatus?.venue === 'bitget' ? 'Maker 0.02% / Taker 0.06%' : 'Maker 0.00% (Post-Only)'}
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -663,7 +670,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
             <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
               <Layers className="w-4 h-4 text-indigo-600" />
-              Live Bitget L2 Depth ({selectedSymbol})
+              Live {marketFeedStatus?.venue === 'bitget' ? 'Bitget' : 'MEXC'} L2 Depth ({selectedSymbol})
             </h3>
             <span className="text-[10px] font-mono text-emerald-600 font-bold">Streaming</span>
           </div>
@@ -821,7 +828,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
 
           <div className="pt-2 border-t border-slate-900 text-[10px] text-slate-500 flex justify-between">
             <span>Execution: Maker Post-Only Limit</span>
-            <span className="text-emerald-400 font-semibold">Bitget 3x Isolated</span>
+            <span className="text-emerald-400 font-semibold">{marketFeedStatus?.venue === 'bitget' ? 'Bitget' : 'MEXC'} 3x Isolated</span>
           </div>
         </div>
       </div>
@@ -925,7 +932,7 @@ export const TradingPage: React.FC<TradingPageProps> = ({ onOpenCommand, isViewe
           <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <div>
               <h2 className="font-bold text-base text-slate-900 dark:text-slate-100">
-                Executed Fills (Bitget Depth Match)
+                Executed Fills ({marketFeedStatus?.venue === 'bitget' ? 'Bitget' : 'MEXC'} Depth Match)
               </h2>
               <p className="text-xs text-slate-500">
                 Executions confirmed against live exchange liquidity with real 0.02% Maker fee accounting.

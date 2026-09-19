@@ -30,9 +30,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if reconciled > 0:
         logger.warning(f"Reconciled {reconciled} interrupted research jobs from prior run")
 
-    # 2. Start live Bitget market data feed service
+    # 2. Start live market data feed service (MEXC 0% maker or Bitget UTA)
+    import os
     from quantdesk.strategies.live_runner import autonomous_live_engine
-    from quantdesk.venues.bitget_uta.live_feed import live_feed_service
+    active_venue = os.getenv("ACTIVE_VENUE", "mexc").lower()
+
+    if active_venue == "bitget":
+        from quantdesk.venues.bitget_uta.live_feed import live_feed_service as active_feed
+        logger.info("Initializing Bitget UTA live WebSocket feed...")
+    else:
+        from quantdesk.venues.mexc.live_feed import mexc_live_feed_service as active_feed
+        logger.info("Initializing MEXC Contract V1 (0% Maker Fee) live WebSocket feed...")
 
     # Pre-seed 2H historical candles for curated 12-factor ensemble strategy
     autonomous_live_engine.bootstrap_ensemble_history()
@@ -40,13 +48,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Start autonomous Tier 3 Meta-Learning and Hypothesis background loop
     autonomous_live_engine.start_background_research()
 
-    await live_feed_service.start()
+    await active_feed.start()
 
     yield
 
     logger.info("Shutting down QuantDesk Control API...")
     autonomous_live_engine.stop_background_research()
-    await live_feed_service.stop()
+    await active_feed.stop()
 
 
 def create_app(db_path: Path | str | None = None) -> FastAPI:

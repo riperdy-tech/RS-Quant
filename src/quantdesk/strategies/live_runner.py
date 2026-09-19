@@ -57,6 +57,15 @@ from quantdesk.venues.bitget_uta.contract_specs import (
 logger = logging.getLogger("quantdesk.live_runner")
 
 
+def _get_active_live_feed() -> Any:
+    venue = os.getenv("ACTIVE_VENUE", "mexc").lower()
+    if venue == "bitget":
+        from quantdesk.venues.bitget_uta.live_feed import live_feed_service
+        return live_feed_service
+    from quantdesk.venues.mexc.live_feed import mexc_live_feed_service
+    return mexc_live_feed_service
+
+
 
 def make_live_envelope(
     event_type: str,
@@ -1217,7 +1226,7 @@ class AutonomousLiveEngine:
     def flatten_position(self, symbol: str) -> None:
         """Emergency flattens position(s) at live market prices."""
         now_ns = time.time_ns()
-        from quantdesk.venues.bitget_uta.live_feed import live_feed_service
+        live_feed_service = _get_active_live_feed()
 
         keys_to_flatten = [
             k for k, p in list(self.positions.items())
@@ -1324,8 +1333,8 @@ class AutonomousLiveEngine:
         self.flatten_position("all")
 
     def manual_trigger_signal(self, strategy_id: str, symbol: str, side: str) -> None:
-        """Allows testing/verifying strategy signal execution against live Bitget depth on demand."""
-        from quantdesk.venues.bitget_uta.live_feed import live_feed_service
+        """Allows testing/verifying strategy signal execution against live order book depth on demand."""
+        live_feed_service = _get_active_live_feed()
         book = live_feed_service.get_order_book(symbol)
         bids = book.get("bids", [])
         asks = book.get("asks", [])

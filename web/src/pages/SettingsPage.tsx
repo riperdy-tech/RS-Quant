@@ -31,6 +31,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   onOpenCommand,
   isViewer = false,
 }) => {
+  const [selectedVenue, setSelectedVenue] = useState<'mexc' | 'bitget'>('mexc');
   const [apiKey, setApiKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
   const [passphrase, setPassphrase] = useState('');
@@ -40,7 +41,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [keyFingerprint, setKeyFingerprint] = useState<string | null>(null);
+  const [mexcFingerprint, setMexcFingerprint] = useState<string | null>(null);
+  const [bitgetFingerprint, setBitgetFingerprint] = useState<string | null>(null);
 
   const [timezone, setTimezone] = useState('UTC');
   const [storageBackupPath, setStorageBackupPath] = useState('backups/quantdesk_backup.sqlite');
@@ -50,14 +52,30 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   const [capitalSaved, setCapitalSaved] = useState<string | null>(null);
   const [savingCapital, setSavingCapital] = useState(false);
 
-  React.useEffect(() => {
+  const refreshCredentialsStatus = () => {
     api.getCredentialsStatus()
       .then((data) => {
-        if (data.has_credentials) {
-          setKeyFingerprint(data.key_fingerprint);
+        if (data.mexc?.has_credentials) {
+          setMexcFingerprint(data.mexc.key_fingerprint);
+        } else {
+          setMexcFingerprint(null);
+        }
+        if (data.bitget?.has_credentials) {
+          setBitgetFingerprint(data.bitget.key_fingerprint);
+        } else {
+          setBitgetFingerprint(null);
+        }
+        if (data.active_venue === 'bitget') {
+          setSelectedVenue('bitget');
+        } else {
+          setSelectedVenue('mexc');
         }
       })
       .catch(() => {});
+  };
+
+  React.useEffect(() => {
+    refreshCredentialsStatus();
 
     api.getTradingCapitalConfig()
       .then((data) => {
@@ -67,23 +85,39 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       .catch(() => {});
   }, []);
 
+  const activeFingerprint = selectedVenue === 'mexc' ? mexcFingerprint : bitgetFingerprint;
+
   const handleSaveKeys = async () => {
     setErrorMessage(null);
     setSaveSuccess(null);
-    if (!apiKey.trim() || !secretKey.trim() || !passphrase.trim()) {
-      setErrorMessage('All three fields (API key, Secret key, Passphrase) are required to save.');
-      return;
+
+    if (selectedVenue === 'mexc') {
+      if (!apiKey.trim() || !secretKey.trim()) {
+        setErrorMessage('Both API Key and Secret Key are required for MEXC.');
+        return;
+      }
+    } else {
+      if (!apiKey.trim() || !secretKey.trim() || !passphrase.trim()) {
+        setErrorMessage('All three fields (API Key, Secret Key, Passphrase) are required for Bitget UTA.');
+        return;
+      }
     }
+
     setSaving(true);
     try {
       const data = await api.saveCredentials({
+        venue: selectedVenue,
         api_key: apiKey.trim(),
         secret_key: secretKey.trim(),
-        passphrase: passphrase.trim(),
+        passphrase: passphrase.trim() || undefined,
       });
       setSaving(false);
-      setSaveSuccess(data.message || 'Credentials securely stored in OS Keyring.');
-      setKeyFingerprint(data.key_fingerprint);
+      setSaveSuccess(data.message || `${selectedVenue.toUpperCase()} credentials securely stored in OS Keyring.`);
+      if (selectedVenue === 'mexc') {
+        setMexcFingerprint(data.key_fingerprint);
+      } else {
+        setBitgetFingerprint(data.key_fingerprint);
+      }
       setApiKey('');
       setSecretKey('');
       setPassphrase('');
@@ -100,14 +134,24 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     setErrorMessage(null);
     try {
       const payload = apiKey.trim()
-        ? { api_key: apiKey.trim(), secret_key: secretKey.trim(), passphrase: passphrase.trim() }
-        : null;
+        ? {
+            venue: selectedVenue,
+            api_key: apiKey.trim(),
+            secret_key: secretKey.trim(),
+            passphrase: passphrase.trim() || undefined,
+          }
+        : { venue: selectedVenue, api_key: '', secret_key: '' };
       const data = await api.testConnection(payload);
       setTesting(false);
       if (data.success) {
-        setTestSuccess(`${data.message} Account Level: ${data.account_level || 'UTA'}.`);
+        if (selectedVenue === 'mexc') {
+          const eqStr = data.total_equity ? ` [Available Equity: ${parseFloat(data.total_equity).toLocaleString()} USDT]` : '';
+          setTestSuccess(`${data.message}${eqStr}`);
+        } else {
+          setTestSuccess(`${data.message} Account Level: ${data.account_level || 'UTA'}.`);
+        }
       } else {
-        setErrorMessage(data.message || 'Bitget read-only connection test failed.');
+        setErrorMessage(data.message || `${selectedVenue.toUpperCase()} read-only connection test failed.`);
       }
     } catch (err: any) {
       setTesting(false);
@@ -144,7 +188,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
     const levNum = parseFloat(leverage) || 3.0;
     onOpenCommand(
       'ARM_LIVE',
-      { account_id: systemStatus?.account_alias || 'paper-demo', capital_usdt: capNum, leverage: levNum },
+      { account_id: systemStatus?.account_alias || `paper-demo-${selectedVenue}`, capital_usdt: capNum, leverage: levNum },
       { capital_usdt: capNum, leverage: levNum }
     );
   };
@@ -159,10 +203,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            System Settings & Security Configuration
+            System Settings & Venue Security
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Bitget UTA venue configuration, write-only credential storage, backup management, and environment arming.
+            MEXC Contract V1 (0% Maker Fees) & Bitget UTA venue configuration, write-only credential storage, and capital sizing.
           </p>
         </div>
       </div>
@@ -190,21 +234,58 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
 
       {/* Exchange Credentials Card (§15.4, §15.2) */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        {/* Venue Selection Tabs */}
+        <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-950/60 p-1.5 gap-2">
+          <button
+            type="button"
+            onClick={() => { setSelectedVenue('mexc'); setApiKey(''); setSecretKey(''); setPassphrase(''); setTestSuccess(null); setErrorMessage(null); }}
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+              selectedVenue === 'mexc'
+                ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/60 dark:border-slate-700'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>MEXC Contract V1</span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold">
+              0.00% MAKER FEE
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setSelectedVenue('bitget'); setApiKey(''); setSecretKey(''); setPassphrase(''); setTestSuccess(null); setErrorMessage(null); }}
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+              selectedVenue === 'bitget'
+                ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/60 dark:border-slate-700'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <span>Bitget UTA V3</span>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+              0.02% MAKER
+            </span>
+          </button>
+        </div>
+
         <div className="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <div className="flex items-center gap-2">
               <KeyRound className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               <h2 className="font-bold text-base text-slate-900 dark:text-slate-100">
-                Bitget UTA V3 Venue Credentials (Isolated Margin)
+                {selectedVenue === 'mexc'
+                  ? 'MEXC Futures Credentials (USDT-M Perpetual)'
+                  : 'Bitget UTA V3 Venue Credentials (Isolated Margin)'}
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Secrets are saved write-only to Windows Credential Manager / OS Keyring. They are never sent back to the browser.
+              {selectedVenue === 'mexc'
+                ? 'MEXC provides 0.00% Maker Fee execution via Post-Only limit orders. Only API Key and Secret Key are required.'
+                : 'Bitget UTA V3 uses API Key, Secret Key, and Passphrase with Isolated Margin mode.'}
             </p>
           </div>
-          {keyFingerprint && (
+          {activeFingerprint && (
             <span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-full text-[11px] font-mono font-medium flex items-center gap-1.5 self-start sm:self-auto">
-              <Lock className="w-3 h-3 text-indigo-500" /> Keyring: {keyFingerprint}
+              <Lock className="w-3 h-3 text-indigo-500" /> {selectedVenue.toUpperCase()}: {activeFingerprint}
             </span>
           )}
         </div>
@@ -212,27 +293,27 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         <form onSubmit={handleTestConnection} className="p-6 space-y-4 text-xs">
           <div>
             <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
-              API Key (Trading Only - No Withdrawal Permissions)
+              {selectedVenue === 'mexc' ? 'MEXC API Key (Futures Read & Trade Only)' : 'Bitget API Key (Trading Only - No Withdrawal Permissions)'}
             </label>
             <input
               type="text"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder={keyFingerprint ? `Configured in Keyring (${keyFingerprint})` : "bg_xxxxxxxxxxxxxxxxxxxx"}
+              placeholder={activeFingerprint ? `Configured in Keyring (${activeFingerprint})` : (selectedVenue === 'mexc' ? "mx0vgxxxxxxxxxxxxxxxx" : "bg_xxxxxxxxxxxxxxxxxxxx")}
               className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-mono"
             />
           </div>
 
           <div>
             <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
-              API Secret
+              {selectedVenue === 'mexc' ? 'MEXC Secret Key' : 'Bitget API Secret'}
             </label>
             <div className="relative">
               <input
                 type={showSecret ? 'text' : 'password'}
                 value={secretKey}
                 onChange={(e) => setSecretKey(e.target.value)}
-                placeholder={keyFingerprint ? "•••••••••••••••• (Saved in Keyring)" : "••••••••••••••••••••••••••••••••"}
+                placeholder={activeFingerprint ? "•••••••••••••••• (Saved in Keyring)" : "••••••••••••••••••••••••••••••••"}
                 className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-mono"
               />
               <button
@@ -245,18 +326,26 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             </div>
           </div>
 
-          <div>
-            <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Passphrase
-            </label>
-            <input
-              type="password"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              placeholder={keyFingerprint ? "•••••••••••••••• (Saved in Keyring)" : "••••••••••••••••"}
-              className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-mono"
-            />
-          </div>
+          {selectedVenue === 'bitget' && (
+            <div>
+              <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Passphrase
+              </label>
+              <input
+                type="password"
+                value={passphrase}
+                onChange={(e) => setPassphrase(e.target.value)}
+                placeholder={activeFingerprint ? "•••••••••••••••• (Saved in Keyring)" : "••••••••••••••••"}
+                className="w-full px-3 py-2 border rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-mono"
+              />
+            </div>
+          )}
+
+          {selectedVenue === 'mexc' && (
+            <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-lg text-[11px] text-indigo-700 dark:text-indigo-300">
+              💡 <strong>No Passphrase Required</strong>: MEXC Contract API authentication uses HMAC-SHA256 with only your API Key and Secret Key.
+            </div>
+          )}
 
           <div className="pt-3 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
             <button
@@ -265,7 +354,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 rounded-lg font-semibold transition-colors flex items-center gap-1.5"
             >
               {testing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Server className="w-3.5 h-3.5" />}
-              Test Read-Only Connection
+              Test {selectedVenue.toUpperCase()} Connection
             </button>
             {!isViewer && (
               <button
@@ -275,7 +364,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-1.5"
               >
                 {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                Save Keys Securely
+                Save {selectedVenue.toUpperCase()} Keys
               </button>
             )}
           </div>

@@ -68,24 +68,37 @@ export const api = {
   getSystemStatus: () => request<SystemStatus>('/api/v1/system'),
 
   // Settings & Credentials (§15.4)
-  getCredentialsStatus: () =>
-    request<{ has_credentials: boolean; key_fingerprint: string | null }>(
-      '/api/v1/settings/credentials/status'
+  getCredentialsStatus: (venue?: string) =>
+    request<{
+      has_credentials: boolean;
+      key_fingerprint: string | null;
+      active_venue?: string;
+      mexc?: { has_credentials: boolean; key_fingerprint: string | null };
+      bitget?: { has_credentials: boolean; key_fingerprint: string | null };
+    }>(
+      `/api/v1/settings/credentials/status${venue ? `?venue=${venue}` : ''}`
     ),
-  saveCredentials: (creds: { api_key: string; secret_key: string; passphrase: string }) =>
-    request<{ status: string; key_fingerprint: string; message: string }>(
+  saveCredentials: (creds: { venue?: string; api_key: string; secret_key: string; passphrase?: string }) =>
+    request<{ status: string; key_fingerprint: string; message: string; venue?: string }>(
       '/api/v1/settings/credentials',
       {
         method: 'POST',
         body: JSON.stringify(creds),
       }
     ),
-  testConnection: (creds?: { api_key: string; secret_key: string; passphrase: string } | null) =>
-    request<{ success: boolean; message: string; account_level?: string; data?: any }>(
+  testConnection: (creds?: { venue?: string; api_key: string; secret_key: string; passphrase?: string } | null) =>
+    request<{
+      success: boolean;
+      message: string;
+      account_level?: string;
+      total_equity?: string;
+      available_usdt?: string;
+      data?: any;
+    }>(
       '/api/v1/settings/test-connection',
       {
         method: 'POST',
-        body: JSON.stringify(creds || { api_key: '', secret_key: '', passphrase: '' }),
+        body: JSON.stringify(creds || {}),
       }
     ),
   getTradingCapitalConfig: () =>

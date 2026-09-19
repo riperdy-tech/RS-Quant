@@ -189,15 +189,24 @@ def get_order_trace(
     return autonomous_live_engine.get_order_trace(order_id)
 
 
+def _get_active_live_feed() -> Any:
+    import os
+    venue = os.getenv("ACTIVE_VENUE", "mexc").lower()
+    if venue == "bitget":
+        from quantdesk.venues.bitget_uta.live_feed import live_feed_service
+        return live_feed_service
+    from quantdesk.venues.mexc.live_feed import mexc_live_feed_service
+    return mexc_live_feed_service
+
+
 @router.get("/market/ticker")
 def get_market_ticker(
     symbol: str = "BTCUSDT",
     session: Session = Depends(require_viewer),
 ) -> dict[str, Any]:
-    """Returns live Bitget ticker with mark price, 24h stats, and funding rate."""
-    from quantdesk.venues.bitget_uta.live_feed import live_feed_service
-
-    ticker = live_feed_service.get_ticker(symbol)
+    """Returns live ticker with mark price, 24h stats, and funding rate."""
+    feed = _get_active_live_feed()
+    ticker = feed.get_ticker(symbol)
     if ticker:
         return ticker
     return {
@@ -218,10 +227,9 @@ def get_market_depth(
     symbol: str = "BTCUSDT",
     session: Session = Depends(require_viewer),
 ) -> dict[str, Any]:
-    """Returns live L2 order book depth (bids/asks) from Bitget."""
-    from quantdesk.venues.bitget_uta.live_feed import live_feed_service
-
-    book = live_feed_service.get_order_book(symbol)
+    """Returns live L2 order book depth (bids/asks)."""
+    feed = _get_active_live_feed()
+    book = feed.get_order_book(symbol)
     return {
         "symbol": symbol,
         "bids": book.get("bids", []),
@@ -235,25 +243,26 @@ def get_market_trades(
     symbol: str = "BTCUSDT",
     session: Session = Depends(require_viewer),
 ) -> list[dict[str, Any]]:
-    """Returns recent executed trade prints from live Bitget stream."""
-    from quantdesk.venues.bitget_uta.live_feed import live_feed_service
-
-    return live_feed_service.get_trades(symbol)
+    """Returns recent executed trade prints from live stream."""
+    feed = _get_active_live_feed()
+    return feed.get_trades(symbol)
 
 
 @router.get("/market/status")
 def get_market_feed_status(
     session: Session = Depends(require_viewer),
 ) -> dict[str, Any]:
-    """Returns status of live Bitget WebSocket stream."""
-    from quantdesk.venues.bitget_uta.live_feed import live_feed_service
-
+    """Returns status of live WebSocket stream."""
+    import os
+    feed = _get_active_live_feed()
+    venue = os.getenv("ACTIVE_VENUE", "mexc").lower()
+    source = "wss://contract.mexc.com/edge" if venue == "mexc" else "wss://ws.bitget.com/v2/ws/public"
     return {
-        "is_running": live_feed_service.is_running,
-        "is_connected": live_feed_service.is_connected,
-        "venue": "bitget",
-        "symbols": list(live_feed_service.symbols),
-        "source": "wss://ws.bitget.com/v2/ws/public",
+        "is_running": feed.is_running,
+        "is_connected": feed.is_connected,
+        "venue": venue,
+        "symbols": list(feed.symbols),
+        "source": source,
     }
 
 
