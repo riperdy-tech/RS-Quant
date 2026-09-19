@@ -98,7 +98,7 @@ class MEXCLiveFeedService:
                                 msg = json.loads(raw_msg)
                                 self._handle_message(msg)
                             except Exception as e:
-                                logger.debug(f"Error decoding MEXC WS frame: {e}")
+                                logger.warning(f"Error processing MEXC WS frame: {e}", exc_info=True)
                     finally:
                         ping_task.cancel()
                         with contextlib.suppress(asyncio.CancelledError):

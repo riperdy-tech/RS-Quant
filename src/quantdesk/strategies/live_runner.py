@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import time
 import urllib.request
@@ -151,6 +152,7 @@ class AutonomousLiveEngine:
 
         # Active positions keyed by unique tuple pos_key: f"{strategy_id}:{symbol}"
         self.positions: dict[str, dict[str, Any]] = {}
+        self.latest_mark_prices: dict[str, str] = {s: "0.00" for s in symbols}
 
         self.orders: deque[dict[str, Any]] = deque(maxlen=200)
         self.fills: deque[dict[str, Any]] = deque(maxlen=200)
@@ -922,7 +924,7 @@ class AutonomousLiveEngine:
             fee = fill_price * qty_units * spec.taker_fee_rate  # Bitget 0.06% taker fee
 
         # Sanity check: fill price must not diverge > 2% from mark price
-        curr_mark_str = self.latest_mark_prices.get(symbol)
+        curr_mark_str = getattr(self, "latest_mark_prices", {}).get(symbol)
         if curr_mark_str:
             curr_mark = Decimal(curr_mark_str)
             if curr_mark > Decimal("0") and abs(fill_price - curr_mark) / curr_mark > Decimal("0.02"):
@@ -988,7 +990,7 @@ class AutonomousLiveEngine:
                 "pos_key": pos_key,
                 "strategy_id": intent.strategy_id,
                 "instrument_id": symbol,
-                "lots": int(qty_lots),
+                "lots": float(qty_units),
                 "units": str(qty_units),
                 "side": side.value,
                 "entry_price": str(fill_price),
@@ -1170,6 +1172,8 @@ class AutonomousLiveEngine:
 
     def _update_symbol_mark(self, symbol: str, mark_p: Decimal, now_ns: int) -> None:
         """Updates mark price and mark-to-market unrealized PnL across all open positions for symbol."""
+        if hasattr(self, "latest_mark_prices"):
+            self.latest_mark_prices[symbol] = str(mark_p)
         for pos in self.positions.values():
             if pos.get("instrument_id") != symbol:
                 continue
@@ -1400,6 +1404,9 @@ class AutonomousLiveEngine:
             # If already in position, trigger an EXIT instead
             action = IntentAction.EXIT
             exit_side = Side.SELL if self.positions[pos_key]["side"] == "BUY" else Side.BUY
+            exit_qty = Decimal(str(self.positions[pos_key].get("units") or self.positions[pos_key].get("lots") or "0.01"))
+            if exit_qty <= Decimal("0"):
+                exit_qty = Decimal("0.01")
             intent = StrategyIntent(
                 intent_id=f"diag-{now_ns}-{strategy_id}-exit",
                 strategy_id=strategy_id,
@@ -1410,7 +1417,7 @@ class AutonomousLiveEngine:
                 model_hash_or_none=None,
                 action=action,
                 side=exit_side,
-                desired_quantity=Decimal(str(self.positions[pos_key]["lots"])),
+                desired_quantity=exit_qty,
                 risk_budget=None,
                 price_policy="MARKET",
                 expires_at_ns=now_ns + 1_000_000_000,
@@ -1420,6 +1427,7 @@ class AutonomousLiveEngine:
             self._execute_intent(intent, bids, asks, now_ns)
             return
 
+        test_qty = Decimal("0.1") if symbol.startswith("BTC") else Decimal("1.0")
         intent = StrategyIntent(
             intent_id=f"diag-{now_ns}-{strategy_id}",
             strategy_id=strategy_id,
@@ -1430,7 +1438,7 @@ class AutonomousLiveEngine:
             model_hash_or_none=None,
             action=IntentAction.ENTER,
             side=Side(side.upper()),
-            desired_quantity=Decimal("1"),
+            desired_quantity=test_qty,
             risk_budget=Decimal("100"),
             price_policy="MARKET",
             expires_at_ns=now_ns + 1_000_000_000,
