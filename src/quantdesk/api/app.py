@@ -37,11 +37,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Pre-seed 2H historical candles for curated 12-factor ensemble strategy
     autonomous_live_engine.bootstrap_ensemble_history()
 
+    # Start autonomous Tier 3 Meta-Learning and Hypothesis background loop
+    autonomous_live_engine.start_background_research()
+
     await live_feed_service.start()
 
     yield
 
     logger.info("Shutting down QuantDesk Control API...")
+    autonomous_live_engine.stop_background_research()
     await live_feed_service.stop()
 
 

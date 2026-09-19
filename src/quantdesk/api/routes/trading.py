@@ -349,30 +349,7 @@ def trigger_agentic_research(
     if not loop:
         return {"error": f"Research loop for {symbol} not found"}
 
-    cur_strat = autonomous_live_engine.curated_ensembles.get(symbol)
-    bars = []
-    if cur_strat and getattr(cur_strat, "_bars_history", None):
-        for b in cur_strat._bars_history[-100:]:
-            bars.append({
-                "close": b.close,
-                "high": b.high,
-                "low": b.low,
-                "atr14": getattr(b, "atr_14", b.close * 0.005) or (b.close * 0.005),
-                "ema7": b.close,
-                "sma15": b.close,
-            })
-    if len(bars) < 30:
-        p = 65000.0 if symbol.startswith("BTC") else 3500.0
-        for i in range(60):
-            p += (10.0 if i % 2 == 0 else -6.0)
-            bars.append({
-                "close": p,
-                "high": p + 15.0,
-                "low": p - 15.0,
-                "atr14": p * 0.004,
-                "ema7": p,
-                "sma15": p - 5.0,
-            })
+    bars = autonomous_live_engine.get_research_bars(symbol)
 
     hypo = loop.run_research_cycle(engine, bars)
     return {

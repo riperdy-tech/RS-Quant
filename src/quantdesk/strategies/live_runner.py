@@ -169,6 +169,7 @@ class AutonomousLiveEngine:
         self.instrument_params: dict[str, dict[str, Any]] = {
             "BTCUSDT": {
                 "maker_only_mode": True,
+                "maker_fee_rate": Decimal("0.0000"),  # 0.00% maker fee (MEXC zero-fee model)
                 "entry_cooldown_s": 60,
                 "atr_target_multiplier": 3.5,
                 "depth5_imbalance_threshold": 0.35,
@@ -177,6 +178,7 @@ class AutonomousLiveEngine:
             },
             "ETHUSDT": {
                 "maker_only_mode": True,
+                "maker_fee_rate": Decimal("0.0000"),  # 0.00% maker fee (MEXC zero-fee model)
                 "entry_cooldown_s": 90,  # ETH has thinner L2 liquidity; requires wider cooldown
                 "atr_target_multiplier": 4.0,  # Higher ATR target to beat ETH volatility noise
                 "depth5_imbalance_threshold": 0.40,  # Higher conviction required for ETH
@@ -212,6 +214,8 @@ class AutonomousLiveEngine:
         self.latest_macro_report: MacroRadarReport | None = None
         self.latest_whale_snapshots: dict[str, WhalePositioningSnapshot] = {}
         self.latest_funding_rates: dict[str, dict[str, Any]] = {}
+        self._research_thread: threading.Thread | None = None
+        self._stop_research_flag: bool = False
         self._init_macro_baseline()
         if auto_bootstrap:
             self._bootstrap_thread = threading.Thread(target=self.bootstrap_ensemble_history, daemon=True)
@@ -422,6 +426,94 @@ class AutonomousLiveEngine:
                     logger.info(f"Pre-seeded {len(c_1m)} 1m bars into feature engine for {symbol}")
             except Exception as e:
                 logger.warning(f"Failed to pre-seed 1m bars for {symbol}: {e}")
+
+    def get_research_bars(self, symbol: str) -> list[dict[str, float]]:
+        """Gathers latest 100 bars for isolated sandbox validation backtests."""
+        cur_strat = self.curated_ensembles.get(symbol)
+        bars: list[dict[str, float]] = []
+        if cur_strat and getattr(cur_strat, "_bars_history", None):
+            for b in cur_strat._bars_history[-100:]:
+                bars.append({
+                    "close": b.close,
+                    "high": b.high,
+                    "low": b.low,
+                    "atr14": getattr(b, "atr_14", b.close * 0.005) or (b.close * 0.005),
+                    "ema7": b.close,
+                    "sma15": b.close,
+                })
+        if len(bars) < 30:
+            p = 65000.0 if symbol.startswith("BTC") else 3500.0
+            for _ in range(50):
+                bars.append({
+                    "close": p,
+                    "high": p + 15.0,
+                    "low": p - 15.0,
+                    "atr14": p * 0.004,
+                    "ema7": p,
+                    "sma15": p - 5.0,
+                })
+        return bars
+
+    def start_background_research(self) -> None:
+        """Launches continuous Tier 3 autonomous meta-learning and hypothesis validation loop."""
+        if self._research_thread and self._research_thread.is_alive():
+            return
+        self._stop_research_flag = False
+        self._research_thread = threading.Thread(
+            target=self._run_autonomous_research_worker,
+            daemon=True,
+            name="autonomous-tier3-researcher",
+        )
+        self._research_thread.start()
+        logger.info("🔬 Autonomous Tier 3 AI Researcher background loop started.")
+
+    def stop_background_research(self) -> None:
+        """Signals the background researcher thread to gracefully exit."""
+        self._stop_research_flag = True
+
+    def _run_autonomous_research_worker(self) -> None:
+        """Periodically scans active symbols for trade clusters and alpha decay, auto-triggering Tier 3 cycles."""
+        time.sleep(15)
+        while not self._stop_research_flag:
+            try:
+                for symbol in self.symbols:
+                    if self._stop_research_flag:
+                        break
+                    u_eng = self.unified_engines.get(symbol)
+                    if not u_eng or len(u_eng.memory.episodes) < 5:
+                        continue
+
+                    from quantdesk.research.agentic_researcher import research_loops
+                    loop = research_loops.get(symbol)
+                    if not loop:
+                        continue
+
+                    last_run_ns = loop.last_research_run_ns
+                    episodes = list(u_eng.memory.episodes)
+                    new_episodes = [e for e in episodes if e.timestamp_ns > last_run_ns]
+                    has_alpha_leak = any(
+                        e.attribution.value in ("ALPHA_SCRATCH", "FEE_DRAG_LOSS", "RAPID_STOP_CHOP")
+                        for e in episodes[-3:]
+                    )
+                    elapsed_s = (time.time_ns() - last_run_ns) / 1_000_000_000 if last_run_ns > 0 else 9999
+
+                    # Trigger if >= 5 new episodes, or at least 1 new episode during an alpha leak, or >= 10 mins since last run
+                    should_run = (len(new_episodes) >= 5) or (len(new_episodes) >= 1 and has_alpha_leak) or (elapsed_s >= 600 and len(episodes) >= 5)
+
+                    if should_run:
+                        logger.info(f"🔬 Autonomous Tier 3 Research Triggered for {symbol} ({len(episodes)} episodes, leak={has_alpha_leak})")
+                        bars = self.get_research_bars(symbol)
+                        hypo = loop.run_research_cycle(u_eng, bars)
+                        if hypo:
+                            logger.info(f"🔬 Tier 3 result for {symbol}: {hypo.target_parameter} -> {hypo.status} ({hypo.model_used})")
+
+            except Exception as exc:
+                logger.error(f"Error in Tier 3 background research worker: {exc}")
+
+            for _ in range(30):
+                if self._stop_research_flag:
+                    break
+                time.sleep(2)
 
     @property
     def maker_only_mode(self) -> bool:
@@ -751,6 +843,7 @@ class AutonomousLiveEngine:
         # Determine execution price and fees based on symbol's independent pricing mode
         params = self.instrument_params.get(symbol, {})
         maker_mode = params.get("maker_only_mode", True)
+        maker_fee_rate = Decimal(str(params.get("maker_fee_rate", spec.maker_fee_rate)))
         if maker_mode:
             # Passive MAKER post-only execution on best bid/ask
             if side == Side.BUY:
@@ -762,7 +855,7 @@ class AutonomousLiveEngine:
                     return
                 fill_price = spec.quantize_price(Decimal(asks[0][0]))
             liquidity = "MAKER"
-            fee = fill_price * qty_units * spec.maker_fee_rate  # Bitget 0.02% maker fee
+            fee = fill_price * qty_units * maker_fee_rate
         else:
             # Aggressive TAKER execution
             if side == Side.BUY:
@@ -844,6 +937,7 @@ class AutonomousLiveEngine:
                 "initial_margin": f"{margin_required:.2f}",
                 "maintenance_margin": f"{(margin_required * Decimal('0.4')):.2f}",
                 "currency": "USDT",
+                "entry_time_ns": now_ns,
                 "timestamp_ns": now_ns,
             }
 
@@ -859,7 +953,8 @@ class AutonomousLiveEngine:
                 if pos["side"] == "BUY"
                 else (entry_p - fill_price) * qty_units
             )
-            fee = fill_price * qty_units * (spec.maker_fee_rate if maker_mode else spec.taker_fee_rate)
+            maker_fee_rate = Decimal(str(params.get("maker_fee_rate", spec.maker_fee_rate)))
+            fee = fill_price * qty_units * (maker_fee_rate if maker_mode else spec.taker_fee_rate)
             net_trade_pnl = gross_pnl - fee
 
             self.realized_pnl += net_trade_pnl
@@ -873,7 +968,8 @@ class AutonomousLiveEngine:
                 counts["wins"] += 1
 
             # Event-Driven Reflex Micro-Audit on Exit (§15.2)
-            hold_time_s = max(1, int((now_ns - int(pos.get("timestamp_ns", now_ns))) / 1_000_000_000))
+            entry_time = int(pos.get("entry_time_ns") or pos.get("timestamp_ns", now_ns))
+            hold_time_s = max(1, int((now_ns - entry_time) / 1_000_000_000))
             self._trigger_post_trade_reflex(
                 symbol=symbol,
                 net_trade_pnl=net_trade_pnl,
@@ -917,7 +1013,8 @@ class AutonomousLiveEngine:
             "strategy_id": intent.strategy_id,
             "instrument_id": symbol,
             "side": side.value,
-            "order_type": "MARKET" if intent.price_policy == "MARKET" else "LIMIT",
+            "order_type": "LIMIT" if maker_mode else ("MARKET" if intent.price_policy == "MARKET" else "LIMIT"),
+            "price_policy": "LIMIT_POST_ONLY" if maker_mode else intent.price_policy,
             "qty": str(qty_units),
             "limit_price": str(fill_price),
             "filled_qty": str(qty_units),
